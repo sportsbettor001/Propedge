@@ -826,15 +826,109 @@ async function generateProps() {
     setStep('step-engine', 'done');
     setStep('step-odds', 'active');
 
-    // ── STEP 4: Fetch odds if API key present ──
+    // ── STEP 4: Fetch real sportsbook lines from Odds API and inject into props ──
     if(STATE.settings.oddsApiKey) {
-      const oddsResults = await Promise.allSettled([
-        fetchOddsForSport('basketball_nba'),
-        fetchOddsForSport('baseball_mlb'),
-        fetchOddsForSport('americanfootball_nfl'),
-        fetchOddsForSport('icehockey_nhl'),
-      ]);
-      apiStatusMap.Odds = oddsResults.some(r => r.status === 'fulfilled' && r.value) ? 'ok' : 'warn';
+      try {
+        // Map sport to Odds API sport key
+        const oddsKeyMap = {
+          NBA: 'basketball_nba', MLB: 'baseball_mlb',
+          NFL: 'americanfootball_nfl', NHL: 'icehockey_nhl',
+          WNBA: 'basketball_wnba'
+        };
+
+        // Fetch player props for each sport that has qualified picks
+        const sportsNeeded = [...new Set(qualifiedProps.map(p => p.sport).filter(s => oddsKeyMap[s]))];
+
+        for(const sport of sportsNeeded) {
+          const sportKey = oddsKeyMap[sport];
+
+          // First get events list for this sport
+          const eventsUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/events?apiKey=${STATE.settings.oddsApiKey}`;
+          let events = [];
+          try { events = await fetchJSON(eventsUrl) || []; } catch(e) { continue; }
+
+          // For each event, fetch player prop markets
+          for(const event of events.slice(0, 4)) { // limit to 4 events to save API credits
+            const propMarketsMap = {
+              NBA:  'player_points,player_rebounds,player_assists,player_threes',
+              MLB:  'batter_hits,batter_total_bases,pitcher_strikeouts,batter_rbis',
+              NFL:  'player_pass_yds,player_rush_yds,player_reception_yds,player_receptions',
+              NHL:  'player_points,player_shots_on_goal',
+              WNBA: 'player_points,player_rebounds,player_assists'
+            };
+            const markets = propMarketsMap[sport] || 'player_points';
+            const propsUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/events/${event.id}/odds?apiKey=${STATE.settings.oddsApiKey}&regions=us&markets=${markets}&oddsFormat=american`;
+
+            let propsData = null;
+            try { propsData = await fetchJSON(propsUrl); } catch(e) { continue; }
+            if(!propsData?.bookmakers?.length) continue;
+
+            // Use DraftKings or FanDuel lines preferentially, fall back to first bookmaker
+            const bookie = propsData.bookmakers.find(b => b.key === 'draftkings') ||
+                           propsData.bookmakers.find(b => b.key === 'fanduel') ||
+                           propsData.bookmakers[0];
+            if(!bookie) continue;
+
+            // Build a lookup: playerName_propType → line
+            for(const market of bookie.markets || []) {
+              for(const outcome of market.outcomes || []) {
+                if(outcome.description && outcome.point !== undefined) {
+                  const playerNameNorm = outcome.description.toLowerCase().replace(/[^a-z]/g,'');
+                  const line = parseFloat(outcome.point);
+
+                  // Find matching prop in our generated list
+                  const matchIdx = qualifiedProps.findIndex(p => {
+                    const pNameNorm = p.player.toLowerCase().replace(/[^a-z]/g,'');
+                    const nameMatch = pNameNorm.includes(playerNameNorm) || playerNameNorm.includes(pNameNorm);
+                    const sportMatch = p.sport === sport;
+                    // Match prop type to market key
+                    const propTypeMatch =
+                      (market.key.includes('points') && p.prop === 'Points') ||
+                      (market.key.includes('rebounds') && p.prop === 'Rebounds') ||
+                      (market.key.includes('assists') && p.prop === 'Assists') ||
+                      (market.key.includes('threes') && p.prop === 'Threes Made') ||
+                      (market.key.includes('hits') && p.prop === 'Hits') ||
+                      (market.key.includes('total_bases') && p.prop === 'Total Bases') ||
+                      (market.key.includes('strikeout') && p.prop === 'Strikeouts') ||
+                      (market.key.includes('rbis') && p.prop === 'RBIs') ||
+                      (market.key.includes('pass_yds') && p.prop === 'Pass Yards') ||
+                      (market.key.includes('rush_yds') && p.prop === 'Rush Yards') ||
+                      (market.key.includes('reception_yds') && p.prop === 'Receiving Yards') ||
+                      (market.key.includes('receptions') && p.prop === 'Receptions') ||
+                      (market.key.includes('shots') && p.prop === 'Shots on Goal');
+                    return nameMatch && sportMatch && propTypeMatch;
+                  });
+
+                  if(matchIdx !== -1 && !isNaN(line) && line > 0) {
+                    const p = qualifiedProps[matchIdx];
+                    const oldLine = p.line;
+                    p.line = line;
+                    p.clvEntry = line;
+                    p.dataSource.hasRealLine = true;
+                    // Recalculate edge with real line
+                    p.edge = calcEdge(p.proj, line);
+                    p.decision = edgeToDecision(p.edge, p.conf);
+                    p.winProb = edgeToWinProb(p.edge.pct);
+                    // Update reasoning line source
+                    if(p.reasoning?.length) {
+                      p.reasoning[p.reasoning.length - 1] = `Line source: DraftKings/FanDuel via The Odds API ✓ (was estimated: ${oldLine})`;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        const realLineCount = qualifiedProps.filter(p => p.dataSource?.hasRealLine).length;
+        apiStatusMap.Odds = realLineCount > 0 ? 'ok' : 'warn';
+        if(realLineCount > 0) showToast(`✓ ${realLineCount} real sportsbook lines applied`, 'success');
+        else showToast('Odds API connected — no prop lines matched yet', '');
+
+      } catch(e) {
+        console.warn('Odds API error:', e);
+        apiStatusMap.Odds = 'err';
+      }
     } else {
       apiStatusMap.Odds = 'warn';
     }
@@ -1692,7 +1786,7 @@ function propCardHTML(p) {
     <button class="expand-btn" onclick="toggleReasoning(${p.id})">▾ reasoning & data sources</button>
     <div class="reasoning ${isExpanded ? 'open' : ''}" id="reasoning-${p.id}">
       ${reasoningHTML}
-      <div class="data-source-line">📡 ${dataLabel} · ${p.dataSource?.hasRealLine ? 'Live sportsbook lines' : 'Estimated line — add Odds API key for real lines'}</div>
+      <div class="data-source-line">📡 ${dataLabel} · ${p.dataSource?.hasRealLine ? '✓ Live DraftKings/FanDuel line (Odds API)' : STATE.settings.oddsApiKey ? 'Odds API key found — line matching in progress' : 'Estimated line — add Odds API key in ⚙ Settings'}</div>
     </div>
     ${p.decision !== 'PASS' ? `<button class="add-slip-btn ${inSlip ? 'added' : ''}" id="slip-btn-${p.id}" onclick="toggleSlip(${p.id})">${inSlip ? '✓ Added to slip' : '+ Add to slip'}</button>` : ''}
   </div>`;
