@@ -726,11 +726,11 @@ async function generateProps() {
       <div class="loading-title">Building projections</div>
       <div class="loading-sub">Fetching schedules, game logs & matchup data from live sources</div>
       <div class="progress-steps" id="progress-steps">
-        <div class="progress-step active" id="step-schedule"><span class="step-icon">⟳</span>Loading today's schedules...</div>
-        <div class="progress-step" id="step-stats"><span class="step-icon">○</span>Fetching player game logs...</div>
+        <div class="progress-step active" id="step-schedule"><span class="step-icon">⟳</span>Fetching real sportsbook lines...</div>
+        <div class="progress-step" id="step-stats"><span class="step-icon">○</span>Loading schedules & player game logs...</div>
         <div class="progress-step" id="step-matchups"><span class="step-icon">○</span>Analyzing matchups...</div>
         <div class="progress-step" id="step-engine"><span class="step-icon">○</span>Running projection engine...</div>
-        <div class="progress-step" id="step-odds"><span class="step-icon">○</span>Pulling sportsbook lines...</div>
+        <div class="progress-step" id="step-odds"><span class="step-icon">○</span>Finalizing picks...</div>
       </div>
     </div>`;
 
@@ -738,11 +738,73 @@ async function generateProps() {
   const generatedProps = [];
 
   try {
-    // ── STEP 1: Schedules ──
+    // ── STEP 1: Fetch real sportsbook lines FIRST (if key present) ──
+    // This is the correct order — lines first, then projections against them
     setStep('step-schedule', 'active');
     const today = todayStr();
     const tomorrow = tomorrowStr();
 
+    // Real lines lookup: { 'playername_proptype': line }
+    const realLinesMap = {};
+    let oddsApiWorking = false;
+
+    if(STATE.settings.oddsApiKey) {
+      const oddsKeyMap = {
+        NBA: 'basketball_nba', MLB: 'baseball_mlb',
+        NFL: 'americanfootball_nfl', NHL: 'icehockey_nhl', WNBA: 'basketball_wnba'
+      };
+      const propMarketsMap = {
+        NBA:  'player_points,player_rebounds,player_assists,player_threes',
+        MLB:  'batter_hits,batter_total_bases,pitcher_strikeouts,batter_rbis',
+        NFL:  'player_pass_yds,player_rush_yds,player_reception_yds,player_receptions',
+        NHL:  'player_points,player_shots_on_goal',
+        WNBA: 'player_points,player_rebounds,player_assists'
+      };
+      const propKeyToType = {
+        'player_points':'Points','player_rebounds':'Rebounds','player_assists':'Assists',
+        'player_threes':'Threes Made','batter_hits':'Hits','batter_total_bases':'Total Bases',
+        'pitcher_strikeouts':'Strikeouts','batter_rbis':'RBIs','player_pass_yds':'Pass Yards',
+        'player_rush_yds':'Rush Yards','player_reception_yds':'Receiving Yards',
+        'player_receptions':'Receptions','player_shots_on_goal':'Shots on Goal'
+      };
+
+      for(const [sport, sportKey] of Object.entries(oddsKeyMap)) {
+        try {
+          const eventsUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/events?apiKey=${STATE.settings.oddsApiKey}`;
+          const events = await fetchJSON(eventsUrl) || [];
+          for(const event of events.slice(0, 3)) {
+            const markets = propMarketsMap[sport] || 'player_points';
+            const propsUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/events/${event.id}/odds?apiKey=${STATE.settings.oddsApiKey}&regions=us&markets=${markets}&oddsFormat=american`;
+            let propsData = null;
+            try { propsData = await fetchJSON(propsUrl); } catch(e) { continue; }
+            const bookie = propsData?.bookmakers?.find(b => b.key === 'draftkings') ||
+                           propsData?.bookmakers?.find(b => b.key === 'fanduel') ||
+                           propsData?.bookmakers?.[0];
+            if(!bookie) continue;
+            for(const market of bookie.markets || []) {
+              const propType = propKeyToType[market.key];
+              if(!propType) continue;
+              for(const outcome of market.outcomes || []) {
+                if(outcome.name === 'Over' && outcome.description && outcome.point !== undefined) {
+                  const key = outcome.description.toLowerCase().replace(/[^a-z]/g,'') + '_' + propType;
+                  realLinesMap[key] = parseFloat(outcome.point);
+                  oddsApiWorking = true;
+                }
+              }
+            }
+          }
+        } catch(e) { /* sport failed, continue */ }
+      }
+      apiStatusMap.Odds = oddsApiWorking ? 'ok' : 'warn';
+      if(oddsApiWorking) {
+        const lineCount = Object.keys(realLinesMap).length;
+        setStep('step-schedule', 'done');
+      }
+    } else {
+      apiStatusMap.Odds = 'warn';
+    }
+
+    // ── STEP 2: Schedules ──
     let nbaGames = [], mlbGames = [], nflGames = [], nhlGames = [], wnbaGames = [];
     let nbaGamesTomorrow = [], mlbGamesTomorrow = [], wnbaGamesTomorrow = [];
     let golfTournaments = [];
@@ -764,19 +826,16 @@ async function generateProps() {
       nbaGames = scheduleResults[0].value.events || [];
       apiStatusMap.ESPN = 'ok';
     } else { apiStatusMap.ESPN = 'err'; }
-
     if(scheduleResults[1].status === 'fulfilled') mlbGames = scheduleResults[1].value.events || [];
     if(scheduleResults[2].status === 'fulfilled') nflGames = scheduleResults[2].value.events || [];
     if(scheduleResults[3].status === 'fulfilled') nhlGames = scheduleResults[3].value.events || [];
     if(scheduleResults[4].status === 'fulfilled') nbaGamesTomorrow = scheduleResults[4].value.events || [];
     if(scheduleResults[5].status === 'fulfilled') mlbGamesTomorrow = scheduleResults[5].value.events || [];
-
     let mlbOfficialGames = [];
     if(scheduleResults[6].status === 'fulfilled') {
       mlbOfficialGames = scheduleResults[6].value.dates?.flatMap(d => d.games) || [];
       apiStatusMap.MLB = 'ok';
     } else { apiStatusMap.MLB = 'err'; }
-
     if(scheduleResults[7].status === 'fulfilled') wnbaGames = scheduleResults[7].value.events || [];
     if(scheduleResults[8].status === 'fulfilled') wnbaGamesTomorrow = scheduleResults[8].value.events || [];
     if(scheduleResults[9].status === 'fulfilled') golfTournaments = scheduleResults[9].value.events || [];
@@ -785,7 +844,7 @@ async function generateProps() {
     setStep('step-stats', 'active');
     renderApiStatus(apiStatusMap);
 
-    // ── STEP 2: Build props from each sport ──
+    // ── STEP 3: Build props — passing real lines map so projections use real lines ──
     const allGameSets = [
       { games: nbaGames, sport: 'NBA', espnSport: 'basketball', espnLeague: 'nba', date: 'today' },
       { games: nbaGamesTomorrow, sport: 'NBA', espnSport: 'basketball', espnLeague: 'nba', date: 'tomorrow' },
@@ -801,10 +860,9 @@ async function generateProps() {
     let propId = Date.now();
     for(const gameSet of allGameSets) {
       if(gameSet.games.length === 0) continue;
-      // Process up to 2 games per sport/date to keep request count reasonable
       const gamesToProcess = gameSet.games.slice(0, 2);
       for(const game of gamesToProcess) {
-        const gameProps = await buildPropsForGame(game, gameSet, propId, apiStatusMap);
+        const gameProps = await buildPropsForGame(game, gameSet, propId, apiStatusMap, realLinesMap);
         generatedProps.push(...gameProps);
         propId += gameProps.length + 1;
       }
@@ -814,7 +872,7 @@ async function generateProps() {
     setStep('step-matchups', 'done');
     setStep('step-engine', 'active');
 
-    // ── STEP 3: Filter and finalize props ──
+    // ── STEP 4: Filter ──
     const minEdge = STATE.settings.minEdge || 3;
     const minConf = STATE.settings.minConf || 5;
     const qualifiedProps = generatedProps.filter(p =>
@@ -824,114 +882,6 @@ async function generateProps() {
     );
 
     setStep('step-engine', 'done');
-    setStep('step-odds', 'active');
-
-    // ── STEP 4: Fetch real sportsbook lines from Odds API and inject into props ──
-    if(STATE.settings.oddsApiKey) {
-      try {
-        // Map sport to Odds API sport key
-        const oddsKeyMap = {
-          NBA: 'basketball_nba', MLB: 'baseball_mlb',
-          NFL: 'americanfootball_nfl', NHL: 'icehockey_nhl',
-          WNBA: 'basketball_wnba'
-        };
-
-        // Fetch player props for each sport that has qualified picks
-        const sportsNeeded = [...new Set(qualifiedProps.map(p => p.sport).filter(s => oddsKeyMap[s]))];
-
-        for(const sport of sportsNeeded) {
-          const sportKey = oddsKeyMap[sport];
-
-          // First get events list for this sport
-          const eventsUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/events?apiKey=${STATE.settings.oddsApiKey}`;
-          let events = [];
-          try { events = await fetchJSON(eventsUrl) || []; } catch(e) { continue; }
-
-          // For each event, fetch player prop markets
-          for(const event of events.slice(0, 4)) { // limit to 4 events to save API credits
-            const propMarketsMap = {
-              NBA:  'player_points,player_rebounds,player_assists,player_threes',
-              MLB:  'batter_hits,batter_total_bases,pitcher_strikeouts,batter_rbis',
-              NFL:  'player_pass_yds,player_rush_yds,player_reception_yds,player_receptions',
-              NHL:  'player_points,player_shots_on_goal',
-              WNBA: 'player_points,player_rebounds,player_assists'
-            };
-            const markets = propMarketsMap[sport] || 'player_points';
-            const propsUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/events/${event.id}/odds?apiKey=${STATE.settings.oddsApiKey}&regions=us&markets=${markets}&oddsFormat=american`;
-
-            let propsData = null;
-            try { propsData = await fetchJSON(propsUrl); } catch(e) { continue; }
-            if(!propsData?.bookmakers?.length) continue;
-
-            // Use DraftKings or FanDuel lines preferentially, fall back to first bookmaker
-            const bookie = propsData.bookmakers.find(b => b.key === 'draftkings') ||
-                           propsData.bookmakers.find(b => b.key === 'fanduel') ||
-                           propsData.bookmakers[0];
-            if(!bookie) continue;
-
-            // Build a lookup: playerName_propType → line
-            for(const market of bookie.markets || []) {
-              for(const outcome of market.outcomes || []) {
-                if(outcome.description && outcome.point !== undefined) {
-                  const playerNameNorm = outcome.description.toLowerCase().replace(/[^a-z]/g,'');
-                  const line = parseFloat(outcome.point);
-
-                  // Find matching prop in our generated list
-                  const matchIdx = qualifiedProps.findIndex(p => {
-                    const pNameNorm = p.player.toLowerCase().replace(/[^a-z]/g,'');
-                    const nameMatch = pNameNorm.includes(playerNameNorm) || playerNameNorm.includes(pNameNorm);
-                    const sportMatch = p.sport === sport;
-                    // Match prop type to market key
-                    const propTypeMatch =
-                      (market.key.includes('points') && p.prop === 'Points') ||
-                      (market.key.includes('rebounds') && p.prop === 'Rebounds') ||
-                      (market.key.includes('assists') && p.prop === 'Assists') ||
-                      (market.key.includes('threes') && p.prop === 'Threes Made') ||
-                      (market.key.includes('hits') && p.prop === 'Hits') ||
-                      (market.key.includes('total_bases') && p.prop === 'Total Bases') ||
-                      (market.key.includes('strikeout') && p.prop === 'Strikeouts') ||
-                      (market.key.includes('rbis') && p.prop === 'RBIs') ||
-                      (market.key.includes('pass_yds') && p.prop === 'Pass Yards') ||
-                      (market.key.includes('rush_yds') && p.prop === 'Rush Yards') ||
-                      (market.key.includes('reception_yds') && p.prop === 'Receiving Yards') ||
-                      (market.key.includes('receptions') && p.prop === 'Receptions') ||
-                      (market.key.includes('shots') && p.prop === 'Shots on Goal');
-                    return nameMatch && sportMatch && propTypeMatch;
-                  });
-
-                  if(matchIdx !== -1 && !isNaN(line) && line > 0) {
-                    const p = qualifiedProps[matchIdx];
-                    const oldLine = p.line;
-                    p.line = line;
-                    p.clvEntry = line;
-                    p.dataSource.hasRealLine = true;
-                    // Recalculate edge with real line
-                    p.edge = calcEdge(p.proj, line);
-                    p.decision = edgeToDecision(p.edge, p.conf);
-                    p.winProb = edgeToWinProb(p.edge.pct);
-                    // Update reasoning line source
-                    if(p.reasoning?.length) {
-                      p.reasoning[p.reasoning.length - 1] = `Line source: DraftKings/FanDuel via The Odds API ✓ (was estimated: ${oldLine})`;
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-
-        const realLineCount = qualifiedProps.filter(p => p.dataSource?.hasRealLine).length;
-        apiStatusMap.Odds = realLineCount > 0 ? 'ok' : 'warn';
-        if(realLineCount > 0) showToast(`✓ ${realLineCount} real sportsbook lines applied`, 'success');
-        else showToast('Odds API connected — no prop lines matched yet', '');
-
-      } catch(e) {
-        console.warn('Odds API error:', e);
-        apiStatusMap.Odds = 'err';
-      }
-    } else {
-      apiStatusMap.Odds = 'warn';
-    }
     setStep('step-odds', 'done');
     renderApiStatus(apiStatusMap);
 
@@ -1119,7 +1069,7 @@ function getPlayersForGame(game, sport) {
 // ═══════════════════════════════════════════════════════
 // BUILD PROPS FOR A SINGLE GAME
 // ═══════════════════════════════════════════════════════
-async function buildPropsForGame(game, gameSet, startId, apiStatusMap) {
+async function buildPropsForGame(game, gameSet, startId, apiStatusMap, realLinesMap = {}) {
   const props = [];
   const { sport, espnSport, espnLeague, date } = gameSet;
 
@@ -1130,11 +1080,9 @@ async function buildPropsForGame(game, gameSet, startId, apiStatusMap) {
     const homeName = competitors.find(c => c.homeAway === 'home')?.team?.abbreviation || 'HOME';
     const awayName = competitors.find(c => c.homeAway === 'away')?.team?.abbreviation || 'AWAY';
 
-    // Get players from curated list for teams in this game — no roster API needed
     const playersForGame = getPlayersForGame(game, sport);
     if(playersForGame.length === 0) return props;
 
-    // Get injury reports (optional — failure doesn't block prop generation)
     let injuries = {};
     try {
       const injData = await fetchESPNInjuries(espnSport, espnLeague);
@@ -1144,18 +1092,21 @@ async function buildPropsForGame(game, gameSet, startId, apiStatusMap) {
           if(name) injuries[name.toLowerCase()] = inj.status || 'Questionable';
         });
       }
-    } catch(e) { /* non-blocking */ }
+    } catch(e) {}
 
-    // Build prop for each matched player (limit 4 per game to keep it fast)
     for(const player of playersForGame.slice(0, 4)) {
       try {
+        // Look up real line for this player+prop from Odds API
+        const lookupKey = player.name.toLowerCase().replace(/[^a-z]/g,'') + '_' + player.prop;
+        const realLine = realLinesMap[lookupKey] || null;
+
         const prop = await buildPlayerProp(
           player.id, player.name, sport, espnSport, espnLeague,
           player.teamAbbr, player.oppAbbr, date, injuries,
-          startId + props.length, player.prop, player.lineBase
+          startId + props.length, player.prop, player.lineBase, realLine
         );
         if(prop) props.push(prop);
-      } catch(e) { /* individual player failure doesn't stop others */ }
+      } catch(e) {}
     }
   } catch(e) { console.warn('Game processing error:', e); }
 
@@ -1165,15 +1116,15 @@ async function buildPropsForGame(game, gameSet, startId, apiStatusMap) {
 // ═══════════════════════════════════════════════════════
 // BUILD SINGLE PLAYER PROP
 // ═══════════════════════════════════════════════════════
-async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeague, team, opp, date, injuries, id, propTypeOverride, lineBaseOverride) {
+async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeague, team, opp, date, injuries, id, propTypeOverride, lineBaseOverride, realLine = null) {
   try {
-    // Fetch game log
     let gameLogValues = [];
     let statLabel = '';
     let dataPoints = 0;
     let hasPaceData = false;
     let hasMatchupData = false;
     let injuryStatus = injuries[playerName.toLowerCase()] || null;
+    const hasRealLine = realLine !== null && realLine > 0;
 
     const gameLogData = await fetchESPNGameLog(espnSport, espnLeague, playerId);
 
@@ -1270,72 +1221,170 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       hasPaceData = true;
     }
 
-    // Use prop type from player DB or fall back to sport default (NBA/MLB/NFL/NHL)
+    // Use prop type from player DB or fall back to sport default
     if(!statLabel) statLabel = propTypeOverride || (sport === 'NBA' ? 'Points' : sport === 'MLB' ? 'Hits' : sport === 'NFL' ? 'Pass Yards' : 'Points');
-    const tryExtractStats = (data, statIdx) => {
-      // Shape 1: seasonTypes[0].categories[0].events
+
+    // ── ESPN GAME LOG EXTRACTION ──
+    // ESPN game log returns labeled stat categories — we use the labels, not brittle indexes
+    // Response shape: seasonTypes[0].categories[0].events[] with .stats[] and .labels[]
+    const extractLabeledStat = (data, statName) => {
+      const statNameLower = statName.toLowerCase();
+      // Map our prop names to ESPN stat labels
+      const labelMap = {
+        'points': ['pts','points'],
+        'rebounds': ['reb','rebounds','total rebounds'],
+        'assists': ['ast','assists'],
+        'threes made': ['3pm','3-pt made','three pointers made'],
+        'hits': ['h','hits'],
+        'total bases': ['tb','total bases'],
+        'rbis': ['rbi','rbis'],
+        'strikeouts': ['k','so','strikeouts','strikeouts (pitcher)'],
+        'pass yards': ['pyds','pass yds','passing yards','yds'],
+        'rush yards': ['ryds','rush yds','rushing yards'],
+        'receiving yards': ['recyds','rec yds','receiving yards'],
+        'receptions': ['rec','receptions'],
+        'shots on goal': ['sog','shots','shots on goal'],
+      };
+      const aliases = labelMap[statNameLower] || [statNameLower];
+
+      const tryShape = (events) => {
+        if(!events?.length) return [];
+        // Get labels from first event if available
+        const firstEvent = events[0];
+        const labels = (firstEvent?.labels || firstEvent?.statsLabels || []).map(l => l.toLowerCase());
+
+        let statIdx = -1;
+        for(const alias of aliases) {
+          const idx = labels.findIndex(l => l === alias || l.includes(alias) || alias.includes(l));
+          if(idx !== -1) { statIdx = idx; break; }
+        }
+
+        // If no label match, fallback: points=0 for NBA, hits=1 for MLB etc (last resort)
+        if(statIdx === -1) {
+          const fallbackIdx = { 'Points':0,'Rebounds':4,'Assists':5,'Hits':1,'Total Bases':5,'Pass Yards':3,'Rush Yards':0,'Receptions':0,'Shots on Goal':3 };
+          statIdx = fallbackIdx[statName] ?? 0;
+        }
+
+        return events.slice(-10).map(e => {
+          const stats = e?.stats || e?.statistics || [];
+          const v = Array.isArray(stats) ? stats[statIdx] : null;
+          if(v === null || v === undefined || v === '') return null;
+          const num = parseFloat(v);
+          return !isNaN(num) && num >= 0 ? num : null;
+        }).filter(v => v !== null);
+      };
+
+      // Try all known ESPN game log shapes
       const shape1 = data?.seasonTypes?.[0]?.categories?.[0]?.events || [];
-      if(shape1.length > 0) {
-        const vals = shape1.slice(-10).map(e => {
-          const v = Array.isArray(e) ? e[statIdx] : (e.stats?.[statIdx]);
-          return v !== undefined && v !== null ? parseFloat(v) : null;
-        }).filter(v => v !== null && !isNaN(v) && v >= 0);
-        if(vals.length > 0) return vals;
-      }
-      // Shape 2: events object (keyed by eventId)
-      const shape2 = Object.values(data?.events || {});
-      if(shape2.length > 0) {
-        const vals = shape2.slice(-10).map(e => {
-          const statsArr = e?.stats || e?.statistics || [];
-          const v = Array.isArray(statsArr) ? statsArr[statIdx] : null;
-          return v !== undefined && v !== null ? parseFloat(v) : null;
-        }).filter(v => v !== null && !isNaN(v) && v >= 0);
-        if(vals.length > 0) return vals;
+      const vals1 = tryShape(shape1);
+      if(vals1.length >= 3) return vals1;
+
+      const shape2 = data?.seasonTypes?.flatMap(st => st?.categories?.flatMap(c => c?.events || []) || []) || [];
+      const vals2 = tryShape(shape2);
+      if(vals2.length >= 3) return vals2;
+
+      // Shape 3: events keyed by id
+      const shape3 = Object.values(data?.events || {});
+      if(shape3.length > 0) {
+        const vals3 = shape3.slice(-10).map(e => {
+          const stats = e?.stats || [];
+          // Try to find labeled stat
+          for(const alias of aliases) {
+            const key = Object.keys(e).find(k => k.toLowerCase().includes(alias));
+            if(key && !isNaN(parseFloat(e[key]))) return parseFloat(e[key]);
+          }
+          return null;
+        }).filter(v => v !== null && v >= 0);
+        if(vals3.length >= 2) return vals3;
       }
       return [];
     };
 
-    // Stat index mapping per sport/prop
-    const statIndexMap = {
-      NBA:  { 'Points': 13, 'Rebounds': 6, 'Assists': 8, 'Threes Made': 3 },
-      WNBA: { 'Points': 13, 'Rebounds': 6, 'Assists': 8, 'Threes Made': 3 },
-      MLB:  { 'Hits': 1, 'Total Bases': 5, 'RBIs': 3, 'Strikeouts': 9, 'Home Runs': 2 },
-      NFL:  { 'Pass Yards': 4, 'Rush Yards': 0, 'Receiving Yards': 0, 'Receptions': 1 },
-      NHL:  { 'Points': 0, 'Shots on Goal': 8, 'Goals': 1, 'Assists': 2 }
-    };
-    const statIdx = statIndexMap[sport]?.[statLabel] ?? 0;
-    gameLogValues = tryExtractStats(gameLogData, statIdx);
+    gameLogValues = extractLabeledStat(gameLogData, statLabel);
     dataPoints = gameLogValues.length;
-    if(sport === 'NBA') hasPaceData = true;
+    if(sport === 'NBA' || sport === 'WNBA') hasPaceData = true;
 
-    // Fallback: try ESPN athlete stats endpoint for season average
+    // Fallback: ESPN athlete season stats endpoint
     if(gameLogValues.length < 3) {
       try {
         const statsData = await fetchESPNPlayerStats(espnSport, espnLeague, playerId);
-        const cats = statsData?.statistics || statsData?.stats?.categories || [];
-        // Try to find a per-game or total stat
+        // ESPN season stats: look for labeled per-game averages
+        const cats = statsData?.statistics || statsData?.splits?.categories || [];
         for(const cat of cats) {
-          const stats = cat?.totals || cat?.stats || [];
-          const val = parseFloat(stats[statIdx] || stats[0] || 0);
-          if(val > 0) {
-            // Use season avg with slight variance to build pseudo-gamelog
+          const labels = (cat?.labels || cat?.names || []).map(l => l.toLowerCase());
+          const stats = cat?.totals || cat?.averages || cat?.stats || [];
+          const statNameLower = statLabel.toLowerCase();
+          const aliases = ['pts','points','reb','rebounds','ast','assists','h','hits','tb','total bases','pyds','pass yds','sog','shots'];
+          const targetAliases = statLabel === 'Points' ? ['pts','points'] :
+                                statLabel === 'Rebounds' ? ['reb','rebounds'] :
+                                statLabel === 'Assists' ? ['ast','assists'] :
+                                statLabel === 'Hits' ? ['h','hits'] :
+                                statLabel === 'Total Bases' ? ['tb','total bases'] :
+                                statLabel === 'Pass Yards' ? ['pyds','pass yds','passing yds'] :
+                                statLabel === 'Shots on Goal' ? ['sog','shots'] : [statNameLower];
+
+          let val = 0;
+          for(const alias of targetAliases) {
+            const idx = labels.findIndex(l => l === alias || l.includes(alias));
+            if(idx !== -1 && !isNaN(parseFloat(stats[idx]))) {
+              val = parseFloat(stats[idx]);
+              break;
+            }
+          }
+          // Sanity check: value must be in plausible range for the stat
+          const plausible = (
+            (statLabel === 'Points' && val >= 5 && val <= 45) ||
+            (statLabel === 'Rebounds' && val >= 2 && val <= 20) ||
+            (statLabel === 'Assists' && val >= 1 && val <= 15) ||
+            (statLabel === 'Hits' && val >= 0.5 && val <= 3) ||
+            (statLabel === 'Total Bases' && val >= 0.5 && val <= 4) ||
+            (statLabel === 'Pass Yards' && val >= 100 && val <= 500) ||
+            (statLabel === 'Rush Yards' && val >= 30 && val <= 200) ||
+            (statLabel === 'Shots on Goal' && val >= 1 && val <= 10) ||
+            (val > 0)
+          );
+          if(plausible) {
             gameLogValues = Array.from({length:6}, () =>
-              parseFloat((val * (0.78 + Math.random() * 0.44)).toFixed(1))
+              parseFloat((val * (0.80 + Math.random() * 0.40)).toFixed(1))
             );
             dataPoints = 6;
             break;
           }
         }
-      } catch(e) { /* fallback failed */ }
+      } catch(e) {}
     }
 
-    // Last resort: use lineBase from player DB as the anchor, build realistic variance
-    if(gameLogValues.length === 0 && lineBaseOverride) {
-      const base = lineBaseOverride;
-      gameLogValues = Array.from({length:5}, () =>
-        parseFloat((base * (0.80 + Math.random() * 0.40)).toFixed(1))
-      );
-      dataPoints = 0; // Mark as estimated so confidence is reduced
+    // Last resort: sport + prop specific realistic baseline
+    // Each sport uses ONLY its own stat ranges — never bleeds across sports
+    if(gameLogValues.length === 0) {
+      // Priority: real line > lineBase from player DB > sport/prop default
+      let anchor = hasRealLine ? realLine : (lineBaseOverride || null);
+
+      // If still no anchor, use locked sport+prop defaults — never cross-sport
+      if(!anchor || anchor <= 0) {
+        const sportPropDefaults = {
+          NBA:  { 'Points':18, 'Rebounds':7, 'Assists':5, 'Threes Made':2.5, 'Pts+Reb+Ast':30 },
+          WNBA: { 'Points':14, 'Rebounds':6, 'Assists':4, 'Threes Made':2 },
+          MLB:  { 'Hits':0.9, 'Total Bases':1.5, 'RBIs':0.7, 'Strikeouts':6.5, 'Home Runs':0.3 },
+          NFL:  { 'Pass Yards':240, 'Rush Yards':65, 'Receiving Yards':55, 'Receptions':4.5 },
+          NHL:  { 'Points':0.5, 'Shots on Goal':3, 'Goals':0.3, 'Assists':0.4 },
+        };
+        anchor = sportPropDefaults[sport]?.[statLabel] || null;
+      }
+
+      if(!anchor || anchor <= 0) return null; // No valid anchor for this sport/prop — skip
+
+      // Build pseudo-gamelog around anchor with realistic variance per sport
+      // Variance is proportional to the stat — high-variance stats (pts) get more spread
+      const variancePct = {
+        NBA: 0.25, WNBA: 0.25, MLB: 0.35, NFL: 0.30, NHL: 0.40
+      }[sport] || 0.25;
+
+      gameLogValues = Array.from({length:5}, () => {
+        const v = anchor * (1 + (Math.random() - 0.5) * variancePct * 2);
+        return parseFloat(Math.max(0, v).toFixed(1));
+      });
+      dataPoints = 0; // Mark as estimated — confidence will be reduced automatically
     }
 
     if(gameLogValues.length === 0) return null;
@@ -1462,14 +1511,20 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       hasMatchupData = true;
     }
 
-    // ── LINE GENERATION ──
-    const baseForLine = lineBaseOverride || projection;
-    const lineAdjust = (Math.random() - 0.45) * (baseForLine * 0.07);
-    let line = parseFloat((baseForLine + lineAdjust).toFixed(1));
-    line = Math.round(line * 2) / 2;
-    if(line <= 0) line = 0.5;
+    // ── LINE: real line takes absolute priority ──
+    // If we have a real sportsbook line, use it directly.
+    // Only fall back to lineBase estimate if no real line is available.
+    let line;
+    if(hasRealLine) {
+      line = realLine;
+    } else {
+      const baseForLine = lineBaseOverride || projection;
+      const lineAdjust = (Math.random() - 0.45) * (baseForLine * 0.05);
+      line = Math.round((baseForLine + lineAdjust) * 2) / 2;
+      if(line <= 0) line = 0.5;
+    }
+    line = parseFloat(line.toFixed(1));
 
-    const hasRealLine = false;
     projection = parseFloat(projection.toFixed(1));
 
     const edge = calcEdge(projection, line);
