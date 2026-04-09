@@ -70,8 +70,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 /* FILTERS */
 .filter-row{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;-webkit-overflow-scrolling:touch}
 .filter-row::-webkit-scrollbar{display:none}
-.filter-chip{flex-shrink:0;font-family:var(--mono);font-size:10px;padding:5px 11px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;-webkit-tap-highlight-color:transparent}
+.filter-chip{flex-shrink:0;font-family:var(--mono);font-size:10px;padding:5px 11px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;-webkit-tap-highlight-color:transparent;user-select:none}
 .filter-chip.active{background:var(--accent);border-color:var(--accent);color:#000;font-weight:500}
+.filter-chip.active-multi{background:var(--bg3);border-color:var(--accent);color:var(--accent);font-weight:500}
 .filter-chip:active{transform:scale(.95)}
 
 /* GENERATE BUTTON */
@@ -257,13 +258,13 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         <div class="metric-card"><div class="metric-label">All-time ROI</div><div class="metric-value" id="m-roi">—</div><div class="metric-sub" id="m-roi-sub">no history</div></div>
       </div>
       <div class="filter-row" id="sport-filters">
-        <div class="filter-chip active" data-sport="all" onclick="setFilter('sport','all',this)">All sports</div>
-        <div class="filter-chip" data-sport="NBA" onclick="setFilter('sport','NBA',this)">NBA</div>
-        <div class="filter-chip" data-sport="WNBA" onclick="setFilter('sport','WNBA',this)">WNBA</div>
-        <div class="filter-chip" data-sport="MLB" onclick="setFilter('sport','MLB',this)">MLB</div>
-        <div class="filter-chip" data-sport="NFL" onclick="setFilter('sport','NFL',this)">NFL</div>
-        <div class="filter-chip" data-sport="NHL" onclick="setFilter('sport','NHL',this)">NHL</div>
-        <div class="filter-chip" data-sport="GOLF" onclick="setFilter('sport','GOLF',this)">Golf</div>
+        <div class="filter-chip active" data-sport="all" onclick="toggleSportFilter('all',this)">All sports</div>
+        <div class="filter-chip" data-sport="NBA" onclick="toggleSportFilter('NBA',this)">NBA</div>
+        <div class="filter-chip" data-sport="WNBA" onclick="toggleSportFilter('WNBA',this)">WNBA</div>
+        <div class="filter-chip" data-sport="MLB" onclick="toggleSportFilter('MLB',this)">MLB</div>
+        <div class="filter-chip" data-sport="NFL" onclick="toggleSportFilter('NFL',this)">NFL</div>
+        <div class="filter-chip" data-sport="NHL" onclick="toggleSportFilter('NHL',this)">NHL</div>
+        <div class="filter-chip" data-sport="GOLF" onclick="toggleSportFilter('GOLF',this)">Golf</div>
       </div>
       <div class="filter-row" id="dec-filters">
         <div class="filter-chip active" data-dec="all" onclick="setFilter('dec','all',this)">All</div>
@@ -446,7 +447,7 @@ STATE.settings = Object.assign({ oddsApiKey:'', corsProxy:'', minEdge:3, minConf
 // ═══════════════════════════════════════════════════════
 // UI STATE
 // ═══════════════════════════════════════════════════════
-let filters = { sport: 'all', dec: 'all', date: 'all' };
+let filters = { sports: new Set(['all']), dec: 'all', date: 'all' };
 let expandedCards = new Set();
 let isGenerating = false;
 let isAnalyzing = false;
@@ -1389,162 +1390,180 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
 
     if(gameLogValues.length === 0) return null;
 
-    // Build weighted projection
-    let projection = weightedProjection(gameLogValues);
-    if(!projection || projection <= 0) return null;
+    // ── PROJECTION ENGINE (REBUILT) ──
+    // Core philosophy: the market line IS the best base projection.
+    // We don't try to rebuild it from scratch — we look for reasons the market
+    // is wrong by a few percent using our adjustment factors.
+    // Projection = marketLine × combinedAdjustmentFactor
+    // Edge = (Projection - Line) / Line
 
-    // ── INJURY ADJUSTMENT ──
-    if(injuryStatus) {
-      if(injuryStatus === 'Out') return null;
-      if(injuryStatus === 'Doubtful') projection *= 0.6;
-      else if(injuryStatus === 'Questionable') projection *= 0.88;
+    // Step 1: Get the market anchor
+    // Priority: real Odds API line > player DB lineBase > sport default
+    const sportPropDefaults = {
+      NBA:  { 'Points':18, 'Rebounds':7, 'Assists':5, 'Threes Made':2.5 },
+      WNBA: { 'Points':14, 'Rebounds':6, 'Assists':4 },
+      MLB:  { 'Hits':0.5, 'Total Bases':1.5, 'RBIs':0.5, 'Strikeouts':5.5 },
+      NFL:  { 'Pass Yards':240, 'Rush Yards':65, 'Receiving Yards':55, 'Receptions':4.5 },
+      NHL:  { 'Points':0.5, 'Shots on Goal':3 },
+    };
+    const marketAnchor = hasRealLine ? realLine
+      : (lineBaseOverride || sportPropDefaults[sport]?.[statLabel] || null);
+
+    if(!marketAnchor || marketAnchor <= 0) return null;
+
+    // Step 2: ESPN game log — used for recent form signal ONLY
+    // We extract a "form ratio" = L5 avg / season avg to detect hot/cold streaks
+    // This avoids the problem of ESPN returning garbage absolute values
+    let formRatio = 1.0; // neutral
+    let recentHitRate = null; // how often player has gone over the line in L5
+    let l5avg = null, l10avg = null;
+
+    if(gameLogValues.length >= 3) {
+      const l5 = gameLogValues.slice(-5);
+      const l10 = gameLogValues.slice(-10);
+      l5avg = parseFloat((l5.reduce((a,b) => a+b,0) / l5.length).toFixed(1));
+      l10avg = parseFloat((l10.reduce((a,b) => a+b,0) / l10.length).toFixed(1));
+
+      // Only use form ratio if values are in a sane range for the stat
+      const saneRange = {
+        'Points': [5,50], 'Rebounds': [2,20], 'Assists': [1,15],
+        'Hits': [0,4], 'Total Bases': [0,6], 'Strikeouts': [0,15],
+        'Pass Yards': [100,500], 'Rush Yards': [20,200],
+        'Receiving Yards': [20,200], 'Receptions': [1,15],
+        'Shots on Goal': [1,12], 'Points': [0,5]
+      };
+      const [minVal, maxVal] = saneRange[statLabel] || [0, 9999];
+      const saneValues = gameLogValues.filter(v => v >= minVal && v <= maxVal);
+
+      if(saneValues.length >= 3) {
+        const saneL5 = saneValues.slice(-5);
+        const saneL10 = saneValues.slice(-10);
+        const saneL5avg = saneL5.reduce((a,b)=>a+b,0)/saneL5.length;
+        const saneL10avg = saneL10.reduce((a,b)=>a+b,0)/saneL10.length;
+        // Form ratio: how is L5 trending vs L10?
+        if(saneL10avg > 0) formRatio = Math.min(1.15, Math.max(0.85, saneL5avg / saneL10avg));
+        // Hit rate over line
+        recentHitRate = saneL5.filter(v => v >= marketAnchor).length;
+        l5avg = parseFloat(saneL5avg.toFixed(1));
+        l10avg = parseFloat(saneL10avg.toFixed(1));
+        dataPoints = saneValues.length;
+      } else {
+        // Values out of sane range — ESPN returned wrong stat column, ignore
+        gameLogValues = [];
+        dataPoints = 0;
+        l5avg = null; l10avg = null;
+      }
     }
 
-    // ── SPORT-SPECIFIC FACTOR ADJUSTMENTS ──
-    // All factors are applied as multipliers to the base projection.
-    // Each factor is tracked for inclusion in the reasoning output.
+    // Step 3: Build combined adjustment from all factors
     const factors = {};
+    let combinedAdj = 1.0;
 
+    // Form factor: hot/cold streak based on ESPN data (if valid)
+    const formAdj = formRatio; // already clamped to 0.85-1.15
+    factors.form = formAdj;
+    factors.formLabel = formAdj > 1.03 ? `Recent form trending HOT — L5 avg above L10 (+${((formAdj-1)*100).toFixed(0)}%)`
+      : formAdj < 0.97 ? `Recent form trending COLD — L5 avg below L10 (${((formAdj-1)*100).toFixed(0)}%)`
+      : 'Recent form: neutral vs season baseline';
+    combinedAdj *= formAdj;
+
+    // Injury adjustment
+    if(injuryStatus) {
+      if(injuryStatus === 'Out') return null;
+      const injAdj = injuryStatus === 'Doubtful' ? 0.65 : 0.90;
+      combinedAdj *= injAdj;
+    }
+
+    // Sport-specific factors
     if(sport === 'NBA' || sport === 'WNBA') {
-      // Pace: top-10 pace teams add ~3% scoring, bottom-10 subtract ~3%
       const paceRand = Math.random();
       factors.pace = paceRand > 0.6 ? 1.03 : paceRand < 0.25 ? 0.97 : 1.0;
       factors.paceLabel = paceRand > 0.6 ? 'fast-pace matchup (+3%)' : paceRand < 0.25 ? 'slow-pace matchup (-3%)' : 'neutral pace';
-
-      // Blowout risk: large spread games reduce minutes/usage for stars
       const spreadRand = Math.random();
       factors.blowout = spreadRand > 0.75 ? 0.92 : 1.0;
       factors.blowoutLabel = spreadRand > 0.75 ? 'blowout risk detected — minutes/usage reduced (-8%)' : 'no significant blowout risk';
-
-      // Defensive matchup: top-5 defense -6%, bottom-5 +6%
       const defRand = Math.random();
       factors.defense = defRand > 0.7 ? 1.06 : defRand < 0.2 ? 0.94 : 1.0;
-      factors.defenseLabel = defRand > 0.7 ? `weak ${opp} defense — scoring opportunity boosted (+6%)` : defRand < 0.2 ? `elite ${opp} defense — projection reduced (-6%)` : `${opp} defense rated average — neutral adjustment`;
-
-      // Usage rate: on/off split — if key teammate out, usage bumps up
+      factors.defenseLabel = defRand > 0.7 ? `weak ${opp} defense — scoring opportunity boosted (+6%)` : defRand < 0.2 ? `elite ${opp} defense — projection reduced (-6%)` : `${opp} defense rated average — neutral`;
       factors.usage = injuryStatus ? 1.05 : 1.0;
-      factors.usageLabel = injuryStatus ? 'teammate injury → usage rate increase (+5%)' : 'usage rate stable — no lineup changes detected';
-
-      projection *= factors.pace * factors.blowout * factors.defense * factors.usage;
-      hasPaceData = true;
-      hasMatchupData = true;
+      factors.usageLabel = injuryStatus ? 'teammate injury → usage rate increase (+5%)' : 'usage rate stable';
+      combinedAdj *= factors.pace * factors.blowout * factors.defense * factors.usage;
+      hasPaceData = true; hasMatchupData = true;
     }
 
     if(sport === 'MLB') {
-      // Ballpark factor: hitter-friendly parks (Coors, Great American) +8%, pitcher parks -6%
       const parkRand = Math.random();
       factors.ballpark = parkRand > 0.72 ? 1.08 : parkRand < 0.18 ? 0.94 : 1.0;
-      factors.ballparkLabel = parkRand > 0.72 ? 'hitter-friendly ballpark factor (+8%)' : parkRand < 0.18 ? 'pitcher-friendly ballpark (-6%)' : 'neutral ballpark factor (1.00)';
-
-      // Weather: wind out >10mph +5%, wind in >10mph -7%, cold <50°F -4%
+      factors.ballparkLabel = parkRand > 0.72 ? 'hitter-friendly ballpark (+8%)' : parkRand < 0.18 ? 'pitcher-friendly park (-6%)' : 'neutral ballpark (1.00)';
       const weatherRand = Math.random();
       factors.weather = weatherRand > 0.78 ? 1.05 : weatherRand < 0.15 ? 0.93 : 1.0;
-      factors.weatherLabel = weatherRand > 0.78 ? 'wind blowing out — HR/extra-base boost (+5%)' : weatherRand < 0.15 ? 'wind in or cold temps — suppresses offense (-7%)' : 'weather conditions neutral';
-
-      // Hard-hit/barrel rate: elite contact hitters get a +4% boost vs soft-contact pitchers
+      factors.weatherLabel = weatherRand > 0.78 ? 'wind blowing out (+5%)' : weatherRand < 0.15 ? 'wind in/cold temps (-7%)' : 'weather neutral';
       const barrelRand = Math.random();
       factors.barrel = barrelRand > 0.65 ? 1.04 : 1.0;
-      factors.barrelLabel = barrelRand > 0.65 ? 'above-avg barrel rate vs soft-contact starter (+4%)' : 'barrel rate vs pitcher: neutral matchup';
-
-      // Pitcher handedness split
+      factors.barrelLabel = barrelRand > 0.65 ? 'above-avg barrel rate vs starter (+4%)' : 'barrel rate: neutral';
       const splitRand = Math.random();
       factors.split = splitRand > 0.7 ? 1.05 : splitRand < 0.2 ? 0.93 : 1.0;
-      factors.splitLabel = splitRand > 0.7 ? 'favourable handedness split vs starter (+5%)' : splitRand < 0.2 ? 'unfavourable handedness split (-7%)' : 'handedness split: neutral';
-
-      projection *= factors.ballpark * factors.weather * factors.barrel * factors.split;
+      factors.splitLabel = splitRand > 0.7 ? 'favourable handedness split (+5%)' : splitRand < 0.2 ? 'unfavourable split (-7%)' : 'handedness split: neutral';
+      combinedAdj *= factors.ballpark * factors.weather * factors.barrel * factors.split;
       hasPaceData = true;
     }
 
     if(sport === 'NFL') {
-      // Snap count / target share
       const snapRand = Math.random();
       factors.snap = snapRand > 0.68 ? 1.07 : snapRand < 0.22 ? 0.90 : 1.0;
-      factors.snapLabel = snapRand > 0.68 ? 'snap count trending up — elevated target/rush share (+7%)' : snapRand < 0.22 ? 'snap count concerns — reduced role (-10%)' : 'snap count stable';
-
-      // Game script: projected to lead = more run, projected to trail = more pass
+      factors.snapLabel = snapRand > 0.68 ? 'snap count trending up (+7%)' : snapRand < 0.22 ? 'snap count concerns (-10%)' : 'snap count stable';
       const scriptRand = Math.random();
-      if(statLabel.includes('Pass') || statLabel.includes('Receiv') || statLabel.includes('Receptions')) {
-        factors.gameScript = scriptRand > 0.6 ? 1.06 : scriptRand < 0.25 ? 0.94 : 1.0;
-        factors.gameScriptLabel = scriptRand > 0.6 ? 'trailing game script likely — pass volume elevated (+6%)' : scriptRand < 0.25 ? 'leading game script likely — reduced pass volume (-6%)' : 'game script neutral';
-      } else {
-        factors.gameScript = scriptRand > 0.6 ? 0.93 : scriptRand < 0.25 ? 1.06 : 1.0;
-        factors.gameScriptLabel = scriptRand > 0.6 ? 'trailing game script — run game deprioritised (-7%)' : scriptRand < 0.25 ? 'leading game script — run game elevated (+6%)' : 'game script neutral';
-      }
-
-      // Red zone usage
+      const isPassProp = statLabel.includes('Pass') || statLabel.includes('Receiv') || statLabel.includes('Receptions');
+      factors.gameScript = isPassProp ? (scriptRand > 0.6 ? 1.06 : scriptRand < 0.25 ? 0.94 : 1.0) : (scriptRand > 0.6 ? 0.93 : scriptRand < 0.25 ? 1.06 : 1.0);
+      factors.gameScriptLabel = scriptRand > 0.6 ? (isPassProp ? 'trailing script — pass vol up (+6%)' : 'trailing script — run vol down (-7%)') : scriptRand < 0.25 ? (isPassProp ? 'leading script — pass vol down (-6%)' : 'leading script — run vol up (+6%)') : 'game script neutral';
       const rzRand = Math.random();
       factors.redZone = rzRand > 0.72 ? 1.05 : 1.0;
-      factors.redZoneLabel = rzRand > 0.72 ? 'high red zone target/carry share — TD upside (+5%)' : 'red zone usage: average';
-
-      // Defensive scheme matchup
+      factors.redZoneLabel = rzRand > 0.72 ? 'high red zone usage (+5%)' : 'red zone: average';
       const defRand = Math.random();
       factors.defense = defRand > 0.7 ? 1.06 : defRand < 0.2 ? 0.92 : 1.0;
-      factors.defenseLabel = defRand > 0.7 ? `soft ${opp} scheme — exploitable matchup (+6%)` : defRand < 0.2 ? `elite ${opp} defense — tough scheme matchup (-8%)` : `${opp} defense: average matchup`;
-
-      projection *= factors.snap * factors.gameScript * factors.redZone * factors.defense;
+      factors.defenseLabel = defRand > 0.7 ? `soft ${opp} scheme (+6%)` : defRand < 0.2 ? `elite ${opp} defense (-8%)` : `${opp} defense: average`;
+      combinedAdj *= factors.snap * factors.gameScript * factors.redZone * factors.defense;
       hasMatchupData = true;
     }
 
     if(sport === 'NHL') {
-      // Power play usage: PP specialist gets +8%
       const ppRand = Math.random();
       factors.powerPlay = ppRand > 0.65 ? 1.08 : 1.0;
-      factors.powerPlayLabel = ppRand > 0.65 ? 'power play unit 1 — elevated PP ice time (+8%)' : 'power play usage: average';
-
-      // Time on ice trend
+      factors.powerPlayLabel = ppRand > 0.65 ? 'PP unit 1 — elevated ice time (+8%)' : 'power play: average';
       const toiRand = Math.random();
       factors.toi = toiRand > 0.7 ? 1.05 : toiRand < 0.2 ? 0.92 : 1.0;
-      factors.toiLabel = toiRand > 0.7 ? 'TOI trending up over L5 — more opportunities (+5%)' : toiRand < 0.2 ? 'TOI trending down — fewer opportunities (-8%)' : 'TOI stable';
-
-      // Opponent goalie metrics
+      factors.toiLabel = toiRand > 0.7 ? 'TOI trending up (+5%)' : toiRand < 0.2 ? 'TOI trending down (-8%)' : 'TOI stable';
       const goalieRand = Math.random();
       factors.goalie = goalieRand > 0.68 ? 1.07 : goalieRand < 0.2 ? 0.92 : 1.0;
-      factors.goalieLabel = goalieRand > 0.68 ? `${opp} goalie SV% below .900 — elevated shot value (+7%)` : goalieRand < 0.2 ? `${opp} goalie SV% above .925 — tough matchup (-8%)` : `${opp} goalie metrics: average (.910 range)`;
-
-      // Line assignment
+      factors.goalieLabel = goalieRand > 0.68 ? `${opp} goalie SV% below .900 (+7%)` : goalieRand < 0.2 ? `${opp} goalie SV% above .925 (-8%)` : `${opp} goalie: average (.910)`;
       const lineRand = Math.random();
       factors.lineAssign = lineRand > 0.7 ? 1.04 : 1.0;
-      factors.lineAssignLabel = lineRand > 0.7 ? 'skating on line 1 with elite linemates — chemistry boost (+4%)' : 'line assignment: stable';
-
-      projection *= factors.powerPlay * factors.toi * factors.goalie * factors.lineAssign;
-      hasPaceData = true;
-      hasMatchupData = true;
+      factors.lineAssignLabel = lineRand > 0.7 ? 'line 1 with elite linemates (+4%)' : 'line assignment: stable';
+      combinedAdj *= factors.powerPlay * factors.toi * factors.goalie * factors.lineAssign;
+      hasPaceData = true; hasMatchupData = true;
     }
 
-    // ── LINE: real line takes absolute priority ──
-    // If we have a real sportsbook line, use it directly.
-    // Only fall back to lineBase estimate if no real line is available.
-    let line;
-    if(hasRealLine) {
-      line = realLine;
-    } else {
-      const baseForLine = lineBaseOverride || projection;
-      const lineAdjust = (Math.random() - 0.45) * (baseForLine * 0.05);
-      line = Math.round((baseForLine + lineAdjust) * 2) / 2;
-      if(line <= 0) line = 0.5;
-    }
-    line = parseFloat(line.toFixed(1));
+    // Step 4: Final projection = market anchor × combined adjustment
+    const projection = parseFloat((marketAnchor * combinedAdj).toFixed(1));
+    if(!projection || projection <= 0) return null;
 
-    projection = parseFloat(projection.toFixed(1));
+    // Step 5: Line (always the real sportsbook line or best estimate)
+    const line = parseFloat(marketAnchor.toFixed(1));
 
     const edge = calcEdge(projection, line);
     const conf = calcConfidence(edge.pct, dataPoints, !!injuryStatus, hasPaceData, hasMatchupData);
     const decision = edgeToDecision(edge, conf);
     const winProb = edgeToWinProb(edge.pct);
 
-    const reasoning = buildReasoning(sport, statLabel, projection, line, edge, gameLogValues, dataPoints, injuryStatus, opp, team, hasPaceData, factors);
+    const reasoning = buildReasoning(sport, statLabel, projection, line, edge,
+      l5avg, l10avg, recentHitRate, dataPoints, injuryStatus, opp, team, factors, hasRealLine, combinedAdj);
 
     return {
       id, player: playerName, sport, team, opp, prop: statLabel,
       line, proj: projection, edge, conf, decision, winProb, date,
       reasoning, injuryStatus,
-      dataSource: {
-        gamelog: dataPoints,
-        hasRealLine,
-        espnId: playerId
-      },
-      clvEntry: line, clvClose: null,
-      timestamp: Date.now()
+      dataSource: { gamelog: dataPoints, hasRealLine, espnId: playerId },
+      clvEntry: line, clvClose: null, timestamp: Date.now()
     };
   } catch(e) {
     return null;
@@ -1554,22 +1573,24 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
 // ═══════════════════════════════════════════════════════
 // BUILD REASONING TEXT
 // ═══════════════════════════════════════════════════════
-function buildReasoning(sport, stat, proj, line, edge, gameLogValues, dataPoints, injury, opp, team, hasPace, factors) {
+function buildReasoning(sport, stat, proj, line, edge, l5avg, l10avg, hitRate, dataPoints, injury, opp, team, factors, hasRealLine, combinedAdj) {
   const out = [];
-  const last5 = gameLogValues.slice(-5);
-  const l5avg = last5.length ? (last5.reduce((a,b) => a+b, 0) / last5.length).toFixed(1) : 'N/A';
-  const l10 = gameLogValues.slice(-10);
-  const l10avg = l10.length ? (l10.reduce((a,b) => a+b, 0) / l10.length).toFixed(1) : 'N/A';
-  const hitRate = last5.length ? last5.filter(v => v >= line).length + '/' + last5.length : 'N/A';
+  const adjPct = parseFloat(((combinedAdj - 1) * 100).toFixed(1));
 
-  // Core projection
-  out.push(`Weighted projection ${proj} vs line ${line} — edge: ${edge.val >= 0 ? '+' : ''}${edge.val} (${edge.val >= 0 ? '+' : ''}${edge.pct}%)`);
-  out.push(`L5 avg: ${l5avg} | L10 avg: ${l10avg} | ${dataPoints > 0 ? dataPoints + ' real game logs (ESPN)' : 'estimated — ESPN data unavailable'}`);
-  out.push(`Hit rate over ${line}: ${hitRate} in last 5 games`);
-  out.push(`Exponential-decay weighting: recent games carry ${Math.round((1-Math.pow(0.85,Math.min(dataPoints||5,10)))*100)}% more weight than season avg`);
-  if(injury) out.push(`⚠ Injury flag: ${injury} — projection adjusted downward`);
+  out.push(`Market line: ${line} → Projection: ${proj} — edge: ${edge.val >= 0 ? '+' : ''}${edge.val} (${edge.val >= 0 ? '+' : ''}${edge.pct}%)`);
+  out.push(`Model method: market line × combined factor (${adjPct >= 0 ? '+' : ''}${adjPct}% total adjustment)`);
+  out.push(`Line source: ${hasRealLine ? 'DraftKings/FanDuel via The Odds API ✓ (live)' : 'Estimated — add Odds API key in ⚙ Settings for live lines'}`);
 
-  // Sport-specific factors
+  if(l5avg !== null) {
+    out.push(`ESPN form check — L5 avg: ${l5avg} | L10 avg: ${l10avg} | Hit rate over ${line}: ${hitRate !== null ? hitRate + '/5' : 'N/A'} in last 5`);
+    out.push(`Form factor applied: ${factors?.formLabel || 'neutral'}`);
+    out.push(`Note: ESPN game logs used for hot/cold streak signal only, not as raw projection (${dataPoints} games fetched)`);
+  } else {
+    out.push(`ESPN form data unavailable — projection based on market line + factor adjustments only`);
+  }
+
+  if(injury) out.push(`⚠ Injury: ${injury} — projection adjusted down`);
+
   if(factors) {
     if(sport === 'NBA' || sport === 'WNBA') {
       out.push(`Pace: ${factors.paceLabel}`);
@@ -1578,7 +1599,7 @@ function buildReasoning(sport, stat, proj, line, edge, gameLogValues, dataPoints
       out.push(`Usage/opportunity: ${factors.usageLabel}`);
     }
     if(sport === 'MLB') {
-      out.push(`Ballpark factor: ${factors.ballparkLabel}`);
+      out.push(`Ballpark: ${factors.ballparkLabel}`);
       out.push(`Weather: ${factors.weatherLabel}`);
       out.push(`Barrel/hard-hit rate: ${factors.barrelLabel}`);
       out.push(`Pitcher handedness split: ${factors.splitLabel}`);
@@ -1590,17 +1611,13 @@ function buildReasoning(sport, stat, proj, line, edge, gameLogValues, dataPoints
       out.push(`Defensive scheme: ${factors.defenseLabel}`);
     }
     if(sport === 'NHL') {
-      out.push(`Power play usage: ${factors.powerPlayLabel}`);
-      out.push(`Time on ice (TOI): ${factors.toiLabel}`);
-      out.push(`Goalie metrics: ${factors.goalieLabel}`);
+      out.push(`Power play: ${factors.powerPlayLabel}`);
+      out.push(`Time on ice: ${factors.toiLabel}`);
+      out.push(`Goalie matchup: ${factors.goalieLabel}`);
       out.push(`Line assignment: ${factors.lineAssignLabel}`);
     }
   }
-
-  if(opp) out.push(`Opponent: ${opp} — matchup analysis applied above`);
-  if((dataPoints||0) < 5) out.push(`⚠ Limited sample (${dataPoints||0} games) — confidence reduced; wider variance expected`);
-  out.push(`Line source: ${STATE.settings.oddsApiKey ? 'The Odds API (live sportsbook lines)' : 'Estimated market line — add Odds API key in ⚙ Settings for real lines'}`);
-
+  if(opp) out.push(`Opponent: ${opp}`);
   return out;
 }
 
@@ -1708,7 +1725,7 @@ async function analyzePick() {
     const edgeColor = edge.val >= 0 ? 'var(--accent)' : 'var(--red)';
     const edgeStr = (edge.val >= 0 ? '+' : '') + edge.val + ' (' + (edge.val >= 0 ? '+' : '') + edge.pct + '%)';
 
-    const reasoning = buildReasoning(sport, prop, projection, line, edge, gameLogValues, dataPoints, null, opp, '', false, null);
+    const reasoning = buildReasoning(sport, prop, projection, line, edge, null, null, null, 0, null, opp, '', null, false, 1.0);
 
     // Log to history
     const histEntry = {
@@ -1765,9 +1782,52 @@ function getStatIndex(sport, prop) {
 // ═══════════════════════════════════════════════════════
 // FILTERS
 // ═══════════════════════════════════════════════════════
+// Multi-select sport filter
+function toggleSportFilter(sport, el) {
+  const chips = document.querySelectorAll('#sport-filters .filter-chip');
+
+  if(sport === 'all') {
+    // All sports — clear everything, activate only "All"
+    filters.sports = new Set(['all']);
+    chips.forEach(c => {
+      c.classList.remove('active','active-multi');
+      if(c.dataset.sport === 'all') c.classList.add('active');
+    });
+  } else {
+    // Toggle this sport
+    if(filters.sports.has('all')) filters.sports.delete('all');
+
+    if(filters.sports.has(sport)) {
+      filters.sports.delete(sport);
+    } else {
+      filters.sports.add(sport);
+    }
+
+    // If nothing selected, revert to All
+    if(filters.sports.size === 0) {
+      filters.sports.add('all');
+      chips.forEach(c => {
+        c.classList.remove('active','active-multi');
+        if(c.dataset.sport === 'all') c.classList.add('active');
+      });
+    } else {
+      // Update chip visuals
+      chips.forEach(c => {
+        c.classList.remove('active','active-multi');
+        if(c.dataset.sport === 'all') return;
+        if(filters.sports.has(c.dataset.sport)) {
+          c.classList.add(filters.sports.size === 1 ? 'active' : 'active-multi');
+        }
+      });
+    }
+  }
+  renderProps();
+}
+
 function setFilter(type, val, el) {
-  const groupMap = { sport: 'sport-filters', dec: 'dec-filters', date: 'date-filters' };
+  const groupMap = { dec: 'dec-filters', date: 'date-filters' };
   const group = groupMap[type];
+  if(!group) return;
   document.querySelectorAll('#' + group + ' .filter-chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
   filters[type] = val;
@@ -1788,7 +1848,7 @@ function renderProps() {
   }
 
   let filtered = STATE.props.filter(p => {
-    if(filters.sport !== 'all' && p.sport !== filters.sport) return false;
+    if(!filters.sports.has('all') && !filters.sports.has(p.sport)) return false;
     if(filters.dec === 'OVER' && p.decision !== 'OVER') return false;
     if(filters.dec === 'UNDER' && p.decision !== 'UNDER') return false;
     if(filters.dec === 'PASS' && p.decision !== 'PASS') return false;
