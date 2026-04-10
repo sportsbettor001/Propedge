@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v2.7</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v2.8</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <button class="settings-btn" onclick="openSettings()">⚙</button>
@@ -648,10 +648,13 @@ async function testApi(which) {
       label: 'MLB Schedule (statsapi.mlb.com)',
       url: `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}`,
       parse: d => {
-        const games = d?.dates?.[0]?.games || [];
-        return games.length > 0
-          ? `✅ ${games.length} games: ${games.slice(0,3).map(g=>g.teams?.away?.team?.abbreviation+'v'+g.teams?.home?.team?.abbreviation).join(', ')}`
-          : `⚠ 0 games (off-day or date mismatch)`;
+        const games = d?.dates?.[0]?.games||[];
+        if(!games.length) return `⚠ 0 games`;
+        const g0=games[0];
+        const away=g0?.teams?.away?.team?.abbreviation||g0?.teams?.away?.team?.teamCode||g0?.teams?.away?.team?.name||'?';
+        const home=g0?.teams?.home?.team?.abbreviation||g0?.teams?.home?.team?.teamCode||g0?.teams?.home?.team?.name||'?';
+        const teamKeys=Object.keys(g0?.teams?.away?.team||{}).slice(0,5).join(',');
+        return `✅ ${games.length} games. First:${away}v${home}. TeamKeys:${teamKeys}`;
       }
     },
     'mlb_player': {
@@ -668,11 +671,13 @@ async function testApi(which) {
       label: 'ESPN NBA GameLog - Luka Doncic (3136193)',
       url: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/3136193/gamelog',
       parse: d => {
-        const cats = d?.seasonTypes?.[0]?.categories || [];
-        const events = cats[0]?.events || [];
-        return events.length > 0
-          ? `✅ ${events.length} games found. Labels: ${cats[0]?.labels?.slice(0,5).join(', ')}`
-          : `❌ No events in response`;
+        const keys = Object.keys(d||{});
+        const st = d?.seasonTypes||[];
+        const cats = st[0]?.categories||[];
+        const evts = cats[0]?.events||d?.events||[];
+        const labels = cats[0]?.labels||cats[0]?.names||d?.labels||[];
+        const firstStat = evts[0]?.stats||evts[0]?.statistics||[];
+        return `${evts.length>0?'✅':'❌'} ${evts.length} games. Keys:${keys.slice(0,4).join(',')}. Labels[0]:${labels[0]}. Categories:${cats.map(c=>c.name||c.displayName||'?').join('|')}. Stats:${firstStat.length}`;
       }
     },
     'espn_schedule': {
@@ -1763,19 +1768,11 @@ async function runFetch(sportsToFetch) {
       const schedulePromises = sportsToFetch
         .filter(s => s !== 'GOLF')
         .map(async sport => {
-          // NHL: use official NHL schedule API
+          // NHL: ESPN (api-web.nhle.com is CORS-blocked on Safari)
           if(sport === 'NHL') {
             try {
-              const data = await fetchNHLGameSchedule(today);
-              const games = data?.games || [];
-              const events = games.map(g => ({
-                id: String(g.id),
-                competitions: [{ competitors: [
-                  { homeAway:'home', team:{ abbreviation: g.homeTeam?.abbrev||'', id: String(g.homeTeam?.id||'') }},
-                  { homeAway:'away', team:{ abbreviation: g.awayTeam?.abbrev||'', id: String(g.awayTeam?.id||'') }}
-                ]}]
-              }));
-              return { sport, events };
+              const data = await fetchESPNSchedule('hockey', 'nhl', today);
+              return { sport, events: data.events || [] };
             } catch(e) { return { sport, events:[] }; }
           }
           // MLB: use official MLB schedule API
@@ -1804,9 +1801,8 @@ async function runFetch(sportsToFetch) {
       const scheduleResults = await Promise.all(schedulePromises);
       scheduleResults.forEach(r => {
         if(r.events.length > 0) {
-          if(r.sport === 'NHL') apiStatusMap.NHL = 'ok';
-          else if(r.sport === 'MLB') apiStatusMap.MLB = 'ok';
-          else apiStatusMap.ESPN = 'ok';
+          if(r.sport === 'MLB') apiStatusMap.MLB = 'ok';
+          else { apiStatusMap.ESPN = 'ok'; if(r.sport === 'NHL') apiStatusMap.NHL = 'ok'; }
         }
       });
 
@@ -2566,57 +2562,15 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       dataPoints = allVals.length;
     }
 
-    // ── NHL: Official NHL API → ESPN fallback ──
+    // ── NHL: ESPN only — api-web.nhle.com is CORS-blocked on Safari ──
     if(sport === 'NHL') {
-      const nhlId = playerMeta.nhlId || playerId;
       try {
-        const nhlSeason = `${season}${season+1}`;
-        const gameLogResp = await fetchNHLPlayerGameLog(nhlId, nhlSeason);
-        const games = gameLogResp?.gameLog || [];
-        const nhlStatMap = {
-          'Points': g => (g.goals||0)+(g.assists||0),
-          'Goals': g => g.goals||0,
-          'Assists': g => g.assists||0,
-          'Shots on Goal': g => g.shots||0,
-        };
-        const extractor = nhlStatMap[statLabel];
-        if(extractor) {
-          for(const g of games) {
-            const val = extractor(g);
-            if(!isNaN(val) && val >= 0) {
-              allVals.push(val);
-              const gameOpp = g.opponentAbbrev?.toUpperCase() || '';
-              if(opp && gameOpp && (gameOpp.includes(opp.slice(0,3)) || opp.includes(gameOpp.slice(0,3)))) vsOppVals.push(val);
-            }
-          }
-        }
-        const toiValues = games.slice(-5).map(g => {
-          if(!g.toi) return null;
-          const parts = g.toi.split(':');
-          return parts.length === 2 ? parseFloat(parts[0]) + parseFloat(parts[1])/60 : null;
-        }).filter(v => v !== null);
-        if(toiValues.length > 0) contextData.toiAvgL5 = parseFloat((toiValues.reduce((a,b)=>a+b,0)/toiValues.length).toFixed(1));
-        if(playerMeta.oppGoalieId) {
-          try {
-            const goalieLog = await fetchNHLGoalieStats(playerMeta.oppGoalieId, nhlSeason);
-            const gg = goalieLog?.gameLog || [];
-            if(gg.length > 0) {
-              const svPcts = gg.slice(-10).map(g => g.savePctg).filter(v => v !== null && !isNaN(v));
-              if(svPcts.length > 0) contextData.goalieSvPct = parseFloat((svPcts.reduce((a,b)=>a+b,0)/svPcts.length).toFixed(3));
-            }
-          } catch(e) {}
-        }
+        const gl = await fetchESPNGameLog('hockey', 'nhl', playerId);
+        const p = parseESPNGameLog(gl, statLabel, opp);
+        allVals = p.allVals; vsOppVals = p.vsOppVals;
+        traceLog('projectionEngine', `${playerName} (NHL): ESPN got ${allVals.length} games`, allVals.length>0?'ok':'warn');
       } catch(e) {
-        console.warn('NHL API failed for', playerName, e.message);
-      }
-      // ESPN fallback if NHL API returned nothing
-      if(allVals.length === 0) {
-        try {
-          const gl = await fetchESPNGameLog('hockey', 'nhl', playerId);
-          const p = parseESPNGameLog(gl, statLabel, opp);
-          allVals = p.allVals; vsOppVals = p.vsOppVals;
-          if(allVals.length > 0) traceLog('projectionEngine', `${playerName} (NHL): ESPN fallback got ${allVals.length} games`, 'warn');
-        } catch(e) {}
+        traceLog('projectionEngine', `${playerName} (NHL): ESPN failed — ${e.message}`, 'fail');
       }
       dataPoints = allVals.length;
     }
