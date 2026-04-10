@@ -1454,6 +1454,25 @@ async function runFetch(sportsToFetch) {
       const scheduleResults = await Promise.all(schedulePromises);
       if(scheduleResults.some(r => r.events.length > 0)) apiStatusMap.ESPN = 'ok';
 
+      // ── ANALYSIS MODE DEBUG LOG ──
+      // Logs game counts per sport to console AND the loading card
+      const debugLines = [];
+      scheduleResults.forEach(r => {
+        const gamesDetected = (r.events || []).length;
+        const gamesUsed = Math.min(gamesDetected, gps);
+        debugLines.push(`${r.sport}: ${gamesDetected} games detected, ${gamesUsed} used (limit ${gps})`);
+        console.log(`[PropEdge] ${r.sport}: ${gamesDetected} games from ESPN, using ${gamesUsed}`);
+      });
+      // Also write into the visible loading card
+      const debugEl = document.getElementById('progress-steps');
+      if(debugEl) {
+        const div = document.createElement('div');
+        div.style.cssText = 'margin-top:10px;font-family:var(--mono);font-size:9px;color:var(--muted);border-top:1px solid var(--border);padding-top:8px';
+        div.innerHTML = '<div style="color:var(--blue);margin-bottom:4px">Schedule detected (Analysis Mode):</div>' +
+          debugLines.map(l => '<div>· ' + l + '</div>').join('');
+        debugEl.appendChild(div);
+      }
+
       // Process each sport independently — no cross-sport mixing
       for(const { sport, events } of scheduleResults) {
         if(!sportsToFetch.includes(sport)) continue;
@@ -1472,6 +1491,13 @@ async function runFetch(sportsToFetch) {
           //   4) alphabetical — last resort only when all real data is absent/tied
           // lineBase excluded — it is a betting line estimate, not a statistical output.
           const volOrder = { high: 3, med: 2, low: 1 };
+          // Log per-game player matching for this game
+          const allMatched = (PLAYER_DB[sport]||[]).filter(p => {
+            const t = p.team.toUpperCase();
+            return [home,away].some(a => a===t || a.includes(t.slice(0,3)) || t.includes(a.slice(0,3)));
+          });
+          console.log(`[PropEdge] ${sport} game: ${home} vs ${away} — ${allMatched.length} DB players matched, selecting top 3`);
+
           const dbPlayers = (PLAYER_DB[sport]||[])
             .filter(p => {
               const t = p.team.toUpperCase();
