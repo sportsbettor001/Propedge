@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v3.0</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v3.1</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <button class="settings-btn" onclick="openSettings()">⚙</button>
@@ -2412,6 +2412,33 @@ const PLAYER_DB = {
   ]
 };
 
+// ═══════════════════════════════════════════════════════
+// MLB TEAM NAME → ABBREVIATION LOOKUP
+// MLB Stats API returns full team names, not abbreviations.
+// This maps the name field to the standard 2-3 letter abbrev.
+// ═══════════════════════════════════════════════════════
+function mlbTeamAbbrev(teamName) {
+  if(!teamName) return '???';
+  const map = {
+    'Arizona Diamondbacks':'ARI','Atlanta Braves':'ATL','Baltimore Orioles':'BAL',
+    'Boston Red Sox':'BOS','Chicago Cubs':'CHC','Chicago White Sox':'CWS',
+    'Cincinnati Reds':'CIN','Cleveland Guardians':'CLE','Colorado Rockies':'COL',
+    'Detroit Tigers':'DET','Houston Astros':'HOU','Kansas City Royals':'KC',
+    'Los Angeles Angels':'LAA','Los Angeles Dodgers':'LAD','Miami Marlins':'MIA',
+    'Milwaukee Brewers':'MIL','Minnesota Twins':'MIN','New York Mets':'NYM',
+    'New York Yankees':'NYY','Oakland Athletics':'OAK','Philadelphia Phillies':'PHI',
+    'Pittsburgh Pirates':'PIT','San Diego Padres':'SD','San Francisco Giants':'SF',
+    'Seattle Mariners':'SEA','St. Louis Cardinals':'STL','Tampa Bay Rays':'TB',
+    'Texas Rangers':'TEX','Toronto Blue Jays':'TOR','Washington Nationals':'WSH',
+    'Athletics':'OAK','Sacramento River Cats':'OAK'
+  };
+  // Exact match first
+  if(map[teamName]) return map[teamName];
+  // Partial match fallback (handles "Pittsburgh Pirates" vs "Pirates")
+  const entry = Object.entries(map).find(([k]) => k.includes(teamName) || teamName.includes(k.split(' ').pop()));
+  return entry ? entry[1] : teamName.slice(0,3).toUpperCase();
+}
+
 function getPlayersForGame(game, sport) {
   const competitors = game.competitions?.[0]?.competitors || [];
   const teamAbbrs = competitors.map(c =>
@@ -2451,6 +2478,8 @@ function parseESPNGameLog(gameLogData, statLabel, opp) {
   // ── FLAT STRUCTURE (current ESPN format) ──
   // Response has top-level labels/names array, events object at root
   // e.g. { labels:[...], names:[...], events:{ '401234':{ stats:[...], opponent:{...} } } }
+  // IMPORTANT: only use this path if we actually get stats — otherwise fall through
+  // to tryParse1 (seasonTypes path) which NHL uses.
   if(gameLogData?.labels?.length > 0 || gameLogData?.names?.length > 0) {
     const labels = (gameLogData.labels || gameLogData.names || []).map(l => (l||'').toString().toLowerCase());
     const eventsObj = gameLogData?.events || {};
@@ -2458,8 +2487,11 @@ function parseESPNGameLog(gameLogData, statLabel, opp) {
     const flatGames = [];
     for(const ev of eventArr) {
       const stats = ev?.stats || ev?.statistics || [];
-      const oppAbbr = (ev?.opponent?.abbreviation || ev?.opponent?.shortDisplayName || '').toUpperCase();
-      if(stats.length) flatGames.push({ stats, labels, opp: oppAbbr, raw: ev });
+      // Only include events that actually have stats — skip empty arrays
+      if(stats.length > 0) {
+        const oppAbbr = (ev?.opponent?.abbreviation || ev?.opponent?.shortDisplayName || '').toUpperCase();
+        flatGames.push({ stats, labels, opp: oppAbbr, raw: ev });
+      }
     }
     if(flatGames.length > 0) {
       const extractFlat = (game, stat) => {
@@ -2479,8 +2511,10 @@ function parseESPNGameLog(gameLogData, statLabel, opp) {
       const vsOppVals = flatGames
         .filter(g => oppNorm && g.opp && (g.opp.includes(oppNorm.slice(0,3)) || oppNorm.includes(g.opp.slice(0,3))))
         .map(g=>extractFlat(g,statLabel)).filter(v=>v!==null);
-      return { allVals, vsOppVals };
+      // Only return from flat path if we extracted real values — otherwise fall through
+      if(allVals.length > 0) return { allVals, vsOppVals };
     }
+    // flatGames empty or no values extracted → fall through to seasonTypes parser below
   }
 
   const tryParse1 = () => {
@@ -2994,7 +3028,6 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     if(dataPoints < 5) reasoning.push(`⚠ Only ${dataPoints} game log entries — low confidence`);
     if(dataPoints === 0) reasoning.push(`⚠ DATA INSUFFICIENT — no game logs found`);
 
-    traceLog('filteringLog', `${playerName} conf=${conf}/10 edge=${edge.val>=0?'+':''}${edge.val} decision=${finalDecision}`, finalDecision!=='PASS'?'pass':'ok');
     // Feature 2 final rule: if narrative cannot be written from real data, PASS
     let narrative = buildNarrative(
       playerName, sport, statLabel, line, finalProjection, decision,
@@ -3010,6 +3043,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     const finalDecision = (narrative === 'Insufficient data to generate a factual explanation for this pick.' && decision !== 'PASS')
       ? 'PASS'
       : decision;
+    traceLog('filteringLog', `${playerName} conf=${conf}/10 edge=${edge.val>=0?'+':''}${edge.val} decision=${finalDecision}`, finalDecision!=='PASS'?'pass':'ok');
 
     traceLog('outputLog', `${playerName} → ${finalDecision} | proj=${finalProjection} conf=${conf} data=${completeness.score}%`, finalDecision!=='PASS'?'pass':'ok');
     // Add completeness score + threshold to reasoning
