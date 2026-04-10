@@ -796,8 +796,8 @@ function loadSettingsIntoForm() {
   const s = STATE.settings;
   document.getElementById('s-odds-key').value = s.oddsApiKey || '';
   document.getElementById('s-bdl-key').value = s.balldontlieKey || '';
-  document.getElementById('s-min-edge').value = s.minEdge || 3;
-  document.getElementById('s-min-conf').value = s.minConf || 5;
+  document.getElementById('s-min-edge').value = s.minEdge ?? 5;
+  document.getElementById('s-min-conf').value = s.minConf ?? 6;
   document.getElementById('s-games-per-sport').value = s.gamesPerSport || 2;
   document.getElementById('s-players-per-game').value = s.playersPerGame || 3;
 }
@@ -1338,8 +1338,8 @@ function edgeToDecision(edge, conf, hasRealLine) {
   // Step 1: no verified market line → PASS immediately, no projection output
   if(!hasRealLine) return 'PASS';
   const absEdge = Math.abs(edge.pct);
-  const minEdge = STATE.settings.minEdge || 3;
-  const minConf = STATE.settings.minConf || 5;
+  const minEdge = STATE.settings.minEdge ?? 5;
+  const minConf = STATE.settings.minConf ?? 6;
   // Step 2+3: insufficient data or confidence → PASS
   if(conf < minConf) return 'PASS';
   if(absEdge < minEdge) return 'PASS';
@@ -1440,6 +1440,12 @@ async function runFetch(sportsToFetch) {
     const tomorrow = tomorrowStr();
 
     setStep('step-schedule', 'active');
+
+    // Pre-mark sport API statuses for sports being fetched
+    // MLB and NHL use official APIs inside buildPlayerProp — set here so badges show
+    if(sportsToFetch.includes('MLB')) apiStatusMap.MLB = 'warn'; // will upgrade to 'ok' when data returns
+    if(sportsToFetch.includes('NHL')) apiStatusMap.NHL = 'warn';
+    renderApiStatus(apiStatusMap);
 
     const allPlayersWithLines = [];
     let oddsApiWorking = false;
@@ -1929,6 +1935,9 @@ async function runFetch(sportsToFetch) {
         if(prop && newPropsBySport[player.sport] !== undefined) {
           newPropsBySport[player.sport].push(prop);
           traceLog('outputLog', `${player.name} (${player.sport}): prop built — ${prop.decision} proj=${prop.proj}`, prop.decision !== 'PASS' ? 'pass' : 'ok');
+          // Mark official API as ok when data successfully returns
+          if(player.sport === 'MLB' && prop.dataSource?.gamelog > 0) apiStatusMap.MLB = 'ok';
+          if(player.sport === 'NHL' && prop.dataSource?.gamelog > 0) apiStatusMap.NHL = 'ok';
         } else if(!prop) {
           traceLog('outputLog', `${player.name} (${player.sport}): buildPlayerProp returned null — suppressed`, 'warn');
         }
@@ -1939,6 +1948,7 @@ async function runFetch(sportsToFetch) {
     }
 
     setStep('step-engine', 'done');
+    renderApiStatus(apiStatusMap); // update MLB/NHL badges now that we know actual results
     setStep('step-odds', 'active');
 
     // ═══════════════════════════════════════════════════════
@@ -2052,6 +2062,12 @@ async function runFetch(sportsToFetch) {
     document.getElementById('live-label').textContent = 'LIVE';
     updateSportChipStatus();
     updateCacheStatusBar();
+    // Always clear the loading card — never leave it stuck on screen
+    try { renderProps(); } catch(e) {
+      document.getElementById('props-list').innerHTML =
+        '<div class="empty"><div class="empty-title">No projections generated</div>' +
+        '<div class="empty-sub">Check the Trace tab to see what was found and why players were suppressed.</div></div>';
+    }
   }
 }
 
@@ -3130,8 +3146,8 @@ function renderProps() {
   }
 
   // Apply all filters + settings thresholds from cache
-  const minEdge = STATE.settings.minEdge || 3;
-  const minConf = STATE.settings.minConf || 5;
+  const minEdge = STATE.settings.minEdge ?? 5;
+  const minConf = STATE.settings.minConf ?? 6;
 
   let filtered = allCachedProps.filter(p => {
     if(!filters.sports.has('all') && !filters.sports.has(p.sport)) return false;
@@ -3158,11 +3174,11 @@ function renderProps() {
 }
 
 function propCardHTML(p) {
+  // isAnalysis must be defined first — used throughout this function
+  const isAnalysis = p.analysisMode === true;
   const edgeStr = isAnalysis ? '—' : ((p.edge.val >= 0 ? '+' : '') + p.edge.val + ' (' + (p.edge.val >= 0 ? '+' : '') + p.edge.pct + '%)');
   const edgeClass = p.edge.val >= 0 ? 'green' : 'red';
   const decLow = p.decision === 'PASS' ? 'pass' : p.decision.toLowerCase();
-  // Analysis mode: never show OVER/UNDER — show projection rank instead
-  const isAnalysis = p.analysisMode === true;
   const decBadgeLabel = isAnalysis
     ? 'ANALYSIS ONLY'
     : (p.decision === 'PASS' && !p.dataSource?.hasRealLine ? 'PASS · No market line' : p.decision);
@@ -3236,8 +3252,8 @@ function toggleReasoning(id) {
 // ═══════════════════════════════════════════════════════
 function updateMetrics() {
   const allProps = getAllCachedProps();
-  const minEdge = STATE.settings.minEdge || 3;
-  const minConf = STATE.settings.minConf || 5;
+  const minEdge = STATE.settings.minEdge ?? 5;
+  const minConf = STATE.settings.minConf ?? 6;
 
   // Count visible (filtered) props
   const visible = allProps.filter(p => {
