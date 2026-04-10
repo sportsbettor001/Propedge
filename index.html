@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v2.6</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v2.7</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <button class="settings-btn" onclick="openSettings()">⚙</button>
@@ -370,6 +370,18 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
     <!-- TRACE TAB -->
     <div id="tab-trace" class="page">
+      <div class="section-title">API Test</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px">Tap each to test the API connection live from your device</div>
+      <div id="api-test-results" style="margin-bottom:14px"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
+        <button onclick="testApi('nhl_schedule')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">Test NHL Schedule</button>
+        <button onclick="testApi('nhl_player')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">Test NHL Player</button>
+        <button onclick="testApi('mlb_schedule')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">Test MLB Schedule</button>
+        <button onclick="testApi('mlb_player')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">Test MLB Player</button>
+        <button onclick="testApi('nba_gamelog')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">Test NBA GameLog</button>
+        <button onclick="testApi('espn_schedule')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">Test ESPN Schedule</button>
+      </div>
+
       <div class="section-title">Slate</div>
       <div id="slate-log-panel" style="margin-bottom:14px"></div>
       <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
@@ -607,6 +619,95 @@ function traceLog(section, msg, level='ok') {
   STATE.trace[section].push({ msg, level });
 }
 function clearTrace() { STATE.trace = null; renderTrace(); }
+
+async function testApi(which) {
+  const el = document.getElementById('api-test-results');
+  const today = todayStr();
+  const tests = {
+    'nhl_schedule': {
+      label: 'NHL Schedule (api-web.nhle.com)',
+      url: `https://api-web.nhle.com/v1/schedule/${today}`,
+      parse: d => {
+        const games = d?.gameWeek?.[0]?.games || d?.games || [];
+        return games.length > 0
+          ? `✅ ${games.length} games: ${games.map(g=>g.awayTeam?.abbrev+'v'+g.homeTeam?.abbrev).join(', ')}`
+          : `⚠ 0 games returned (off-day or wrong date format)`;
+      }
+    },
+    'nhl_player': {
+      label: 'NHL Player Log - Auston Matthews (8479318)',
+      url: 'https://api-web.nhle.com/v1/player/8479318/game-log/20242025/2',
+      parse: d => {
+        const gl = d?.gameLog || [];
+        return gl.length > 0
+          ? `✅ ${gl.length} games. Last: ${gl[gl.length-1]?.goals}G ${gl[gl.length-1]?.assists}A`
+          : `❌ No game log data`;
+      }
+    },
+    'mlb_schedule': {
+      label: 'MLB Schedule (statsapi.mlb.com)',
+      url: `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}`,
+      parse: d => {
+        const games = d?.dates?.[0]?.games || [];
+        return games.length > 0
+          ? `✅ ${games.length} games: ${games.slice(0,3).map(g=>g.teams?.away?.team?.abbreviation+'v'+g.teams?.home?.team?.abbreviation).join(', ')}`
+          : `⚠ 0 games (off-day or date mismatch)`;
+      }
+    },
+    'mlb_player': {
+      label: 'MLB Player Log - Aaron Judge (592450)',
+      url: 'https://statsapi.mlb.com/api/v1/people/592450/stats?stats=gameLog&season=2025&group=hitting',
+      parse: d => {
+        const splits = d?.stats?.[0]?.splits || [];
+        return splits.length > 0
+          ? `✅ ${splits.length} games. Last: ${JSON.stringify(splits[splits.length-1]?.stat).slice(0,80)}`
+          : `❌ No splits data`;
+      }
+    },
+    'nba_gamelog': {
+      label: 'ESPN NBA GameLog - Luka Doncic (3136193)',
+      url: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/3136193/gamelog',
+      parse: d => {
+        const cats = d?.seasonTypes?.[0]?.categories || [];
+        const events = cats[0]?.events || [];
+        return events.length > 0
+          ? `✅ ${events.length} games found. Labels: ${cats[0]?.labels?.slice(0,5).join(', ')}`
+          : `❌ No events in response`;
+      }
+    },
+    'espn_schedule': {
+      label: 'ESPN NBA Schedule',
+      url: `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${today.replace(/-/g,'')}`,
+      parse: d => {
+        const events = d?.events || [];
+        return events.length > 0
+          ? `✅ ${events.length} games: ${events.slice(0,3).map(e=>e.shortName).join(', ')}`
+          : `⚠ 0 events today`;
+      }
+    }
+  };
+
+  const t = tests[which];
+  if(!t) return;
+
+  el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--muted);padding:8px;background:var(--bg2);border-radius:8px">Testing ${t.label}...<br/><span style="font-size:8px;word-break:break-all">${t.url}</span></div>`;
+
+  try {
+    const data = await fetchJSON(t.url);
+    const result = t.parse(data);
+    const color = result.startsWith('✅') ? 'var(--accent)' : result.startsWith('⚠') ? 'var(--amber)' : 'var(--red)';
+    el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:${color}">
+      <div style="color:var(--muted);margin-bottom:4px;font-size:9px">${t.label}</div>
+      ${result}
+      <div style="color:var(--muted);font-size:8px;margin-top:6px;word-break:break-all">${t.url}</div>
+    </div>`;
+  } catch(e) {
+    el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;padding:10px;background:var(--bg2);border:1px solid rgba(255,77,106,.3);border-radius:8px;color:var(--red)">
+      ❌ FAILED: ${e.message}<br/>
+      <div style="font-size:8px;color:var(--muted);margin-top:4px">${t.url}</div>
+    </div>`;
+  }
+}
 function renderTrace() {
   const panel = document.getElementById('trace-panel');
   if(!panel) return;
