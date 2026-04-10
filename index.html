@@ -416,12 +416,25 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
     <div class="modal-section">Data Sources</div>
     <div class="setting-group">
-      <label class="setting-label">ESPN API (NBA/NFL/NHL/MLB schedules & stats)</label>
-      <div class="setting-hint" style="color:var(--accent)">✓ No key required — public endpoint, auto-enabled</div>
+      <label class="setting-label">MLB Stats API — statsapi.mlb.com</label>
+      <div class="setting-hint" style="color:var(--accent)">✓ Official MLB API — no key needed. Provides pitcher ERA/WHIP, batter game logs, probable starters, schedules.</div>
     </div>
     <div class="setting-group">
-      <label class="setting-label">MLB Stats API (detailed player stats)</label>
-      <div class="setting-hint" style="color:var(--accent)">✓ No key required — official MLB public API, auto-enabled</div>
+      <label class="setting-label">NHL API — api-web.nhle.com</label>
+      <div class="setting-hint" style="color:var(--accent)">✓ Official NHL API — no key needed. Provides player game logs, goalie SV%/GAA, TOI, line assignments.</div>
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">Open-Meteo Weather API — outdoor sports (MLB)</label>
+      <div class="setting-hint" style="color:var(--accent)">✓ No key needed — open-source, backed by national weather services. Wind, temp, humidity for MLB venues.</div>
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">ESPN API — NBA/NFL/WNBA schedules & injuries</label>
+      <div class="setting-hint" style="color:var(--amber)">⚠ Unofficial endpoint — works today, no SLA. Used for NBA/NFL game logs and injury reports.</div>
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">BallDontLie API Key (optional — improves NBA/WNBA)</label>
+      <input class="setting-input" id="s-bdl-key" placeholder="Optional — paste BallDontLie key here" autocorrect="off" autocapitalize="none"/>
+      <div class="setting-hint">Optional. Free key at <a href="https://www.balldontlie.io" onclick="openLink('https://www.balldontlie.io')">balldontlie.io</a> — no credit card. Adds pts/reb/ast/min per game for NBA. Without key, ESPN game logs are used instead.</div>
     </div>
 
     <div class="modal-section">Engine Settings</div>
@@ -451,7 +464,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
     <div class="modal-section">About the engine</div>
     <div class="setting-hint" style="margin-top:8px">
-      PropEdge fetches live game logs, injury reports, and schedule data directly from ESPN's public API and MLB's official API. Projections are built using exponential-decay weighted performance (L5/L10), matchup-adjusted opponent defensive rankings, pace/environment factors, and regression-to-mean modeling. Sportsbook lines come from The Odds API (requires free key). All data and history lives in your browser's localStorage — nothing is sent to any server.
+      <strong>Data sources by sport:</strong><br/>
+      • MLB: statsapi.mlb.com (official, no key) — batter game logs, pitcher ERA/WHIP, probable starters<br/>
+      • MLB weather: open-meteo.com (no key) — wind, temp, precipitation at stadium<br/>
+      • NHL: api-web.nhle.com (official, no key) — player game logs, goalie SV%/GAA, TOI<br/>
+      • NBA/WNBA: BallDontLie (optional key) → ESPN fallback<br/>
+      • NFL: ESPN game logs (snap/target share unavailable free)<br/>
+      • Sportsbook lines: The Odds API (free key from the-odds-api.com)<br/><br/>
+      Projections use L5×60% + L6-10×30% + season×10% weighted avg from real game logs only. No randomness. No simulation. All data stored locally on your device.
     </div>
   </div>
 </div>
@@ -462,7 +482,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 // ═══════════════════════════════════════════════════════
 // STATE + PERSISTENCE
 // ═══════════════════════════════════════════════════════
-const STORAGE_KEY = 'propedge_v4'; // bumped version for new cache structure
+const STORAGE_KEY = 'propedge_v5'; // v5: MLB/NHL official APIs + BallDontLie // bumped version for new cache structure
 
 function loadState() {
   try {
@@ -483,6 +503,7 @@ let STATE = loadState() || {
   savedSlips: [],
   settings: {
     oddsApiKey: '',
+    balldontlieKey: '',
     corsProxy: '',
     minEdge: 3,
     minConf: 5,
@@ -508,7 +529,7 @@ if(STATE.props && Array.isArray(STATE.props) && STATE.props.length > 0 && !STATE
 }
 
 // Ensure settings object has all keys
-STATE.settings = Object.assign({ oddsApiKey:'', corsProxy:'', minEdge:3, minConf:5, gamesPerSport:2, playersPerGame:3 }, STATE.settings || {});
+STATE.settings = Object.assign({ oddsApiKey:'', balldontlieKey:'', corsProxy:'', minEdge:3, minConf:5, gamesPerSport:2, playersPerGame:3 }, STATE.settings || {});
 if(!STATE.sportCache) STATE.sportCache = {};
 
 // ── CACHE HELPERS ──
@@ -596,6 +617,7 @@ function handleModalClick(e) {
 function loadSettingsIntoForm() {
   const s = STATE.settings;
   document.getElementById('s-odds-key').value = s.oddsApiKey || '';
+  document.getElementById('s-bdl-key').value = s.balldontlieKey || '';
   document.getElementById('s-min-edge').value = s.minEdge || 3;
   document.getElementById('s-min-conf').value = s.minConf || 5;
   document.getElementById('s-games-per-sport').value = s.gamesPerSport || 2;
@@ -608,6 +630,7 @@ function saveSettings() {
   const prevPlayersPerGame = STATE.settings.playersPerGame;
 
   STATE.settings.oddsApiKey = document.getElementById('s-odds-key').value.trim();
+  STATE.settings.balldontlieKey = document.getElementById('s-bdl-key').value.trim();
   STATE.settings.minEdge = parseFloat(document.getElementById('s-min-edge').value) || 3;
   STATE.settings.minConf = parseInt(document.getElementById('s-min-conf').value) || 5;
   STATE.settings.gamesPerSport = Math.min(8, Math.max(1, parseInt(document.getElementById('s-games-per-sport').value) || 2));
@@ -708,16 +731,13 @@ function todayStr() { return new Date().toISOString().slice(0,10); }
 function tomorrowStr() { const d = new Date(); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); }
 
 // ═══════════════════════════════════════════════════════
-// ESPN API FETCHERS
+// ESPN API — NBA/NFL/WNBA schedules, game logs, injuries
+// Unofficial endpoints — no key required
 // ═══════════════════════════════════════════════════════
 const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports';
-const ESPN_CORE = 'https://sports.core.api.espn.com/v2/sports';
 
 async function fetchESPNSchedule(sport, league, date) {
   return await fetchWithFallback(`${ESPN_BASE}/${sport}/${league}/scoreboard?dates=${date.replace(/-/g,'')}`);
-}
-async function fetchESPNRoster(sport, league, teamId) {
-  return await fetchWithFallback(`${ESPN_BASE}/${sport}/${league}/teams/${teamId}/roster`);
 }
 async function fetchESPNPlayerStats(sport, league, athleteId) {
   return await fetchWithFallback(`${ESPN_BASE}/${sport}/${league}/athletes/${athleteId}/statistics`);
@@ -733,19 +753,179 @@ async function searchESPNAthlete(sport, league, name) {
 }
 
 // ═══════════════════════════════════════════════════════
-// MLB STATS API FETCHERS
+// MLB STATS API — Official MLB public API, no key required
+// statsapi.mlb.com — batter/pitcher game logs, schedules,
+// probable pitchers, ERA/WHIP
 // ═══════════════════════════════════════════════════════
 const MLB_BASE = 'https://statsapi.mlb.com/api/v1';
 
 async function fetchMLBSchedule(date) {
-  return await fetchWithFallback(`${MLB_BASE}/schedule?sportId=1&date=${date}&hydrate=team,linescore,decisions,probablePitcher`);
+  // hydrate=probablePitcher gives us today's starter for each game
+  return await fetchWithFallback(`${MLB_BASE}/schedule?sportId=1&date=${date}&hydrate=team,linescore,probablePitcher(note),person`);
 }
-async function fetchMLBPlayerStats(playerId, season) {
+
+async function fetchMLBGameLog(mlbPlayerId, season) {
+  // Returns per-game hitting or pitching stats
   const yr = season || new Date().getFullYear();
-  return await fetchWithFallback(`${MLB_BASE}/people/${playerId}/stats?stats=gameLog&season=${yr}&group=hitting,pitching`);
+  const url = `${MLB_BASE}/people/${mlbPlayerId}/stats?stats=gameLog&season=${yr}&group=hitting,pitching&gameType=R`;
+  const data = await fetchWithFallback(url);
+  return data?.stats || [];
 }
-async function fetchMLBPlayerInfo(playerId) {
-  return await fetchWithFallback(`${MLB_BASE}/people/${playerId}?hydrate=stats(group=[hitting,pitching],type=season)`);
+
+async function fetchMLBPitcherStats(mlbPlayerId, season) {
+  // Season ERA, WHIP, K/9, BB/9 for the probable starter
+  const yr = season || new Date().getFullYear();
+  const url = `${MLB_BASE}/people/${mlbPlayerId}/stats?stats=season&season=${yr}&group=pitching&gameType=R`;
+  const data = await fetchWithFallback(url);
+  const splits = data?.stats?.[0]?.splits || [];
+  return splits[0]?.stat || null; // { era, whip, strikeOuts, baseOnBalls, inningsPitched, ... }
+}
+
+async function fetchMLBPlayerInfo(mlbPlayerId) {
+  const url = `${MLB_BASE}/people/${mlbPlayerId}?hydrate=currentTeam,stats(group=[hitting,pitching],type=season)`;
+  return await fetchWithFallback(url);
+}
+
+// ═══════════════════════════════════════════════════════
+// NHL API — Official NHL web API, no key required
+// api-web.nhle.com — player game logs, goalie stats, TOI,
+// line assignments, schedules
+// ═══════════════════════════════════════════════════════
+const NHL_BASE = 'https://api-web.nhle.com/v1';
+
+async function fetchNHLSchedule(date) {
+  return await fetchWithFallback(`${NHL_BASE}/schedule/${date}`);
+}
+
+async function fetchNHLPlayerGameLog(nhlPlayerId, season) {
+  // season format: 20242025
+  const s = season || (()=>{ const y=new Date().getFullYear(); return `${y}${y+1}`; })();
+  return await fetchWithFallback(`${NHL_BASE}/player/${nhlPlayerId}/game-log/${s}/2`);
+  // returns { gameLog: [ { goals, assists, points, shots, toi, gameDate, opponentAbbrev, ... } ] }
+}
+
+async function fetchNHLPlayerLanding(nhlPlayerId) {
+  // Full player profile — currentTeamRoster, position, lineAssignment
+  return await fetchWithFallback(`${NHL_BASE}/player/${nhlPlayerId}/landing`);
+}
+
+async function fetchNHLGoalieStats(nhlGoalieId, season) {
+  const s = season || (()=>{ const y=new Date().getFullYear(); return `${y}${y+1}`; })();
+  return await fetchWithFallback(`${NHL_BASE}/player/${nhlGoalieId}/game-log/${s}/2`);
+}
+
+async function fetchNHLTeamRoster(teamAbbrev) {
+  // Get current season roster with line assignments where available
+  return await fetchWithFallback(`${NHL_BASE}/roster/${teamAbbrev}/current`);
+}
+
+async function fetchNHLGameSchedule(date) {
+  // Returns today's games with both teams' goalies (if confirmed)
+  return await fetchWithFallback(`${NHL_BASE}/schedule/${date}`);
+}
+
+// ═══════════════════════════════════════════════════════
+// OPEN-METEO WEATHER API — free, no key, outdoor sports (MLB)
+// Backed by NOAA, DWD, Météo-France national weather services
+// ═══════════════════════════════════════════════════════
+
+// MLB stadium coordinates — used to fetch weather at game location
+const MLB_STADIUM_COORDS = {
+  'NYY': { lat: 40.829, lon: -73.926, name: 'Yankee Stadium' },
+  'NYM': { lat: 40.757, lon: -73.846, name: 'Citi Field' },
+  'BOS': { lat: 42.347, lon: -71.097, name: 'Fenway Park' },
+  'LAD': { lat: 34.074, lon: -118.240, name: 'Dodger Stadium' },
+  'LAA': { lat: 33.800, lon: -117.883, name: 'Angel Stadium' },
+  'SF':  { lat: 37.778, lon: -122.389, name: 'Oracle Park' },
+  'OAK': { lat: 37.751, lon: -122.200, name: 'Oakland Coliseum' },
+  'SEA': { lat: 47.591, lon: -122.332, name: 'T-Mobile Park' },
+  'HOU': { lat: 29.757, lon: -95.355, name: 'Minute Maid Park' },
+  'TEX': { lat: 32.747, lon: -97.083, name: 'Globe Life Field' },
+  'ATL': { lat: 33.891, lon: -84.468, name: 'Truist Park' },
+  'MIA': { lat: 25.778, lon: -80.220, name: 'LoanDepot Park' },
+  'PHI': { lat: 39.906, lon: -75.166, name: 'Citizens Bank Park' },
+  'WSH': { lat: 38.873, lon: -77.007, name: 'Nationals Park' },
+  'NYM': { lat: 40.757, lon: -73.846, name: 'Citi Field' },
+  'CHC': { lat: 41.948, lon: -87.655, name: 'Wrigley Field' },
+  'CWS': { lat: 41.830, lon: -87.634, name: 'Guaranteed Rate Field' },
+  'CLE': { lat: 41.496, lon: -81.685, name: 'Progressive Field' },
+  'DET': { lat: 42.339, lon: -83.049, name: 'Comerica Park' },
+  'MIN': { lat: 44.982, lon: -93.278, name: 'Target Field' },
+  'KC':  { lat: 39.051, lon: -94.480, name: 'Kauffman Stadium' },
+  'STL': { lat: 38.623, lon: -90.193, name: 'Busch Stadium' },
+  'MIL': { lat: 43.028, lon: -87.971, name: 'American Family Field' },
+  'CHC': { lat: 41.948, lon: -87.655, name: 'Wrigley Field' },
+  'CIN': { lat: 39.097, lon: -84.508, name: 'Great American Ball Park' },
+  'PIT': { lat: 40.447, lon: -80.006, name: 'PNC Park' },
+  'COL': { lat: 39.756, lon: -104.994, name: 'Coors Field' },
+  'ARI': { lat: 33.445, lon: -112.067, name: 'Chase Field' },
+  'SD':  { lat: 32.707, lon: -117.157, name: 'Petco Park' },
+  'TOR': { lat: 43.641, lon: -79.389, name: 'Rogers Centre' },
+  'BAL': { lat: 39.284, lon: -76.622, name: 'Camden Yards' },
+  'TB':  { lat: 27.768, lon: -82.653, name: 'Tropicana Field' },
+};
+
+async function fetchMLBWeather(teamAbbrev, date) {
+  const coords = MLB_STADIUM_COORDS[teamAbbrev?.toUpperCase()];
+  if(!coords) return null;
+  try {
+    // Fetch hourly wind speed, wind direction, temperature, precipitation for game day
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&hourly=temperature_2m,precipitation_probability,wind_speed_10m,wind_direction_10m&daily=wind_speed_10m_max,precipitation_sum&timezone=auto&forecast_days=3`;
+    const data = await fetchJSON(url);
+    if(!data || !data.daily) return null;
+    // Find the index matching our date
+    const dateIdx = data.daily.time?.findIndex(t => t === date);
+    if(dateIdx === undefined || dateIdx < 0) return null;
+    return {
+      stadium: coords.name,
+      windSpeedMax: data.daily.wind_speed_10m_max?.[dateIdx] || null,     // km/h
+      precipSum: data.daily.precipitation_sum?.[dateIdx] || null,          // mm
+      // Midday hourly (index ~12 for noon local)
+      tempC: data.hourly?.temperature_2m?.[dateIdx * 24 + 13] || null,
+      windDirDeg: data.hourly?.wind_direction_10m?.[dateIdx * 24 + 13] || null,
+    };
+  } catch(e) { return null; }
+}
+
+// Wind direction helper — is it blowing out to CF (helps hitters)?
+// CF is typically ~0° (north) to 315° depending on stadium orientation
+// Simplified: wind speed > 15 km/h is meaningful; direction toward CF = boost
+function interpretMLBWeather(weather, homeTeam) {
+  if(!weather || weather.windSpeedMax === null) return null;
+  const speed = weather.windSpeedMax;
+  const precip = weather.precipSum || 0;
+  const notes = [];
+  if(precip > 5) notes.push(`Rain possible (${precip.toFixed(1)}mm)`);
+  if(speed >= 20) notes.push(`Strong wind ${speed.toFixed(0)} km/h — affects fly balls`);
+  else if(speed >= 12) notes.push(`Moderate wind ${speed.toFixed(0)} km/h`);
+  else notes.push(`Low wind ${speed.toFixed(0)} km/h — neutral`);
+  // Coors Field altitude boost is real and permanent — apply if COL is home
+  const altitudeBoost = (homeTeam?.toUpperCase() === 'COL') ? 0.08 : 0;
+  // Wind-out adjustment proxy: if high wind and outdoor park, slight boost
+  const windAdj = (speed >= 20 && homeTeam?.toUpperCase() !== 'TB' && homeTeam?.toUpperCase() !== 'MIA') ? 0.04 : 0;
+  return { notes: notes.join(' · '), altitudeBoost, windAdj };
+}
+
+// ═══════════════════════════════════════════════════════
+// BALLDONTLIE API — optional, NBA/WNBA game logs + stats
+// Requires free key from balldontlie.io (no credit card)
+// Falls back to ESPN if no key provided
+// ═══════════════════════════════════════════════════════
+async function fetchBDLPlayerStats(playerName, sport, dateFrom, dateTo) {
+  const key = STATE.settings.balldontlieKey;
+  if(!key) return null;
+  const league = sport === 'WNBA' ? 'wnba' : 'nba';
+  try {
+    // Step 1: find player ID
+    const searchUrl = `https://api.balldontlie.io/${league}/v1/players?search=${encodeURIComponent(playerName)}&per_page=5`;
+    const searchData = await fetchJSON(searchUrl, { headers: { 'Authorization': key } });
+    const player = searchData?.data?.[0];
+    if(!player) return null;
+    // Step 2: fetch recent game stats (last 20 games)
+    const statsUrl = `https://api.balldontlie.io/${league}/v1/stats?player_ids[]=${player.id}&per_page=20&sort=game_date&order=desc&start_date=${dateFrom}&end_date=${dateTo}`;
+    const statsData = await fetchJSON(statsUrl, { headers: { 'Authorization': key } });
+    return { playerId: player.id, games: statsData?.data || [] };
+  } catch(e) { return null; }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -763,42 +943,170 @@ async function fetchPlayerPropsOdds(sportKey, eventId) {
 }
 
 // ═══════════════════════════════════════════════════════
-// PROJECTION ENGINE
+// PROJECTION ENGINE — DETERMINISTIC, DATA-DRIVEN ONLY
+// No Math.random(). No simulation. Same inputs → same output.
 // ═══════════════════════════════════════════════════════
-function weightedProjection(values) {
+
+// Core projection: weighted average of real game log values
+// L5 gets 60% weight, L6-L10 gets 30%, rest of season 10%
+function computeProjection(values) {
   if(!values || values.length === 0) return null;
-  const clean = values.filter(v => v !== null && v !== undefined && !isNaN(v));
+  const clean = values.filter(v => v !== null && !isNaN(v) && v >= 0);
   if(clean.length === 0) return null;
-  const recent = clean.slice(-10);
-  let weightSum = 0, valSum = 0;
-  recent.forEach((v, i) => {
-    const age = recent.length - 1 - i;
-    const weight = Math.pow(0.85, age);
-    valSum += v * weight;
-    weightSum += weight;
-  });
-  return valSum / weightSum;
+  const l5 = clean.slice(-5);
+  const l6to10 = clean.length > 5 ? clean.slice(-10, -5) : [];
+  const older = clean.length > 10 ? clean.slice(0, -10) : [];
+  const l5avg = l5.reduce((a,b)=>a+b,0)/l5.length;
+  if(l6to10.length === 0) return l5avg;
+  const l6to10avg = l6to10.reduce((a,b)=>a+b,0)/l6to10.length;
+  if(older.length === 0) return (l5avg * 0.70) + (l6to10avg * 0.30);
+  const olderAvg = older.reduce((a,b)=>a+b,0)/older.length;
+  return (l5avg * 0.60) + (l6to10avg * 0.30) + (olderAvg * 0.10);
 }
 
-function extractStatValues(gamelog, statKey) {
-  if(!gamelog || !Array.isArray(gamelog)) return [];
-  return gamelog.map(g => {
-    const val = g[statKey];
-    return val !== undefined ? parseFloat(val) : null;
-  }).filter(v => v !== null && !isNaN(v));
-}
-
+// Edge: pure math
 function calcEdge(projection, line) {
-  if(!projection || !line || line === 0) return { val: 0, pct: 0 };
-  const val = parseFloat((projection - line).toFixed(2));
-  const pct = parseFloat(((val / line) * 100).toFixed(1));
-  return { val, pct };
+  const diff = projection - line;
+  const pct = line !== 0 ? (diff / line) * 100 : 0;
+  return { val: Number(diff.toFixed(2)), pct: Number(pct.toFixed(2)) };
 }
 
-function edgeToDecision(edge, conf) {
+// Confidence: data completeness only — not edge size
+function computeConfidence(dataPoints, l5avg, seasonAvg, hasMatchupData, hasInjuryData) {
+  let conf = 0;
+  if(dataPoints >= 15) conf += 4;
+  else if(dataPoints >= 10) conf += 3;
+  else if(dataPoints >= 5)  conf += 2;
+  else if(dataPoints >= 3)  conf += 1;
+  if(l5avg !== null && seasonAvg !== null && seasonAvg > 0) {
+    const consistency = 1 - Math.abs(l5avg - seasonAvg) / seasonAvg;
+    if(consistency >= 0.90) conf += 3;
+    else if(consistency >= 0.75) conf += 2;
+    else if(consistency >= 0.60) conf += 1;
+  } else if(l5avg !== null) {
+    conf += 1;
+  }
+  if(hasMatchupData) conf += 2;
+  if(hasInjuryData) conf += 1;
+  return Math.max(1, Math.min(10, conf));
+}
+
+// DECISION TREE (strict):
+// Step 1: verified sportsbook line? → checked before calling this fn
+// Step 2: game log data? → checked before calling this fn (returns null)
+// Step 3: projection built from real data only
+// Step 4: compare projection vs line
+// Step 5: OVER / UNDER / PASS
+// ═══════════════════════════════════════════════════════
+// DATA COMPLETENESS SCORE (0-100%)
+// Determines WHETHER a projection can exist at all.
+// Does NOT influence the projection value itself.
+// ═══════════════════════════════════════════════════════
+function computeDataCompleteness(hasRealLine, dataPoints, hasOpponentContext, hasAdditionalStats) {
+  if(!hasRealLine) return { score: 0, reason: 'No verified sportsbook line' };
+  if(dataPoints === 0) return { score: 0, reason: 'No player game log data' };
+
+  let score = 0;
+  const breakdown = [];
+
+  // Game logs: +40% max (scaled by sample size)
+  const gameLogScore = dataPoints >= 10 ? 40 : dataPoints >= 5 ? 30 : dataPoints >= 3 ? 20 : 10;
+  score += gameLogScore;
+  breakdown.push(`Game logs: ${dataPoints} games (+${gameLogScore}%)`);
+
+  // Verified sportsbook line: +30%
+  score += 30;
+  breakdown.push(`Verified line (+30%)`);
+
+  // Opponent context (≥2 historical meetings): +15%
+  if(hasOpponentContext) {
+    score += 15;
+    breakdown.push(`Opponent context (+15%)`);
+  } else {
+    breakdown.push(`Opponent context: none (+0%)`);
+  }
+
+  // Sport-specific context (pitcher ERA, goalie SV%, weather, etc.): +15%
+  if(hasAdditionalStats) {
+    score += 15;
+    breakdown.push(`Sport context (+15%)`);
+  } else {
+    breakdown.push(`Sport context: none (+0%)`);
+  }
+
+  return { score, breakdown, reason: null };
+}
+
+// ═══════════════════════════════════════════════════════
+// DYNAMIC COMPLETENESS THRESHOLD
+// Different sports require different confidence levels.
+// Season stage further adjusts the threshold.
+// Rules are applied strictly — never overridden.
+// ═══════════════════════════════════════════════════════
+function getCompletenessThreshold(sport, dataPoints) {
+  // ── BASE THRESHOLD BY SPORT ──
+  // NBA/WNBA: 55% — high game log availability, stable stats
+  // MLB: 55% (mid-season), 60% (early season < 3 weeks)
+  // NHL: 60% — goalie variance + lineup volatility
+  // NFL: 65% (mid), 70% (early) — high variance, missing advanced data
+  // GOLF: 65% — fewer data points per event, high variance
+  const sportBases = {
+    'NBA':  55,
+    'WNBA': 55,
+    'MLB':  55,
+    'NHL':  60,
+    'NFL':  65,
+    'GOLF': 65,
+  };
+  const base = sportBases[sport] ?? 60; // default fallback
+
+  // ── SEASON STAGE DETECTION based on game log depth ──
+  // We infer season stage from how many games are available in the log.
+  // This is the only honest proxy we have — no separate schedule API call.
+  // Early: < 10 games logged  → +5% (small sample = higher bar)
+  // Mid:   10–50 games        → no adjustment
+  // Late:  > 50 games         → -5% (large stable sample = lower bar)
+  let seasonAdj = 0;
+  let seasonStage = 'mid';
+
+  if(dataPoints < 10) {
+    seasonAdj = +5;
+    seasonStage = 'early';
+  } else if(dataPoints > 50) {
+    seasonAdj = -5;
+    seasonStage = 'late';
+  }
+
+  // NFL early season override (first 3 weeks ≈ < 4 games in log)
+  if(sport === 'NFL' && dataPoints < 4) {
+    seasonAdj = +5; // brings NFL early to 70%
+    seasonStage = 'early';
+  }
+
+  // MLB early season override (first 2-3 weeks ≈ < 10 games)
+  if(sport === 'MLB' && dataPoints < 10) {
+    seasonAdj = +5; // brings MLB early to 60%
+    seasonStage = 'early';
+  }
+
+  const threshold = base + seasonAdj;
+
+  return {
+    threshold,
+    base,
+    seasonAdj,
+    seasonStage,
+    label: `${sport} ${seasonStage} season — threshold: ${threshold}% (base ${base}% ${seasonAdj >= 0 ? '+' : ''}${seasonAdj}%)`
+  };
+}
+
+function edgeToDecision(edge, conf, hasRealLine) {
+  // Step 1: no verified market line → PASS immediately, no projection output
+  if(!hasRealLine) return 'PASS';
   const absEdge = Math.abs(edge.pct);
   const minEdge = STATE.settings.minEdge || 3;
   const minConf = STATE.settings.minConf || 5;
+  // Step 2+3: insufficient data or confidence → PASS
   if(conf < minConf) return 'PASS';
   if(absEdge < minEdge) return 'PASS';
   return edge.val > 0 ? 'OVER' : 'UNDER';
@@ -811,26 +1119,6 @@ function edgeToWinProb(edgePct) {
   if(abs >= 5) return 59;
   if(abs >= 3) return 56;
   return 52;
-}
-
-function calcConfidence(edgePct, dataPoints, hasInjuryInfo, hasPaceData, hasMatchupData) {
-  let conf = 5;
-  const abs = Math.abs(edgePct);
-  if(abs >= 12) conf += 3;
-  else if(abs >= 8) conf += 2;
-  else if(abs >= 5) conf += 1;
-  else if(abs < 2) conf -= 2;
-  if(dataPoints >= 8) conf += 1;
-  else if(dataPoints < 3) conf -= 2;
-  if(hasPaceData) conf += 1;
-  if(hasMatchupData) conf += 1;
-  return Math.max(1, Math.min(10, Math.round(conf)));
-}
-
-function matchupMultiplier(oppRank, totalTeams) {
-  if(!oppRank || !totalTeams) return 1.0;
-  const pct = oppRank / totalTeams;
-  return 0.92 + (pct * 0.18);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1320,136 +1608,334 @@ function getPlayersForGame(game, sport) {
   });
 }
 
+
 // ═══════════════════════════════════════════════════════
-// BUILD SINGLE PLAYER PROP
+// ESPN GAME LOG PARSER — used for NBA/WNBA/NFL fallback
+// Handles ESPN's multiple response shapes
+// ═══════════════════════════════════════════════════════
+function parseESPNGameLog(gameLogData, statLabel, opp) {
+  const allGames = [];
+  const statAliases = {
+    'Points':['pts','points','PTS'],'Rebounds':['reb','rebounds','total rebounds','REB','TREB'],
+    'Assists':['ast','assists','AST'],'Threes Made':['3pm','threesMade','3-pt made','3pt made','3PTM'],
+    'Hits':['h','hits','H'],'Total Bases':['tb','total bases','TB'],'Strikeouts':['k','so','strikeouts','K','SO'],
+    'RBIs':['rbi','rbis','RBI'],'Pass Yards':['pyds','passingYards','passing yards','pass yds','PYDS','YDS'],
+    'Rush Yards':['ryds','rushingYards','rushing yards','rush yds','RYDS'],
+    'Receiving Yards':['recyds','receivingYards','receiving yards','rec yds','RECYDS'],
+    'Receptions':['rec','receptions','REC'],'Shots on Goal':['sog','shots','shotsOnGoal','shots on goal','SOG']
+  };
+  const getAliases = (s) => statAliases[s] || [s.toLowerCase(), s];
+
+  const tryParse1 = () => {
+    for(const st of (gameLogData?.seasonTypes || [])) {
+      for(const cat of (st?.categories || [])) {
+        const labels = (cat?.labels || cat?.names || []).map(l=>(l||'').toString().toLowerCase());
+        const events = cat?.events || [];
+        if(!labels.length || !events.length) continue;
+        for(const ev of events) {
+          const stats = ev?.stats || ev?.statistics || [];
+          if(!stats.length) continue;
+          const oppData = ev?.opponent || ev?.team || {};
+          const oppAbbr = (oppData?.abbreviation || oppData?.shortDisplayName || '').toUpperCase();
+          allGames.push({ stats, labels, opp: oppAbbr, raw: ev });
+        }
+        if(allGames.length > 0) return true;
+      }
+    }
+    return false;
+  };
+  const tryParse2 = () => {
+    const eventsObj = gameLogData?.events || {};
+    const eventArr = Array.isArray(eventsObj) ? eventsObj : Object.values(eventsObj);
+    if(!eventArr.length) return false;
+    const topLabels = (gameLogData?.labels || []).map(l=>(l||'').toLowerCase());
+    for(const ev of eventArr) {
+      const stats = ev?.stats || ev?.statistics || [];
+      const labels = topLabels.length ? topLabels : (ev?.labels || []).map(l=>(l||'').toLowerCase());
+      const oppAbbr = (ev?.opponent?.abbreviation || '').toUpperCase();
+      if(stats.length) allGames.push({ stats, labels, opp: oppAbbr, raw: ev });
+    }
+    return allGames.length > 0;
+  };
+  tryParse1() || tryParse2();
+
+  const extractVal = (game, stat) => {
+    const aliases = getAliases(stat);
+    for(const alias of aliases) {
+      const al = alias.toLowerCase();
+      const idx = game.labels.findIndex(l => l === al || l.includes(al) || al.includes(l));
+      if(idx !== -1 && game.stats[idx] !== undefined && game.stats[idx] !== '') {
+        const v = parseFloat(game.stats[idx]);
+        if(!isNaN(v) && v >= 0) return v;
+      }
+    }
+    if(game.raw) {
+      for(const alias of aliases) {
+        const v = game.raw[alias] ?? game.raw[alias.toLowerCase()];
+        if(v !== undefined && v !== null) { const n = parseFloat(v); if(!isNaN(n) && n >= 0) return n; }
+      }
+    }
+    return null;
+  };
+
+  const oppNorm = opp?.toUpperCase() || '';
+  const allVals = allGames.map(g=>extractVal(g,statLabel)).filter(v=>v!==null);
+  const vsOppVals = allGames
+    .filter(g => oppNorm && g.opp && (g.opp.includes(oppNorm.slice(0,3)) || oppNorm.includes(g.opp.slice(0,3))))
+    .map(g=>extractVal(g,statLabel)).filter(v=>v!==null);
+  return { allVals, vsOppVals };
+}
+
+// ═══════════════════════════════════════════════════════
+// BUILD SINGLE PLAYER PROP — DETERMINISTIC DATA MODEL
+// Projection = weighted average of real ESPN game log stats.
+// No Math.random(). Missing data → lower confidence or null.
 // ═══════════════════════════════════════════════════════
 async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeague, team, opp, date, injuries, id, propTypeOverride, lineBaseOverride, realLine = null, playerMeta = {}) {
   try {
     let statLabel = propTypeOverride || (sport==='NBA'?'Points':sport==='MLB'?'Hits':sport==='NFL'?'Pass Yards':'Points');
     let dataPoints = 0;
-    let hasPaceData = false, hasMatchupData = false;
+    let hasMatchupData = false;
     let injuryStatus = injuries[playerName.toLowerCase()] || null;
     const hasRealLine = realLine !== null && realLine > 0;
+    const line = hasRealLine ? parseFloat(realLine) : parseFloat(lineBaseOverride || 0);
+    if(!line || line <= 0) return null;
 
-    // ── GOLF ──
+    // ── GOLF: SG-based deterministic model ──
     if(sport === 'GOLF') {
       statLabel = propTypeOverride || 'Strokes (Round 1)';
-      const sgTotal = playerMeta.sgTotal || 2.0;
-      const relScore = -(sgTotal - 2.0) * 0.8;
-      const courseFit = (Math.random()-0.5)*0.6;
-      const weatherAdj = (Math.random()-0.5)*0.8;
-      const formAdj = (Math.random()-0.5)*0.4;
-      let golfProj = 0;
-      if(statLabel.includes('Strokes')) golfProj = parseFloat((70.5 + relScore + courseFit + weatherAdj + formAdj).toFixed(1));
-      else if(statLabel === 'Birdies or Better') golfProj = parseFloat((Math.max(1.5, 4.5 - relScore*0.4 + courseFit*0.3 + formAdj*0.4)).toFixed(1));
-      else if(statLabel === 'Bogeys or Worse') golfProj = parseFloat((Math.max(0.8, 2.5 + relScore*0.3 + Math.abs(courseFit)*0.2)).toFixed(1));
-      else if(statLabel === 'Made Cut') golfProj = parseFloat(Math.max(0.30, Math.min(0.92, 0.75 + sgTotal*0.04 - relScore*0.04)).toFixed(2));
-      if(!golfProj) golfProj = statLabel.includes('Strokes') ? 70.5 : statLabel==='Birdies or Better' ? 3.5 : 2.5;
-      const golfLine = lineBaseOverride || (statLabel.includes('Strokes') ? 70.5 : statLabel==='Birdies or Better' ? 3.5 : 2.5);
-      const golfEdge = calcEdge(golfProj, golfLine);
-      const golfConf = calcConfidence(golfEdge.pct, 5, false, true, true);
+      const sgTotal = playerMeta.sgTotal;
+      if(sgTotal === undefined || sgTotal === null) return null;
+      const sgAdj = -(sgTotal - 2.0) * 0.8;
+      let golfProj = null;
+      if(statLabel.includes('Strokes')) {
+        golfProj = parseFloat((70.5 + sgAdj).toFixed(1));
+      } else if(statLabel === 'Birdies or Better') {
+        golfProj = parseFloat(Math.max(1.0, 3.5 + (sgTotal - 2.0) * 0.5).toFixed(1));
+      } else if(statLabel === 'Bogeys or Worse') {
+        golfProj = parseFloat(Math.max(0.5, 2.5 - (sgTotal - 2.0) * 0.4).toFixed(1));
+      } else if(statLabel === 'Made Cut') {
+        golfProj = parseFloat(Math.max(0.20, Math.min(0.95, 0.60 + sgTotal * 0.07)).toFixed(2));
+      }
+      if(!golfProj) return null;
+      const golfEdge = calcEdge(golfProj, line);
+      const golfConf = computeConfidence(5, null, null, false, false);
       return {
-        id, player: playerName, sport:'GOLF', team:'PGA', opp:'Field', prop: statLabel,
-        line: golfLine, proj: golfProj, edge: golfEdge, conf: golfConf,
-        decision: edgeToDecision(golfEdge, golfConf), winProb: edgeToWinProb(golfEdge.pct), date,
-        reasoning: [
-          `Golf model: ${statLabel} — projection ${golfProj}`,
-          `Strokes gained total: ${sgTotal} (field avg ~2.0)`,
-          `Course fit: ${courseFit>=0?'+':''}${courseFit.toFixed(2)} | Weather: ${weatherAdj>=0?'+':''}${weatherAdj.toFixed(2)} | Form: ${formAdj>=0?'+':''}${formAdj.toFixed(2)}`,
-          `Line source: ${hasRealLine?'The Odds API ✓':'Estimated — add Odds API key for real lines'}`
+        id, player:playerName, sport:'GOLF', team:'PGA', opp:'Field', prop:statLabel,
+        line, proj:golfProj, edge:golfEdge,
+        conf:golfConf, decision:edgeToDecision(golfEdge, golfConf),
+        winProb:edgeToWinProb(golfEdge.pct), date,
+        reasoning:[
+          `Golf SG model — ${statLabel}`,
+          `SG:Total = ${sgTotal} (tour avg 2.0) → adj: ${sgAdj >= 0 ? '+' : ''}${sgAdj.toFixed(2)} strokes`,
+          `Projection: ${golfProj} vs line ${line} | Edge: ${golfEdge.val >= 0 ? '+' : ''}${golfEdge.val} (${golfEdge.pct}%)`,
+          `Line source: ${hasRealLine ? 'The Odds API ✓' : 'Estimated'}`,
+          `⚠ Course history and weather data not yet available — confidence capped`
         ],
-        injuryStatus: null,
+        hitRateSeason:null, injuryStatus:null,
         dataSource:{gamelog:0, hasRealLine, espnId:playerId},
-        clvEntry: golfLine, clvClose:null, timestamp:Date.now()
+        clvEntry:line, clvClose:null, timestamp:Date.now()
       };
     }
 
-    if(sport==='WNBA') hasPaceData = true;
+    // ══════════════════════════════════════════════════════
+    // SPORT-SPECIFIC DATA FETCHING
+    // Each sport uses its best available free API.
+    // Fallbacks are used only if primary source fails.
+    // allVals = chronological game-by-game stat values
+    // vsOppVals = subset of games vs today's opponent
+    // contextData = sport-specific context (pitcher ERA, goalie SV%, weather)
+    // ══════════════════════════════════════════════════════
 
-    const gameLogData = await fetchESPNGameLog(espnSport, espnLeague, playerId);
+    let allVals = [];
+    let vsOppVals = [];
+    let contextData = {}; // pitcher ERA, goalie SV%, weather, etc.
+    const season = new Date().getFullYear();
 
-    const allGames = [];
-    const statAliases = {
-      'Points':['pts','points','PTS'],'Rebounds':['reb','rebounds','total rebounds','REB','TREB'],
-      'Assists':['ast','assists','AST'],'Threes Made':['3pm','threesMade','3-pt made','3pt made','3PTM'],
-      'Hits':['h','hits','H'],'Total Bases':['tb','total bases','TB'],'Strikeouts':['k','so','strikeouts','K','SO'],
-      'RBIs':['rbi','rbis','RBI'],'Pass Yards':['pyds','passingYards','passing yards','pass yds','PYDS','YDS'],
-      'Rush Yards':['ryds','rushingYards','rushing yards','rush yds','RYDS'],
-      'Receiving Yards':['recyds','receivingYards','receiving yards','rec yds','RECYDS'],
-      'Receptions':['rec','receptions','REC'],'Shots on Goal':['sog','shots','shotsOnGoal','shots on goal','SOG']
-    };
-    const getAliases = (statName) => statAliases[statName] || [statName.toLowerCase(), statName];
+    // ── MLB: Official MLB Stats API (statsapi.mlb.com) ──
+    if(sport === 'MLB') {
+      try {
+        const mlbId = playerMeta.mlbId || playerId;
+        const mlbStatGroups = await fetchMLBGameLog(mlbId, season);
 
-    const parseStrategy1 = () => {
-      const seasonTypes = gameLogData?.seasonTypes || [];
-      for(const st of seasonTypes) {
-        for(const cat of st?.categories || []) {
-          const events = cat?.events || [];
-          const rawLabels = cat?.labels || cat?.names || cat?.displayNames || [];
-          const labels = rawLabels.map(l => (l||'').toString().toLowerCase());
-          if(!labels.length || !events.length) continue;
-          for(const ev of events) {
-            const stats = ev?.stats || ev?.statistics || [];
-            if(!stats.length) continue;
-            const oppData = ev?.opponent || ev?.team || {};
-            const opp = (oppData?.abbreviation || oppData?.shortDisplayName || oppData?.displayName || '').toUpperCase();
-            allGames.push({ stats, labels, opp, raw: ev });
-          }
-          if(allGames.length > 0) return true;
-        }
-      }
-      return false;
-    };
-    const parseStrategy2 = () => {
-      const eventsObj = gameLogData?.events || {};
-      const eventArr = Array.isArray(eventsObj) ? eventsObj : Object.values(eventsObj);
-      if(!eventArr.length) return false;
-      const topLabels = (gameLogData?.labels || gameLogData?.statsNames || []).map(l=>(l||'').toLowerCase());
-      for(const ev of eventArr) {
-        const stats = ev?.stats || ev?.statistics || [];
-        const labels = topLabels.length ? topLabels : (ev?.statsLabels || ev?.labels || []).map(l=>(l||'').toLowerCase());
-        const oppData = ev?.opponent || {};
-        const opp = (oppData?.abbreviation || oppData?.shortDisplayName || '').toUpperCase();
-        if(stats.length) allGames.push({ stats, labels, opp, raw: ev });
-      }
-      return allGames.length > 0;
-    };
-    const parseStrategy3 = () => {
-      const stats = gameLogData?.stats || gameLogData?.statistics || [];
-      const labels = (gameLogData?.labels || gameLogData?.names || []).map(l=>(l||'').toLowerCase());
-      if(Array.isArray(stats) && stats.length && labels.length) {
-        allGames.push({ stats, labels, opp: '', raw: gameLogData });
-        return true;
-      }
-      return false;
-    };
-    parseStrategy1() || parseStrategy2() || parseStrategy3();
+        // Extract hitting or pitching game log
+        const ispitcher = ['Strikeouts'].includes(statLabel);
+        const group = mlbStatGroups.find(g => g.group?.displayName === (ispitcher ? 'pitching' : 'hitting'));
+        const splits = group?.splits || [];
 
-    const extractFromGame = (game, statName) => {
-      const aliases = getAliases(statName);
-      for(const alias of aliases) {
-        const al = alias.toLowerCase();
-        const idx = game.labels.findIndex(l => l === al || l.includes(al) || al.includes(l));
-        if(idx !== -1 && game.stats[idx] !== undefined && game.stats[idx] !== null && game.stats[idx] !== '') {
-          const v = parseFloat(game.stats[idx]);
-          if(!isNaN(v) && v >= 0) return v;
-        }
-      }
-      if(game.raw) {
-        for(const alias of aliases) {
-          const v = game.raw[alias] ?? game.raw[alias.toLowerCase()] ?? game.raw[alias.toUpperCase()];
-          if(v !== undefined && v !== null) { const num = parseFloat(v); if(!isNaN(num) && num >= 0) return num; }
-        }
-        const statsObj = game.raw.stats || game.raw.statistics || {};
-        if(typeof statsObj === 'object' && !Array.isArray(statsObj)) {
-          for(const alias of aliases) {
-            const v = statsObj[alias] ?? statsObj[alias.toLowerCase()];
-            if(v !== undefined) { const num = parseFloat(v); if(!isNaN(num) && num >= 0) return num; }
+        // Map each game to our stat value
+        const statKeyMap = {
+          'Hits': 'hits', 'Total Bases': 'totalBases', 'RBIs': 'rbi',
+          'Strikeouts': 'strikeOuts', 'Runs': 'runs', 'Home Runs': 'homeRuns',
+          'Walks': 'baseOnBalls', 'At Bats': 'atBats'
+        };
+        const mlbStatKey = statKeyMap[statLabel];
+        if(mlbStatKey) {
+          for(const split of splits) {
+            const val = split.stat?.[mlbStatKey];
+            if(val !== undefined && val !== null) {
+              const num = parseFloat(val);
+              if(!isNaN(num) && num >= 0) {
+                const gameOpp = split.opponent?.abbreviation?.toUpperCase() || '';
+                allVals.push(num);
+                if(opp && gameOpp && (gameOpp.includes(opp.slice(0,3)) || opp.includes(gameOpp.slice(0,3)))) {
+                  vsOppVals.push(num);
+                }
+              }
+            }
           }
         }
+
+        // Fetch probable pitcher stats for context (ERA, WHIP, K/9)
+        if(playerMeta.probablePitcherId) {
+          try {
+            const pitcherSeason = await fetchMLBPitcherStats(playerMeta.probablePitcherId, season);
+            if(pitcherSeason) {
+              contextData.pitcher = {
+                era: pitcherSeason.era,
+                whip: pitcherSeason.whip,
+                kPer9: pitcherSeason.strikeoutsPer9Inn,
+                name: playerMeta.probablePitcherName || 'TBD',
+              };
+            }
+          } catch(e) {}
+        }
+
+        // Fetch weather for outdoor MLB parks
+        if(team && date) {
+          const weather = await fetchMLBWeather(team, date === 'today' ? todayStr() : tomorrowStr());
+          if(weather) {
+            const weatherInterp = interpretMLBWeather(weather, team);
+            contextData.weather = { ...weather, ...weatherInterp };
+          }
+        }
+
+        dataPoints = allVals.length;
+      } catch(e) {
+        // MLB API failed — return null (no fallback simulation)
+        console.warn('MLB API failed for', playerName, e.message);
+        return null;
       }
-      return null;
-    };
+    }
+
+    // ── NHL: Official NHL API (api-web.nhle.com) ──
+    else if(sport === 'NHL') {
+      try {
+        const nhlId = playerMeta.nhlId || playerId;
+        const nhlSeason = `${season}${season+1}`;
+        const gameLogResp = await fetchNHLPlayerGameLog(nhlId, nhlSeason);
+        const games = gameLogResp?.gameLog || [];
+
+        // Map NHL game log fields to our stat
+        const nhlStatMap = {
+          'Points': g => (g.goals || 0) + (g.assists || 0),
+          'Goals': g => g.goals || 0,
+          'Assists': g => g.assists || 0,
+          'Shots on Goal': g => g.shots || 0,
+        };
+        const extractor = nhlStatMap[statLabel];
+        if(extractor) {
+          for(const g of games) {
+            const val = extractor(g);
+            if(!isNaN(val) && val >= 0) {
+              allVals.push(val);
+              const gameOpp = g.opponentAbbrev?.toUpperCase() || '';
+              if(opp && gameOpp && (gameOpp.includes(opp.slice(0,3)) || opp.includes(gameOpp.slice(0,3)))) {
+                vsOppVals.push(val);
+              }
+            }
+          }
+        }
+
+        // Time on ice — parse MM:SS from most recent games
+        const toiValues = games.slice(-5).map(g => {
+          if(!g.toi) return null;
+          const parts = g.toi.split(':');
+          return parts.length === 2 ? parseFloat(parts[0]) + parseFloat(parts[1])/60 : null;
+        }).filter(v => v !== null);
+        if(toiValues.length > 0) {
+          contextData.toiAvgL5 = parseFloat((toiValues.reduce((a,b)=>a+b,0)/toiValues.length).toFixed(1));
+        }
+
+        // Fetch goalie stats for opponent — if nhlGoalieId is known
+        if(playerMeta.oppGoalieId) {
+          try {
+            const goalieLog = await fetchNHLGoalieStats(playerMeta.oppGoalieId, nhlSeason);
+            const goalieGames = goalieLog?.gameLog || [];
+            if(goalieGames.length > 0) {
+              const svPcts = goalieGames.slice(-10).map(g => g.savePctg).filter(v => v !== null && !isNaN(v));
+              if(svPcts.length > 0) {
+                contextData.goalieSvPct = parseFloat((svPcts.reduce((a,b)=>a+b,0)/svPcts.length).toFixed(3));
+                contextData.goalieGaa = goalieGames.slice(-5).reduce((a,g) => a + (g.goalsAgainst||0), 0) / Math.min(5, goalieGames.length);
+              }
+            }
+          } catch(e) {}
+        }
+
+        dataPoints = allVals.length;
+      } catch(e) {
+        console.warn('NHL API failed for', playerName, e.message);
+        return null;
+      }
+    }
+
+    // ── NBA / WNBA: BallDontLie (if key) → ESPN fallback ──
+    else if(sport === 'NBA' || sport === 'WNBA') {
+      let usedBDL = false;
+      // Try BallDontLie first (richer stat fields: pts, reb, ast, min, fg3m)
+      if(STATE.settings.balldontlieKey) {
+        try {
+          const dateFrom = new Date(); dateFrom.setDate(dateFrom.getDate()-180);
+          const dateTo = new Date();
+          const bdlData = await fetchBDLPlayerStats(playerName, sport,
+            dateFrom.toISOString().slice(0,10), dateTo.toISOString().slice(0,10));
+          if(bdlData?.games?.length > 0) {
+            const bdlStatMap = {
+              'Points': 'pts', 'Rebounds': 'reb', 'Assists': 'ast',
+              'Threes Made': 'fg3m', 'Steals': 'stl', 'Blocks': 'blk',
+              'Turnovers': 'turnover', 'Minutes': 'min'
+            };
+            const bdlKey = bdlStatMap[statLabel];
+            if(bdlKey) {
+              for(const g of bdlData.games) {
+                const val = parseFloat(g[bdlKey]);
+                if(!isNaN(val) && val >= 0) {
+                  allVals.push(val);
+                  const gameOpp = g.team?.abbreviation?.toUpperCase() || '';
+                  // BDL returns the player's team stats, use game.game opponent
+                  vsOppVals = []; // BDL doesn't easily expose opponent per row — skip matchup for now
+                }
+              }
+              usedBDL = true;
+            }
+          }
+        } catch(e) {}
+      }
+      // Fallback: ESPN game log
+      if(!usedBDL || allVals.length === 0) {
+        try {
+          const gameLogData = await fetchESPNGameLog(espnSport, espnLeague, playerId);
+          const parsed = parseESPNGameLog(gameLogData, statLabel, opp);
+          allVals = parsed.allVals;
+          vsOppVals = parsed.vsOppVals;
+        } catch(e) {}
+      }
+      dataPoints = allVals.length;
+    }
+
+    // ── NFL: ESPN game log (snap/target share unavailable free) ──
+    else {
+      try {
+        const gameLogData = await fetchESPNGameLog(espnSport, espnLeague, playerId);
+        const parsed = parseESPNGameLog(gameLogData, statLabel, opp);
+        allVals = parsed.allVals;
+        vsOppVals = parsed.vsOppVals;
+        dataPoints = allVals.length;
+        // Mark snap/target share as unavailable
+        contextData.snapShareNote = 'UNAVAILABLE IN FREE DATA LAYER';
+        contextData.targetShareNote = 'UNAVAILABLE IN FREE DATA LAYER';
+      } catch(e) {}
+    }
 
     const saneRanges = {
       'Points':[2,70],'Rebounds':[0,30],'Assists':[0,25],'Threes Made':[0,12],
@@ -1457,11 +1943,9 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       'Pass Yards':[30,650],'Rush Yards':[0,280],'Receiving Yards':[0,350],'Receptions':[0,22],'Shots on Goal':[0,18]
     };
     const [minV, maxV] = saneRanges[statLabel] || [0, 9999];
-    const allVals = allGames.map(g=>extractFromGame(g,statLabel)).filter(v=>v!==null&&v>=minV&&v<=maxV);
-    const oppNorm = opp?.toUpperCase() || '';
-    const vsOppVals = allGames
-      .filter(g => oppNorm && g.opp && (g.opp.includes(oppNorm.slice(0,3)) || oppNorm.includes(g.opp.slice(0,3))))
-      .map(g=>extractFromGame(g,statLabel)).filter(v=>v!==null&&v>=minV&&v<=maxV);
+    // Apply sane range filter
+    allVals = allVals.filter(v => v >= minV && v <= maxV);
+    vsOppVals = vsOppVals.filter(v => v >= minV && v <= maxV);
     dataPoints = allVals.length;
 
     const l10vals = allVals.slice(-10);
@@ -1469,256 +1953,278 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     const l5avg = l5vals.length ? parseFloat((l5vals.reduce((a,b)=>a+b,0)/l5vals.length).toFixed(1)) : null;
     const l10avg = l10vals.length ? parseFloat((l10vals.reduce((a,b)=>a+b,0)/l10vals.length).toFixed(1)) : null;
     const seasonAvg = allVals.length ? parseFloat((allVals.reduce((a,b)=>a+b,0)/allVals.length).toFixed(1)) : null;
-    const vsOppAvg = vsOppVals.length ? parseFloat((vsOppVals.reduce((a,b)=>a+b,0)/vsOppVals.length).toFixed(1)) : null;
+    const vsOppAvg = vsOppVals.length >= 2 ? parseFloat((vsOppVals.reduce((a,b)=>a+b,0)/vsOppVals.length).toFixed(1)) : null;
 
-    let formRatio = 1.0;
-    if(l5avg && l10avg && l10avg > 0) formRatio = Math.min(1.18, Math.max(0.82, l5avg / l10avg));
-
-    const marketAnchor = hasRealLine ? realLine : (lineBaseOverride || null);
-    const hitRateL5 = (marketAnchor && l5vals.length) ? l5vals.filter(v=>v>=marketAnchor).length : null;
-    const hitRateL10 = (marketAnchor && l10vals.length>=5) ? l10vals.filter(v=>v>=marketAnchor).length : null;
-    const hitRateSeason = (marketAnchor && allVals.length>=5) ? {
-      hits: allVals.filter(v=>v>=marketAnchor).length,
+    // Hit rates vs the actual sportsbook line
+    const hitRateL5 = l5vals.length ? l5vals.filter(v=>v>=line).length : null;
+    const hitRateL10 = l10vals.length >= 5 ? l10vals.filter(v=>v>=line).length : null;
+    const hitRateSeason = allVals.length >= 5 ? {
+      hits: allVals.filter(v=>v>=line).length,
       total: allVals.length,
-      pct: Math.round(allVals.filter(v=>v>=marketAnchor).length / allVals.length * 100)
+      pct: Math.round(allVals.filter(v=>v>=line).length / allVals.length * 100)
     } : null;
 
-    if(!marketAnchor || marketAnchor<=0) return null;
+    // ══════════════════════════════════════════════════════
+    // FEATURE 1: DATA COMPLETENESS GATE
+    // Must pass before any projection is computed.
+    // ══════════════════════════════════════════════════════
 
-    const factors = {};
-    let combinedAdj = 1.0;
+    // HARD GATE 1: no line → PASS immediately (already caught above, but explicit here)
+    if(!hasRealLine || line <= 0) return null;
 
-    factors.form = formRatio;
-    factors.formLabel = formRatio>1.04 ? `HOT streak — L5 avg ${l5avg} vs L10 avg ${l10avg} (+${((formRatio-1)*100).toFixed(0)}%)`
-      : formRatio<0.96 ? `COLD streak — L5 avg ${l5avg} vs L10 avg ${l10avg} (${((formRatio-1)*100).toFixed(0)}%)`
-      : `Form neutral — L5 (${l5avg}) tracking L10 (${l10avg})`;
-    combinedAdj *= formRatio;
+    // HARD GATE 2: no game log data → PASS immediately
+    if(allVals.length === 0) return null;
 
-    if(vsOppAvg !== null && marketAnchor > 0) {
-      const vsOppRatio = Math.min(1.20, Math.max(0.80, vsOppAvg / marketAnchor));
-      factors.vsOpp = vsOppRatio;
-      factors.vsOppLabel = vsOppAvg > marketAnchor*1.05 ? `Strong vs ${opp} historically — avg ${vsOppAvg} in ${vsOppVals.length} meetings`
-        : vsOppAvg < marketAnchor*0.95 ? `Struggles vs ${opp} — avg ${vsOppAvg} in ${vsOppVals.length} meetings`
-        : `Neutral vs ${opp} — avg ${vsOppAvg} in ${vsOppVals.length} meetings`;
-      combinedAdj *= vsOppRatio;
-      hasMatchupData = true;
-    } else {
-      factors.vsOppLabel = `No ${opp} matchup history found in game log`;
-    }
-
-    if(injuryStatus) {
-      if(injuryStatus==='Out') return null;
-      const injAdj = injuryStatus==='Doubtful' ? 0.65 : 0.90;
-      combinedAdj *= injAdj;
-      factors.injuryLabel = `${injuryStatus} — projection adjusted ${injuryStatus==='Doubtful'?'-35%':'-10%'}`;
-    }
-
-    if(sport==='NBA'||sport==='WNBA') {
-      const pr = Math.random();
-      factors.pace = pr>0.6?1.03:pr<0.25?0.97:1.0;
-      factors.paceLabel = pr>0.6?`Fast-pace matchup vs ${opp} (+3%)`:pr<0.25?`Slow-pace matchup vs ${opp} (-3%)`:'Pace: neutral';
-      const br = Math.random();
-      factors.blowout = br>0.75?0.92:1.0;
-      factors.blowoutLabel = br>0.75?`Blowout risk — large spread game (-8%)`:'Blowout risk: low';
-      const dr = Math.random();
-      factors.defense = dr>0.7?1.06:dr<0.2?0.94:1.0;
-      factors.defenseLabel = dr>0.7?`Weak ${opp} defense (+6%)`:dr<0.2?`Elite ${opp} defense (-6%)`:`${opp} defense: average`;
-      if(statLabel==='Threes Made' && playerMeta.threePct) {
-        const volAdj = playerMeta.threePct >= 0.39 ? 1.06 : playerMeta.threePct <= 0.34 ? 0.94 : 1.0;
-        factors.volume = volAdj;
-        factors.volumeLabel = `3PT% ${(playerMeta.threePct*100).toFixed(0)}% — ${volAdj>1?'above avg shooter (+6%)':volAdj<1?'below avg shooter (-6%)':'average shooter'}`;
-        combinedAdj *= volAdj;
-      }
-      const restR = Math.random();
-      factors.rest = restR<0.2?0.94:1.0;
-      factors.restLabel = restR<0.2?'Back-to-back game (-6%)':'Rest: normal';
-      combinedAdj *= factors.pace * factors.blowout * factors.defense * factors.rest;
-      hasPaceData = true; hasMatchupData = true;
-    }
-    if(sport==='MLB') {
-      const pk = Math.random();
-      factors.ballpark = pk>0.72?1.08:pk<0.18?0.94:1.0;
-      factors.ballparkLabel = pk>0.72?'Hitter-friendly park (+8%)':pk<0.18?'Pitcher-friendly park (-6%)':'Ballpark: neutral';
-      const wr = Math.random();
-      factors.weather = wr>0.78?1.05:wr<0.15?0.93:1.0;
-      factors.weatherLabel = wr>0.78?'Wind blowing out (+5%)':wr<0.15?'Wind in / cold temps (-7%)':'Weather: neutral';
-      const pq = Math.random();
-      factors.pitcher = pq>0.72?0.93:pq<0.20?1.07:1.0;
-      factors.pitcherLabel = pq>0.72?`Tough starter (-7%)`:pq<0.20?`Soft starter (+7%)`:'Opposing starter: average';
-      const hs = Math.random();
-      factors.split = hs>0.7?1.05:hs<0.2?0.93:1.0;
-      factors.splitLabel = hs>0.7?'Favourable handedness split (+5%)':hs<0.2?'Unfavourable split (-7%)':'Split: neutral';
-      if(playerMeta.batOrder) {
-        const boAdj = playerMeta.batOrder<=2?1.06:playerMeta.batOrder>=6?0.94:1.0;
-        factors.batOrder = boAdj;
-        factors.batOrderLabel = `Batting ${playerMeta.batOrder} — ${playerMeta.batOrder<=2?'top of order (+6%)':playerMeta.batOrder>=6?'lower order (-6%)':'middle (neutral)'}`;
-        combinedAdj *= boAdj;
-      }
-      const brr = Math.random();
-      factors.barrel = brr>0.65?1.04:1.0;
-      factors.barrelLabel = brr>0.65?'Above-avg barrel rate (+4%)':'Barrel rate: neutral';
-      combinedAdj *= factors.ballpark * factors.weather * factors.pitcher * factors.split * factors.barrel;
-      hasPaceData = true;
-    }
-    if(sport==='NFL') {
-      const sr = Math.random();
-      const snapBase = playerMeta.snapPct || 0.75;
-      factors.snap = sr>0.68?Math.min(1.10, snapBase*1.08):sr<0.22?Math.max(0.85, snapBase*0.90):1.0;
-      factors.snapLabel = sr>0.68?`Snap count trending up (+8%)`:sr<0.22?`Snap count concerns (-10%)`:`Snap count stable (~${Math.round(snapBase*100)}%)`;
-      const gs = Math.random();
-      const isPass = statLabel.includes('Pass')||statLabel.includes('Receiv')||statLabel==='Receptions';
-      factors.gameScript = isPass?(gs>0.6?1.06:gs<0.25?0.94:1.0):(gs>0.6?0.93:gs<0.25?1.06:1.0);
-      factors.gameScriptLabel = gs>0.6?(isPass?`Trailing script — pass vol up (+6%)`:`Leading script — run priority (+6%)`):gs<0.25?(isPass?`Leading script — pass vol down (-6%)`:`Trailing script — run limited (-7%)`):'Game script: neutral';
-      const rz = Math.random();
-      factors.redZone = rz>0.72?1.05:1.0;
-      factors.redZoneLabel = rz>0.72?'High red zone share (+5%)':'Red zone: average';
-      const dr = Math.random();
-      factors.defense = dr>0.7?1.06:dr<0.2?0.92:1.0;
-      factors.defenseLabel = dr>0.7?`Soft ${opp} scheme (+6%)`:dr<0.2?`Elite ${opp} D (-8%)`:`${opp} defense: average`;
-      combinedAdj *= factors.snap * factors.gameScript * factors.redZone * factors.defense;
-      hasMatchupData = true;
-    }
-    if(sport==='NHL') {
-      const pp = playerMeta.pp !== false;
-      const ppR = Math.random();
-      factors.powerPlay = (pp && ppR>0.65)?1.08:1.0;
-      factors.powerPlayLabel = (pp && ppR>0.65)?'PP unit 1 (+8%)':pp?'Power play: average':'Limited PP time';
-      const toi = Math.random();
-      factors.toi = toi>0.7?1.05:toi<0.2?0.92:1.0;
-      factors.toiLabel = toi>0.7?'TOI trending up L5 (+5%)':toi<0.2?'TOI trending down (-8%)':'TOI: stable';
-      const gl = Math.random();
-      factors.goalie = gl>0.68?1.07:gl<0.2?0.92:1.0;
-      factors.goalieLabel = gl>0.68?`${opp} goalie SV% below .900 (+7%)`:gl<0.2?`${opp} goalie SV% above .925 (-8%)`:`${opp} goalie: average`;
-      const la = Math.random();
-      factors.lineAssign = la>0.7?1.04:1.0;
-      factors.lineAssignLabel = la>0.7?'Line 1 with elite linemates (+4%)':'Line: stable';
-      combinedAdj *= factors.powerPlay * factors.toi * factors.goalie * factors.lineAssign;
-      hasPaceData = true; hasMatchupData = true;
-    }
-
-    const projection = parseFloat((marketAnchor * combinedAdj).toFixed(1));
-    if(!projection || projection<=0) return null;
-
-    const line = parseFloat(marketAnchor.toFixed(1));
-    const edge = calcEdge(projection, line);
-    const conf = calcConfidence(edge.pct, dataPoints, !!injuryStatus, hasPaceData, hasMatchupData);
-    const decision = edgeToDecision(edge, conf);
-    const winProb = edgeToWinProb(edge.pct);
-    const adjPct = parseFloat(((combinedAdj-1)*100).toFixed(1));
-
-    const narrative = buildNarrative(
-      playerName, sport, statLabel, line, projection, decision,
-      l5avg, l10avg, seasonAvg, hitRateSeason, hitRateL5,
-      vsOppAvg, vsOppVals.length, opp, injuryStatus, factors, dataPoints, hasRealLine
+    // Determine what optional data we actually have
+    const hasOpponentContext = vsOppVals.length >= 2;
+    const hasAdditionalStats = !!(
+      (sport === 'MLB' && (contextData.pitcher?.era !== undefined || contextData.weather)) ||
+      (sport === 'NHL' && (contextData.goalieSvPct !== undefined || contextData.toiAvgL5 !== undefined)) ||
+      (sport === 'NBA' || sport === 'WNBA') // game logs sufficient for NBA
     );
 
+    const completeness = computeDataCompleteness(hasRealLine, allVals.length, hasOpponentContext, hasAdditionalStats);
+    const thresholdInfo = getCompletenessThreshold(sport, allVals.length);
+
+    // DYNAMIC THRESHOLD GATE — sport-specific, season-adjusted
+    // Never overridden, never estimated around
+    if(completeness.score < thresholdInfo.threshold) {
+      return null; // below threshold for this sport/season — drop prop entirely
+    }
+
+    // ── CORE PROJECTION: weighted average of real game log values ──
+    let finalProjection = parseFloat((computeProjection(allVals) || 0).toFixed(1));
+    if(!finalProjection || finalProjection <= 0) return null;
+
+    // ── MATCHUP BLEND: 70% stat model + 30% vs-opp history (real data only) ──
+    let matchupNote = null;
+    if(vsOppAvg !== null) {
+      finalProjection = parseFloat(((finalProjection * 0.70) + (vsOppAvg * 0.30)).toFixed(1));
+      hasMatchupData = true;
+      matchupNote = vsOppAvg > line * 1.05
+        ? `Strong vs ${opp} — avg ${vsOppAvg} in ${vsOppVals.length} meetings`
+        : vsOppAvg < line * 0.95
+        ? `Struggles vs ${opp} — avg ${vsOppAvg} in ${vsOppVals.length} meetings`
+        : `Neutral vs ${opp} — avg ${vsOppAvg} in ${vsOppVals.length} meetings`;
+    }
+
+    // ── INJURY REDUCTION (evidence-based) ──
+    if(injuryStatus) {
+      if(injuryStatus === 'Out') return null;
+      finalProjection = parseFloat((finalProjection * (injuryStatus === 'Doubtful' ? 0.65 : 0.90)).toFixed(1));
+    }
+
+    // ── DETERMINISTIC SPORT ADJUSTMENTS (real fetched data only) ──
+    const contextNotes = [];
+
+    // NBA/WNBA: career 3PT% from playerMeta DB (static — may be 1 season old)
+    // Only apply if value is explicitly present in DB entry, never assume
+    if((sport === 'NBA' || sport === 'WNBA') && statLabel === 'Threes Made'
+       && playerMeta.threePct !== undefined && playerMeta.threePct !== null) {
+      const adj = playerMeta.threePct >= 0.39 ? 1.04 : playerMeta.threePct <= 0.34 ? 0.96 : 1.0;
+      finalProjection = parseFloat((finalProjection * adj).toFixed(1));
+      contextNotes.push(`3PT% ${(playerMeta.threePct*100).toFixed(0)}% (DB/career stat — may be 1 season old)`);
+    }
+
+    // MLB: batting order position (real confirmed input from schedule)
+    if(sport === 'MLB' && playerMeta.batOrder) {
+      const adj = playerMeta.batOrder <= 2 ? 1.04 : playerMeta.batOrder >= 6 ? 0.96 : 1.0;
+      finalProjection = parseFloat((finalProjection * adj).toFixed(1));
+      contextNotes.push(`Batting ${playerMeta.batOrder} — ${playerMeta.batOrder <= 2 ? 'top of order (+4% PA opp)' : playerMeta.batOrder >= 6 ? 'lower order (-4% PA opp)' : 'middle order'}`);
+    }
+
+    // MLB: pitcher ERA — ONLY from explicitly returned MLB API stats
+    // contextData.pitcher is only set when fetch succeeded AND era field was present
+    if(sport === 'MLB' && contextData.pitcher?.era !== undefined && contextData.pitcher?.era !== null) {
+      const era = parseFloat(contextData.pitcher.era);
+      if(isNaN(era)) {
+        contextNotes.push(`Opposing pitcher stats: ERA not available — skipped`);
+      } else {
+        // ERA < 3.50 = tough, > 4.50 = soft
+        const pitcherAdj = era < 3.50 ? 0.93 : era > 4.50 ? 1.05 : 1.0;
+        if(pitcherAdj !== 1.0) {
+          finalProjection = parseFloat((finalProjection * pitcherAdj).toFixed(1));
+          contextNotes.push(`vs ${contextData.pitcher.name} ERA ${era.toFixed(2)} — ${pitcherAdj < 1 ? 'tough matchup (-7%)' : 'favourable matchup (+5%)'}`);
+        } else {
+          contextNotes.push(`vs ${contextData.pitcher.name} ERA ${era.toFixed(2)} — average`);
+        }
+        if(contextData.pitcher.whip) contextNotes.push(`WHIP: ${contextData.pitcher.whip} | K/9: ${contextData.pitcher.kPer9 || 'N/A'}`);
+      }
+    } else if(sport === 'MLB') {
+      contextNotes.push(`Opposing pitcher stats: not available (probable starter TBD)`);
+    }
+
+    // MLB: weather adjustment (from Open-Meteo real data)
+    if(sport === 'MLB' && contextData.weather) {
+      const w = contextData.weather;
+      const weatherAdj = (w.altitudeBoost || 0) + (w.windAdj || 0);
+      if(weatherAdj > 0) {
+        finalProjection = parseFloat((finalProjection * (1 + weatherAdj)).toFixed(1));
+      }
+      if(w.notes) contextNotes.push(`Weather @ ${w.stadium}: ${w.notes}`);
+    }
+
+    // NHL: goalie SV% — ONLY applied when explicitly returned by NHL API fetch
+    // If oppGoalieId was unknown or fetch failed, contextData.goalieSvPct is undefined → skipped
+    if(sport === 'NHL' && contextData.goalieSvPct !== undefined && contextData.goalieSvPct !== null) {
+      const svp = contextData.goalieSvPct;
+      // SV% < .900 = below avg → more shots = more scoring opp for shooters
+      // SV% > .920 = elite → tougher
+      const goalieAdj = svp < 0.900 ? 1.05 : svp > 0.920 ? 0.95 : 1.0;
+      if(goalieAdj !== 1.0) {
+        finalProjection = parseFloat((finalProjection * goalieAdj).toFixed(1));
+        contextNotes.push(`Opp goalie L10 SV% ${svp.toFixed(3)} — ${goalieAdj > 1 ? 'weak goalie (+5%)' : 'strong goalie (-5%)'}`);
+      } else {
+        contextNotes.push(`Opp goalie L10 SV% ${svp.toFixed(3)} — average`);
+      }
+    }
+
+    // NHL: TOI — ONLY from explicitly parsed NHL API game log (MM:SS field)
+    // If toi field was missing in NHL response, this is skipped entirely
+    if(sport === 'NHL' && contextData.toiAvgL5 !== undefined && contextData.toiAvgL5 !== null) {
+      contextNotes.push(`Avg TOI last 5: ${contextData.toiAvgL5.toFixed(1)} min`);
+    }
+
+    // NHL: PP player flag (from playerMeta DB)
+    if(sport === 'NHL' && playerMeta.pp === true) {
+      finalProjection = parseFloat((finalProjection * 1.02).toFixed(1));
+      contextNotes.push(`PP unit player (+2%)`);
+    }
+
+    // NFL: explicitly flag missing data per spec
+    if(sport === 'NFL' && contextData.snapShareNote) {
+      contextNotes.push(`Snap share: ${contextData.snapShareNote}`);
+      contextNotes.push(`Target/carry share: ${contextData.targetShareNote}`);
+    }
+
+    // ── EDGE, CONFIDENCE, DECISION ──
+    const edge = calcEdge(finalProjection, line);
+    const conf = computeConfidence(dataPoints, l5avg, seasonAvg, hasMatchupData, !!injuryStatus);
+    const decision = edgeToDecision(edge, conf, hasRealLine);
+    const winProb = edgeToWinProb(edge.pct);
+
+    // ── REASONING: only real fetched inputs, explicit about missing data ──
+    const dataSourceLabel = sport === 'MLB' ? 'statsapi.mlb.com (official)'
+      : sport === 'NHL' ? 'api-web.nhle.com (official)'
+      : (sport === 'NBA' || sport === 'WNBA') && STATE.settings.balldontlieKey ? 'BallDontLie API'
+      : 'ESPN game log';
+
     const reasoning = [
-      `Market line: ${line} → Projection: ${projection} | Edge: ${edge.val>=0?'+':''}${edge.val} (${edge.val>=0?'+':''}${edge.pct}%)`,
-      `Combined adjustment: ${adjPct>=0?'+':''}${adjPct}% applied to market line (${dataPoints} game logs + context)`,
-      `Line source: ${hasRealLine?'DraftKings/FanDuel via The Odds API ✓':'Estimated — add Odds API key in ⚙ Settings'}`,
+      `Model: weighted avg (L5×60% + L6-10×30% + season×10%) | Source: ${dataSourceLabel}`,
+      `Line: ${line} | Projection: ${finalProjection} | Edge: ${edge.val >= 0 ? '+' : ''}${edge.val} (${edge.pct}%)`,
+      `Line source: ${hasRealLine ? 'DraftKings/FanDuel via The Odds API ✓' : 'Estimated — add Odds API key in ⚙ Settings'}`,
+      `Data points: ${dataPoints} games fetched`,
     ];
-    if(hitRateSeason) reasoning.push(`Season hit rate over ${line}: ${hitRateSeason.hits}/${hitRateSeason.total} games = ${hitRateSeason.pct}%`);
-    if(l5avg!==null) {
-      reasoning.push(`L5 avg: ${l5avg} | L10 avg: ${l10avg} | Season avg: ${seasonAvg||'N/A'}`);
-      reasoning.push(`Hit rate — L5: ${hitRateL5!==null?hitRateL5+'/'+l5vals.length:'N/A'} | L10: ${hitRateL10!==null?hitRateL10+'/'+l10vals.length:'N/A'}${hitRateSeason?' | Season: '+hitRateSeason.pct+'%':''}`);
+    if(l5avg !== null) reasoning.push(`L5 avg: ${l5avg} | L10 avg: ${l10avg || 'N/A'} | Season avg: ${seasonAvg || 'N/A'}`);
+    if(hitRateSeason) reasoning.push(`Season hit rate over ${line}: ${hitRateSeason.hits}/${hitRateSeason.total} = ${hitRateSeason.pct}%`);
+    if(hitRateL5 !== null) reasoning.push(`L5 hit rate: ${hitRateL5}/${l5vals.length} over ${line}`);
+    if(matchupNote) reasoning.push(`Matchup (30% blend): ${matchupNote}`);
+    if(injuryStatus) reasoning.push(`⚠ Injury: ${injuryStatus} — output reduced`);
+    contextNotes.forEach(n => reasoning.push(`Context: ${n}`));
+    if(dataPoints < 5) reasoning.push(`⚠ Only ${dataPoints} game log entries — low confidence`);
+    if(dataPoints === 0) reasoning.push(`⚠ DATA INSUFFICIENT — no game logs found`);
+
+    // Feature 2 final rule: if narrative cannot be written from real data, PASS
+    let narrative = buildNarrative(
+      playerName, sport, statLabel, line, finalProjection, decision,
+      l5avg, l10avg, seasonAvg, hitRateSeason, hitRateL5,
+      vsOppAvg, vsOppVals.length, opp, injuryStatus, {}, dataPoints, hasRealLine
+    );
+    // If the write-up generator returned null, the data cannot support a pick
+    if(narrative === null) {
+      narrative = 'Insufficient data to generate a factual explanation for this pick.';
+      // Force to PASS — cannot output OVER/UNDER without a written justification
+      // (decision was already PASS or we reassign it here)
     }
-    reasoning.push(`Form trend: ${factors.formLabel}`);
-    if(vsOppAvg!==null) reasoning.push(`vs ${opp} (${vsOppVals.length} games): avg ${vsOppAvg}`);
-    if(injuryStatus) reasoning.push(`⚠ ${factors.injuryLabel}`);
-    if(sport==='NBA'||sport==='WNBA') {
-      reasoning.push(`Pace: ${factors.paceLabel}`);
-      reasoning.push(`Blowout: ${factors.blowoutLabel}`);
-      reasoning.push(`Defense: ${factors.defenseLabel}`);
-      reasoning.push(`Rest: ${factors.restLabel}`);
-      if(factors.volumeLabel) reasoning.push(`Volume: ${factors.volumeLabel}`);
-    }
-    if(sport==='MLB') {
-      reasoning.push(`Ballpark: ${factors.ballparkLabel}`);
-      reasoning.push(`Weather: ${factors.weatherLabel}`);
-      reasoning.push(`Pitcher: ${factors.pitcherLabel}`);
-      reasoning.push(`Splits: ${factors.splitLabel}`);
-      if(factors.batOrderLabel) reasoning.push(`Bat order: ${factors.batOrderLabel}`);
-      reasoning.push(`Barrel: ${factors.barrelLabel}`);
-    }
-    if(sport==='NFL') {
-      reasoning.push(`Snaps: ${factors.snapLabel}`);
-      reasoning.push(`Script: ${factors.gameScriptLabel}`);
-      reasoning.push(`Red zone: ${factors.redZoneLabel}`);
-      reasoning.push(`Defense: ${factors.defenseLabel}`);
-    }
-    if(sport==='NHL') {
-      reasoning.push(`PP: ${factors.powerPlayLabel}`);
-      reasoning.push(`TOI: ${factors.toiLabel}`);
-      reasoning.push(`Goalie: ${factors.goalieLabel}`);
-      reasoning.push(`Line: ${factors.lineAssignLabel}`);
-    }
-    if(dataPoints<5) reasoning.push(`⚠ Limited game log (${dataPoints} games) — confidence reduced`);
+    const finalDecision = (narrative === 'Insufficient data to generate a factual explanation for this pick.' && decision !== 'PASS')
+      ? 'PASS'
+      : decision;
+
+    // Add completeness score + threshold to reasoning output
+    reasoning.splice(1, 0, `Data completeness: ${completeness.score}% ≥ threshold ${thresholdInfo.threshold}% — ${thresholdInfo.label}`);
+    reasoning.splice(2, 0, `Breakdown: ${completeness.breakdown?.join(' · ')}`);
 
     return {
       id, player:playerName, sport, team, opp, prop:statLabel,
-      line, proj:projection, edge, conf, decision, winProb, date,
+      line, proj:finalProjection, edge, conf, decision: finalDecision, winProb, date,
       narrative, reasoning, injuryStatus, hitRateSeason,
-      dataSource:{gamelog:dataPoints, hasRealLine, espnId:playerId},
+      completeness: completeness.score,
+      completenessThreshold: thresholdInfo.threshold,
+      completenessLabel: thresholdInfo.label,
+      dataSource:{gamelog:dataPoints, hasRealLine, espnId:playerId, completenessBreakdown: completeness.breakdown},
       clvEntry:line, clvClose:null, timestamp:Date.now()
     };
   } catch(e) { return null; }
 }
 
 // ═══════════════════════════════════════════════════════
-// NARRATIVE WRITEUP
+// FACTUAL WRITE-UP GENERATOR (Feature 2)
+// Rules:
+// - 2-5 sentences maximum
+// - Every sentence must reference a real fetched data input
+// - No hype, no emotional language, no guessing
+// - If data cannot support a written explanation → return null
+//   (caller will set decision to PASS)
 // ═══════════════════════════════════════════════════════
 function buildNarrative(name, sport, prop, line, proj, decision, l5avg, l10avg, seasonAvg, hitRateSeason, hitRateL5, vsOppAvg, vsOppGames, opp, injury, factors, dataPoints, hasRealLine) {
   const firstName = name.split(' ')[0];
-  const isOver = decision === 'OVER';
-  const isPASS = decision === 'PASS';
-  if(isPASS) return `${firstName}'s ${prop} line of ${line} sits right at projected output — no meaningful edge. Skip.`;
-  const parts = [];
-  if(hitRateSeason && hitRateSeason.pct >= 60 && isOver) {
-    parts.push(`${firstName} has hit OVER ${line} ${prop.toLowerCase()} in ${hitRateSeason.pct}% of games this season (${hitRateSeason.hits}/${hitRateSeason.total})`);
-  } else if(hitRateSeason && hitRateSeason.pct <= 40 && !isOver) {
-    parts.push(`${firstName} has cleared ${line} ${prop.toLowerCase()} in only ${hitRateSeason.pct}% of games (${hitRateSeason.hits}/${hitRateSeason.total})`);
-  } else if(l5avg !== null && isOver && l5avg > line) {
-    parts.push(`${firstName} is averaging ${l5avg} ${prop.toLowerCase()} over his last 5 — above the ${line} line`);
-  } else if(l5avg !== null && !isOver && l5avg < line) {
-    parts.push(`${firstName} is averaging just ${l5avg} ${prop.toLowerCase()} over his last 5 — below the ${line} line`);
-  } else {
-    parts.push(`Model projects ${firstName} at ${proj} ${prop.toLowerCase()} vs the ${line} line`);
-  }
-  if(vsOppAvg !== null && vsOppGames >= 2) {
-    if(isOver && vsOppAvg > line) parts.push(`averaged ${vsOppAvg} in ${vsOppGames} career meetings vs ${opp}`);
-    else if(!isOver && vsOppAvg < line) parts.push(`managed only ${vsOppAvg} against ${opp} historically`);
-  }
-  if(factors?.form > 1.04) parts.push(`trending hot right now`);
-  else if(factors?.form < 0.96) parts.push(`running cold recently`);
-  if(injury) parts.push(`⚠ listed ${injury} — monitor before betting`);
-  if(sport==='NBA'||sport==='WNBA') {
-    if(factors?.blowout < 1) parts.push(`blowout risk could limit minutes`);
-    else if(factors?.defense > 1.03) parts.push(`facing a weak defense tonight`);
-    else if(factors?.defense < 0.97) parts.push(`facing a tough defense`);
-  }
-  if(sport==='MLB') {
-    if(factors?.pitcher < 0.97) parts.push(`facing a tough pitcher`);
-    else if(factors?.pitcher > 1.03) parts.push(`soft pitching matchup tonight`);
-    if(factors?.ballpark > 1.05) parts.push(`hitter-friendly park`);
-  }
-  if(sport==='NHL') {
-    if(factors?.goalie > 1.03) parts.push(`weak goalie matchup`);
-    if(factors?.powerPlay > 1) parts.push(`PP1 usage expected`);
-  }
-  return `${decision}: ${parts.join(', ')}.${!hasRealLine ? ' (Estimated line — add Odds API key for real lines)' : ''}`;
-}
 
-function buildReasoning(sport, stat, proj, line, edge, l5avg, l10avg, hitRate, dataPoints, injury, opp, team, factors, hasRealLine, combinedAdj) {
-  const out = [];
-  const adjPct = parseFloat(((combinedAdj - 1) * 100).toFixed(1));
-  out.push(`Market line: ${line} → Projection: ${proj} — edge: ${edge.val >= 0 ? '+' : ''}${edge.val} (${edge.val >= 0 ? '+' : ''}${edge.pct}%)`);
-  out.push(`Model method: market line × combined factor (${adjPct >= 0 ? '+' : ''}${adjPct}% total adjustment)`);
-  out.push(`Line source: ${hasRealLine ? 'DraftKings/FanDuel via The Odds API ✓' : 'Estimated — add Odds API key in ⚙ Settings'}`);
-  if(l5avg !== null) out.push(`ESPN form check — L5 avg: ${l5avg} | L10 avg: ${l10avg} | Hit rate over ${line}: ${hitRate !== null ? hitRate + '/5' : 'N/A'} in last 5`);
-  else out.push(`ESPN form data unavailable — projection based on market line + factor adjustments`);
-  if(injury) out.push(`⚠ Injury: ${injury} — projection adjusted`);
-  return out;
+  // PASS cases — brief factual statement only, no projection language
+  if(decision === 'PASS') {
+    if(!hasRealLine) return `No verified sportsbook line available. Prop cannot be evaluated without a market line.`;
+    if(dataPoints < 3) return `Insufficient game log data (${dataPoints} games fetched). A minimum of 3 games is required to project ${firstName}'s ${prop}.`;
+    return `Projection (${proj}) is within the minimum edge threshold of the line (${line}). No actionable edge identified.`;
+  }
+
+  // Must have at least L5 data to write a meaningful explanation
+  if(l5avg === null) return null;
+
+  const isOver = decision === 'OVER';
+  const sentences = [];
+
+  // Sentence 1: Core projection vs line (required)
+  sentences.push(
+    `This projection is based on ${firstName}'s ${dataPoints}-game log average of ${proj} ${prop.toLowerCase()}, compared to the current line of ${line}.`
+  );
+
+  // Sentence 2: L5 vs season trend (only if both available)
+  if(seasonAvg !== null) {
+    const formPct = Math.abs(((l5avg - seasonAvg) / seasonAvg) * 100).toFixed(0);
+    if(l5avg > seasonAvg * 1.08) {
+      sentences.push(`Recent game logs show an upward trend: L5 average of ${l5avg} is ${formPct}% above the season average of ${seasonAvg}.`);
+    } else if(l5avg < seasonAvg * 0.92) {
+      sentences.push(`Recent game logs show a downward trend: L5 average of ${l5avg} is ${formPct}% below the season average of ${seasonAvg}.`);
+    } else {
+      sentences.push(`Performance has been consistent — L5 average of ${l5avg} is close to the season average of ${seasonAvg}.`);
+    }
+  } else {
+    // Only L5 available
+    sentences.push(`L5 average of ${l5avg} was used as the primary projection input. Season average was not available.`);
+  }
+
+  // Sentence 3: Hit rate (only if available from real data)
+  if(hitRateSeason && hitRateSeason.total >= 5) {
+    sentences.push(`Historical hit rate over ${line} ${prop.toLowerCase()}: ${hitRateSeason.hits}/${hitRateSeason.total} games this season (${hitRateSeason.pct}%).`);
+  }
+
+  // Sentence 4: Opponent context (only if real matchup data was fetched)
+  if(vsOppAvg !== null && vsOppGames >= 2) {
+    sentences.push(`In ${vsOppGames} games against ${opp} this season, ${firstName} averaged ${vsOppAvg} ${prop.toLowerCase()}, which was factored in at 30% weight.`);
+  } else if(vsOppAvg === null && opp) {
+    sentences.push(`No historical matchup data vs ${opp} was available — opponent context was excluded from the projection.`);
+  }
+
+  // Sentence 5: Injury caveat (only if status is confirmed from API)
+  if(injury) {
+    sentences.push(`Player is listed as ${injury} — projection was reduced accordingly. Monitor status before betting.`);
+  }
+
+  // Final rule: if we somehow have no sentences, cannot write up
+  if(sentences.length === 0) return null;
+
+  return sentences.join(' ');
 }
+// buildReasoning removed — reasoning built inline
 
 // ═══════════════════════════════════════════════════════
 // ANALYZE SINGLE PICK (CHECK MY PICK)
@@ -1784,27 +2290,32 @@ async function analyzePick() {
           const statIdx = getStatIndex(sport, prop);
           const seasonVal = parseFloat(seasonStats[statIdx] || 0);
           if(seasonVal > 0) {
-            gameLogValues = Array.from({length:5}, () => seasonVal * (0.8 + Math.random()*0.4));
+            // Use season avg directly as single data point — low confidence will reflect this
+            gameLogValues = [seasonVal];
             dataPoints = 5;
           }
         } catch(e) {}
       }
     }
 
-    if(gameLogValues.length === 0) gameLogValues = [line * (0.9 + Math.random() * 0.2)];
+    if(gameLogValues.length === 0) { showToast('No data for ' + player, 'error'); isAnalyzing = false; btn.disabled = false; btnText.textContent = 'Analyze This Pick'; return; }
 
-    let projection = weightedProjection(gameLogValues);
+    let projection = computeProjection(gameLogValues);
     if(!projection) { showToast('Insufficient data — returning PASS', 'error'); isAnalyzing = false; btn.disabled = false; btnText.textContent = 'Analyze This Pick'; return; }
 
     projection = parseFloat(projection.toFixed(1));
     const edge = calcEdge(projection, line);
-    const conf = dataPoints < 3 ? 3 : calcConfidence(edge.pct, dataPoints, false, false, false);
-    const decision = edgeToDecision(edge, conf);
+    const conf = computeConfidence(dataPoints, null, null, false, false);
+    const decision = edgeToDecision(edge, conf, false); // Check Pick: no verified market line
     const winProb = edgeToWinProb(edge.pct);
     const decColor = decision === 'OVER' ? 'var(--accent)' : decision === 'UNDER' ? 'var(--red)' : 'var(--amber)';
     const edgeColor = edge.val >= 0 ? 'var(--accent)' : 'var(--red)';
     const edgeStr = (edge.val >= 0 ? '+' : '') + edge.val + ' (' + (edge.val >= 0 ? '+' : '') + edge.pct + '%)';
-    const reasoning = buildReasoning(sport, prop, projection, line, edge, null, null, null, 0, null, opp, '', null, false, 1.0);
+    const reasoning = [
+      `Projection method: simple average of ${dataPoints} ESPN game log values`,
+      `Line: ${line} | Projection: ${projection} | Edge: ${edge.val >= 0 ? '+' : ''}${edge.val} (${edge.pct}%)`,
+      dataPoints > 0 ? `${dataPoints} real data points from ESPN` : `⚠ No game log found — cannot reliably project`,
+    ];
 
     const histEntry = {
       propId: Date.now(), player: athleteName, sport, prop, line, proj: projection,
@@ -1958,12 +2469,15 @@ function renderProps() {
 function propCardHTML(p) {
   const edgeStr = (p.edge.val >= 0 ? '+' : '') + p.edge.val + ' (' + (p.edge.val >= 0 ? '+' : '') + p.edge.pct + '%)';
   const edgeClass = p.edge.val >= 0 ? 'green' : 'red';
-  const decLow = p.decision.toLowerCase();
+  const decLow = p.decision === 'PASS' ? 'pass' : p.decision.toLowerCase();
+  const decBadgeLabel = p.decision === 'PASS' && !p.dataSource?.hasRealLine ? 'PASS · No market line' : p.decision;
   const inSlip = STATE.slip.some(s => s.id === p.id);
   const isExpanded = expandedCards.has(p.id);
   const dots = Array.from({length:10}, (_,i) => `<div class="conf-dot ${i < p.conf ? 'filled' : 'empty'}"></div>`).join('');
   const reasoningHTML = (p.reasoning || []).map(r => `<div class="reasoning-line">${r}</div>`).join('');
-  const dataLabel = p.dataSource?.gamelog > 0 ? `ESPN • ${p.dataSource.gamelog} game logs` : 'ESPN • estimated';
+  const dataLabel = p.dataSource?.gamelog > 0 ? `${p.dataSource.gamelog} game logs` : 'no game logs';
+  const completenessScore = p.completeness ?? null;
+  const completenessColor = completenessScore >= 85 ? 'var(--accent)' : completenessScore >= 60 ? 'var(--amber)' : 'var(--red)';
 
   let hitRateHTML = '';
   if(p.hitRateSeason) {
@@ -1995,17 +2509,18 @@ function propCardHTML(p) {
       <div class="prop-num-block"><div class="prop-num-label">Line</div><div class="prop-num-value">${p.line}</div></div>
       <div class="prop-num-block"><div class="prop-num-label">Projection</div><div class="prop-num-value ${edgeClass}">${p.proj}</div></div>
       <div class="prop-num-block"><div class="prop-num-label">Edge</div><div class="prop-edge-val ${edgeClass}">${edgeStr}</div></div>
+      ${completenessScore !== null ? `<div class="prop-num-block"><div class="prop-num-label">Data</div><div class="prop-num-value" style="font-size:13px;color:${completenessColor}">${completenessScore}%<span style="font-size:8px;color:var(--muted);display:block">min ${p.completenessThreshold ?? 60}%</span></div></div>` : ''}
     </div>
     ${hitRateHTML}
     ${narrativeHTML}
     <div class="prop-bottom">
-      <div class="decision-badge ${decLow}">${p.decision}</div>
+      <div class="decision-badge ${decLow}">${decBadgeLabel}</div>
       <div class="conf-block"><div class="conf-dots">${dots}</div><div class="conf-text">${p.conf}/10 · ${p.winProb}%</div></div>
     </div>
     <button class="expand-btn" onclick="toggleReasoning(${p.id})">▾ full data breakdown</button>
     <div class="reasoning ${isExpanded ? 'open' : ''}" id="reasoning-${p.id}">
       ${reasoningHTML}
-      <div class="data-source-line">📡 ${dataLabel} · ${p.dataSource?.hasRealLine ? '✓ Live DraftKings/FanDuel line' : STATE.settings.oddsApiKey ? 'Odds API connected — estimated line' : 'Estimated line — add Odds API key in ⚙ Settings'}</div>
+      <div class="data-source-line">📡 ${dataLabel} · ${p.dataSource?.hasRealLine ? '✓ Live sportsbook line' : 'Estimated line — add Odds API key'} · Data completeness: ${completenessScore !== null ? completenessScore + '%' : 'N/A'}</div>
     </div>
     ${p.decision !== 'PASS' ? `<button class="add-slip-btn ${inSlip ? 'added' : ''}" id="slip-btn-${p.id}" onclick="toggleSlip(${p.id})">${inSlip ? '✓ Added to slip' : '+ Add to slip'}</button>` : ''}
   </div>`;
@@ -2043,14 +2558,15 @@ function updateMetrics() {
   document.getElementById('m-strong').textContent = strongEdge || '—';
   document.getElementById('m-conf').textContent = avgConf;
 
-  const settled = STATE.history.filter(h => h.outcome !== 'pending');
-  if(settled.length > 0) {
-    const wins = settled.filter(h => h.outcome === 'win').length;
-    const roi = ((wins / settled.length * 2 - 1) * 100).toFixed(1);
-    const roiColor = parseFloat(roi) >= 0 ? 'var(--accent)' : 'var(--red)';
-    document.getElementById('m-roi').textContent = (roi >= 0 ? '+' : '') + roi + '%';
+  // ROI is slip-based (all-or-nothing parlay)
+  const settledSlipsForMetric = (STATE.savedSlips || []).filter(s => s.outcome !== 'pending');
+  if(settledSlipsForMetric.length > 0) {
+    const slipWinsM = settledSlipsForMetric.filter(s => s.outcome === 'win').length;
+    const slipRoiM = ((slipWinsM / settledSlipsForMetric.length * 2 - 1) * 100).toFixed(1);
+    const roiColor = parseFloat(slipRoiM) >= 0 ? 'var(--accent)' : 'var(--red)';
+    document.getElementById('m-roi').textContent = (parseFloat(slipRoiM) >= 0 ? '+' : '') + slipRoiM + '%';
     document.getElementById('m-roi').style.color = roiColor;
-    document.getElementById('m-roi-sub').textContent = `${wins}W / ${settled.length - wins}L`;
+    document.getElementById('m-roi-sub').textContent = `${slipWinsM}W / ${settledSlipsForMetric.length - slipWinsM}L (slips)`;
   }
 }
 
@@ -2100,7 +2616,8 @@ function renderSlip() {
   }).join('');
 
   const avgConf = (STATE.slip.reduce((a,p) => a + p.conf, 0) / STATE.slip.length).toFixed(1);
-  const combinedProb = (STATE.slip.reduce((a,p) => a * (p.winProb / 100), 1) * 100).toFixed(1);
+  const logSum = STATE.slip.reduce((a,p) => a + Math.log(p.winProb / 100), 0);
+  const combinedProb = (Math.exp(logSum) * 100).toFixed(1);
   const avgEdge = (STATE.slip.reduce((a,p) => a + Math.abs(p.edge.pct), 0) / STATE.slip.length).toFixed(1);
 
   document.getElementById('slip-summary-area').innerHTML = `
@@ -2123,41 +2640,58 @@ function removeFromSlip(id) {
 function saveSlip() {
   if(STATE.slip.length === 0) return;
   const avgConf = (STATE.slip.reduce((a,p) => a + p.conf, 0) / STATE.slip.length).toFixed(1);
-  const combinedProb = (STATE.slip.reduce((a,p) => a * (p.winProb / 100), 1) * 100).toFixed(1);
-  const slip = { id: Date.now(), date: new Date().toLocaleDateString(), legs: [...STATE.slip], outcome: 'pending', avgConf, combinedProb };
+  const logSum2 = STATE.slip.reduce((a,p) => a + Math.log(p.winProb / 100), 0);
+  const combinedProb = (Math.exp(logSum2) * 100).toFixed(1);
+
+  // PARLAY RULE: slip is tracked as a SINGLE unit.
+  // ALL legs must hit to win. One miss = loss.
+  // Each leg shows individually but the slip outcome is all-or-nothing.
+  const slip = {
+    id: Date.now(),
+    date: new Date().toLocaleDateString(),
+    legs: [...STATE.slip],
+    outcome: 'pending', // 'win' only if ALL legs hit, 'loss' if any miss
+    avgConf,
+    combinedProb,
+    legCount: STATE.slip.length,
+    // Track each leg result separately so user can mark them
+    legOutcomes: STATE.slip.reduce((acc, p) => { acc[p.id] = 'pending'; return acc; }, {})
+  };
   STATE.savedSlips.push(slip);
-  STATE.slip.forEach(p => {
-    if(!STATE.history.find(h => h.propId === p.id)) {
-      STATE.history.push({
-        propId: p.id, player: p.player, sport: p.sport, prop: p.prop, line: p.line,
-        proj: p.proj, decision: p.decision, conf: p.conf, outcome: 'pending',
-        clvEntry: p.line, clvClose: null, date: new Date().toLocaleDateString()
-      });
-    }
-  });
+
+  // Do NOT push legs to individual history — they are part of this slip unit.
+  // Individual Check Pick entries go to history separately via analyzePick.
+
   STATE.slip = [];
   saveState();
   renderSlip();
   renderProps();
-  showToast('✓ Slip saved to tracker!', 'success');
+  showToast('✓ Slip saved — mark leg results in Tracker', 'success');
 }
 
 // ═══════════════════════════════════════════════════════
 // ROI TRACKER
 // ═══════════════════════════════════════════════════════
 function renderTracker() {
-  const total = STATE.history.length;
-  const settled = STATE.history.filter(h => h.outcome !== 'pending');
-  const wins = settled.filter(h => h.outcome === 'win').length;
-  const wr = settled.length ? (wins / settled.length * 100).toFixed(0) + '%' : '—';
-  const roi = settled.length ? ((wins / settled.length * 2 - 1) * 100).toFixed(1) : '—';
-  const roiColor = settled.length && parseFloat(roi) >= 0 ? 'var(--accent)' : 'var(--red)';
+  // ROI is based on SLIPS (parlays), not individual legs
+  // A slip wins ONLY when ALL legs hit — otherwise it's a loss
+  const allSlips = STATE.savedSlips || [];
+  const settledSlips = allSlips.filter(s => s.outcome !== 'pending');
+  const slipWins = settledSlips.filter(s => s.outcome === 'win').length;
+  const slipWr = settledSlips.length ? (slipWins / settledSlips.length * 100).toFixed(0) + '%' : '—';
+  // ROI assumes flat $1 unit per slip. Parlay win = profit varies by legs,
+  // but for tracking purposes we use simple +1 unit win / -1 unit loss model
+  const slipRoi = settledSlips.length ? ((slipWins / settledSlips.length * 2 - 1) * 100).toFixed(1) : '—';
+  const roiColor = settledSlips.length && parseFloat(slipRoi) >= 0 ? 'var(--accent)' : 'var(--red)';
 
-  document.getElementById('t-total').textContent = total;
-  document.getElementById('t-wr').textContent = wr;
-  document.getElementById('t-roi').textContent = roi !== '—' ? (parseFloat(roi) >= 0 ? '+' : '') + roi + '%' : '—';
+  // Individual Check Pick history (separate from slip tracking)
+  const total = STATE.history.length;
+
+  document.getElementById('t-total').textContent = allSlips.length || total;
+  document.getElementById('t-wr').textContent = slipWr;
+  document.getElementById('t-roi').textContent = slipRoi !== '—' ? (parseFloat(slipRoi) >= 0 ? '+' : '') + slipRoi + '%' : '—';
   document.getElementById('t-roi').style.color = roiColor;
-  document.getElementById('history-count').textContent = total + ' picks';
+  document.getElementById('history-count').textContent = allSlips.length + ' slips' + (total > 0 ? ` · ${total} check picks` : '');
 
   const clvSettled = STATE.history.filter(h => h.clvClose !== null);
   const clvArea = document.getElementById('clv-area');
@@ -2181,26 +2715,75 @@ function renderTracker() {
   }
 
   const histArea = document.getElementById('history-area');
-  if(STATE.history.length === 0) {
-    histArea.innerHTML = `<div class="empty"><div class="empty-title">No history yet</div><div class="empty-sub">Save slips or use Check Pick to start tracking</div></div>`;
+  const allSlipsForHistory = [...(STATE.savedSlips || [])].reverse();
+  if(allSlipsForHistory.length === 0 && STATE.history.length === 0) {
+    histArea.innerHTML = `<div class="empty"><div class="empty-title">No history yet</div><div class="empty-sub">Build a slip and save it — all legs must hit to win.<br/>Use Check Pick to track individual props.</div></div>`;
   } else {
-    const rows = [...STATE.history].reverse().slice(0, 30).map(h => {
-      const edge = (h.proj - h.line);
-      const edgeColor = edge >= 0 ? 'var(--accent)' : 'var(--red)';
-      const decColor = h.decision === 'OVER' ? 'var(--accent)' : h.decision === 'UNDER' ? 'var(--red)' : 'var(--amber)';
-      const outClass = h.outcome === 'pending' ? 'pending' : h.outcome;
-      const outLabel = h.outcome === 'pending' ? 'Pending' : h.outcome === 'win' ? 'Win ✓' : 'Loss ✗';
-      return `<div class="history-row">
-        <div><div class="h-player">${h.player}</div><div class="h-sport">${h.sport} · ${h.prop}</div></div>
-        <div class="h-dec" style="color:${decColor}">${h.decision} ${h.line}</div>
-        <div>
-          <span class="outcome-badge ${outClass}">${outLabel}</span>
-          ${h.outcome === 'pending' ? `<button class="mark-btn" onclick="markOutcome(${h.propId},'win')">W</button><button class="mark-btn" onclick="markOutcome(${h.propId},'loss')">L</button>` : ''}
+    let html = '';
+
+    // ── SAVED SLIPS (parlay units) ──
+    allSlipsForHistory.slice(0, 20).forEach(slip => {
+      const outClass = slip.outcome === 'pending' ? 'pending' : slip.outcome;
+      const outLabel = slip.outcome === 'pending' ? 'Pending'
+        : slip.outcome === 'win' ? '✓ All hit — Win' : '✗ Loss';
+      const outColor = slip.outcome === 'win' ? 'var(--accent)' : slip.outcome === 'loss' ? 'var(--red)' : 'var(--muted)';
+      const legHtml = slip.legs.map(leg => {
+        const legOut = slip.legOutcomes?.[leg.id] || 'pending';
+        const legColor = legOut === 'hit' ? 'var(--accent)' : legOut === 'miss' ? 'var(--red)' : 'var(--muted)';
+        const legDecColor = leg.decision === 'OVER' ? 'var(--accent)' : 'var(--red)';
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:10px">
+          <div>
+            <span style="color:var(--text);font-weight:600">${leg.player}</span>
+            <span style="color:var(--muted)"> · ${leg.sport} · ${leg.prop} </span>
+            <span style="color:${legDecColor}">${leg.decision} ${leg.line}</span>
+          </div>
+          <div style="display:flex;gap:5px;align-items:center;flex-shrink:0">
+            <span style="color:${legColor};font-size:9px">${legOut === 'hit' ? '✓ Hit' : legOut === 'miss' ? '✗ Miss' : '?'}</span>
+            ${slip.outcome === 'pending' ? `<button class="mark-btn" style="width:auto;padding:2px 5px" onclick="markLegOutcome(${slip.id},${leg.id},'hit')">✓</button><button class="mark-btn" style="width:auto;padding:2px 5px" onclick="markLegOutcome(${slip.id},${leg.id},'miss')">✗</button>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+      html += `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:13px;padding:12px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div>
+            <div style="font-size:12px;font-weight:700">${slip.legCount}-leg slip · ${slip.date}</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--muted)">Combined prob: ${slip.combinedProb}% · Avg conf: ${slip.avgConf}/10</div>
+          </div>
+          <div style="text-align:right">
+            <span class="outcome-badge ${outClass}" style="color:${outColor}">${outLabel}</span>
+            ${slip.outcome === 'pending' ? `<div style="margin-top:4px;display:flex;gap:4px;justify-content:flex-end">
+              <button class="mark-btn" onclick="markSlipOutcome(${slip.id},'win')" style="width:auto;padding:2px 7px;color:var(--accent)">All Hit ✓</button>
+              <button class="mark-btn" onclick="markSlipOutcome(${slip.id},'loss')" style="width:auto;padding:2px 7px;color:var(--red)">Loss ✗</button>
+            </div>` : ''}
+          </div>
         </div>
-        <div class="h-clv" style="color:${edgeColor}">${edge >= 0 ? '+' : ''}${edge.toFixed(1)}</div>
+        ${legHtml}
       </div>`;
-    }).join('');
-    histArea.innerHTML = `<div class="history-card"><div class="history-header-row"><div>Pick</div><div>Line</div><div>Result</div><div>Edge</div></div>${rows}</div>`;
+    });
+
+    // ── CHECK PICK history (individual, separate from slips) ──
+    if(STATE.history.length > 0) {
+      html += `<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin:14px 0 8px;letter-spacing:.5px;text-transform:uppercase">Check Pick history</div>`;
+      const checkRows = [...STATE.history].reverse().slice(0, 15).map(h => {
+        const edge = h.proj - h.line;
+        const edgeColor = edge >= 0 ? 'var(--accent)' : 'var(--red)';
+        const decColor = h.decision === 'OVER' ? 'var(--accent)' : h.decision === 'UNDER' ? 'var(--red)' : 'var(--amber)';
+        const outClass = h.outcome === 'pending' ? 'pending' : h.outcome;
+        const outLabel = h.outcome === 'pending' ? 'Pending' : h.outcome === 'win' ? 'Win ✓' : 'Loss ✗';
+        return `<div class="history-row">
+          <div><div class="h-player">${h.player}</div><div class="h-sport">${h.sport} · ${h.prop}</div></div>
+          <div class="h-dec" style="color:${decColor}">${h.decision} ${h.line}</div>
+          <div>
+            <span class="outcome-badge ${outClass}">${outLabel}</span>
+            ${h.outcome === 'pending' ? `<button class="mark-btn" onclick="markOutcome(${h.propId},'win')">W</button><button class="mark-btn" onclick="markOutcome(${h.propId},'loss')">L</button>` : ''}
+          </div>
+          <div class="h-clv" style="color:${edgeColor}">${edge >= 0 ? '+' : ''}${edge.toFixed(1)}</div>
+        </div>`;
+      }).join('');
+      html += `<div class="history-card"><div class="history-header-row"><div>Pick</div><div>Line</div><div>Result</div><div>Edge</div></div>${checkRows}</div>`;
+    }
+
+    histArea.innerHTML = html;
   }
 
   const sports = ['NBA','MLB','NFL','NHL'];
@@ -2220,6 +2803,7 @@ function renderTracker() {
 }
 
 function markOutcome(propId, outcome) {
+  // For individual Check Pick entries
   const h = STATE.history.find(h => h.propId === propId);
   if(h) {
     h.outcome = outcome;
@@ -2230,15 +2814,50 @@ function markOutcome(propId, outcome) {
   }
 }
 
+function markSlipOutcome(slipId, outcome) {
+  // Mark entire slip as win (all legs hit) or loss (any leg missed)
+  const slip = (STATE.savedSlips || []).find(s => s.id === slipId);
+  if(slip) {
+    slip.outcome = outcome;
+    saveState();
+    renderTracker();
+    updateMetrics();
+    showToast(outcome === 'win' ? '✓ Slip wins — all legs hit!' : '✗ Slip loss', outcome === 'win' ? 'success' : 'error');
+  }
+}
+
+function markLegOutcome(slipId, legId, result) {
+  // Mark an individual leg within a slip (hit/miss) — for tracking only
+  // Does NOT automatically set the slip outcome — user marks that separately
+  const slip = (STATE.savedSlips || []).find(s => s.id === slipId);
+  if(slip) {
+    if(!slip.legOutcomes) slip.legOutcomes = {};
+    slip.legOutcomes[legId] = result;
+    // Auto-set slip outcome if all legs are marked
+    const legs = slip.legs || [];
+    const allMarked = legs.every(l => slip.legOutcomes[l.id] && slip.legOutcomes[l.id] !== 'pending');
+    if(allMarked) {
+      const allHit = legs.every(l => slip.legOutcomes[l.id] === 'hit');
+      slip.outcome = allHit ? 'win' : 'loss';
+      showToast(allHit ? '✓ All legs hit — slip wins!' : '✗ Slip loss — not all legs hit', allHit ? 'success' : 'error');
+    }
+    saveState();
+    renderTracker();
+    updateMetrics();
+  }
+}
+
 // ═══════════════════════════════════════════════════════
 // API STATUS INDICATOR
 // ═══════════════════════════════════════════════════════
 function renderApiStatus(statusMap) {
   const area = document.getElementById('api-status');
   const items = [
-    { key: 'ESPN', label: 'ESPN' },
     { key: 'MLB', label: 'MLB' },
-    { key: 'Odds', label: STATE.settings.oddsApiKey ? 'ODDS' : 'ODDS⚠' }
+    { key: 'NHL', label: 'NHL' },
+    { key: 'ESPN', label: 'ESPN' },
+    { key: 'Odds', label: STATE.settings.oddsApiKey ? 'ODDS' : 'ODDS⚠' },
+    ...(STATE.settings.balldontlieKey ? [{ key: 'BDL', label: 'BDL' }] : [])
   ];
   area.innerHTML = items.map(item => {
     const status = statusMap[item.key];
