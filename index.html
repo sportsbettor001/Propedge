@@ -217,6 +217,19 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .clv-row{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;padding:5px 0;border-bottom:1px solid var(--border)}
 .clv-row:last-child{border-bottom:none}
 
+/* SLATE LOG PANEL */
+.slate-log{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px}
+.slate-log-title{font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.slate-log-title span{color:var(--blue)}
+.slate-sport-row{margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.slate-sport-row:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.slate-sport-label{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--text);margin-bottom:4px}
+.slate-game-row{font-family:var(--mono);font-size:9px;color:var(--muted);padding:2px 0 2px 8px;border-left:2px solid var(--border)}
+.slate-game-row.has-players{border-left-color:var(--accent);color:var(--text)}
+.slate-game-row.no-players{border-left-color:var(--red)}
+.slate-player-chip{display:inline-block;font-family:var(--mono);font-size:8px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:1px 5px;margin:1px 2px 1px 0;color:var(--muted)}
+
+/* MODE INDICATOR */
 /* MODE INDICATOR */
 .mode-banner{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;margin-bottom:10px;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.4px}
 .mode-banner.betting{background:rgba(0,229,160,.08);border:1px solid rgba(0,229,160,.25);color:var(--accent)}
@@ -333,6 +346,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       </button>
 
       <div id="mode-banner"></div>
+      <div id="slate-log-panel"></div>
       <div id="data-source-bar" class="data-source-bar"></div>
       <div id="props-list"></div>
     </div>
@@ -514,6 +528,7 @@ let STATE = loadState() || {
   // sportCache: per-sport prop storage with timestamps
   // { NBA: { props: [...], fetchedAt: 1234567890, propCount: 45 }, ... }
   sportCache: {},
+  slateLog: null, // stores last fetch result: games detected, players selected per game
   slip: [],
   history: [],
   savedSlips: [],
@@ -628,6 +643,7 @@ document.addEventListener('DOMContentLoaded', function() {
   updateSportChipStatus();
   updateCacheStatusBar();
   updateModeBanner();
+  renderSlateLog();
 });
 
 function setDateBar() {
@@ -1437,6 +1453,29 @@ async function runFetch(sportsToFetch) {
           }
         }
       }
+      // Build slate log for betting mode
+      const bettingSlateByGame = {};
+      for(const p of playersToProcess) {
+        const key = p.eventId || p.gameId || 'unknown';
+        if(!bettingSlateByGame[key]) {
+          bettingSlateByGame[key] = { sport: p.sport, home: p.homeTeam, away: p.awayTeam, players: new Set() };
+        }
+        bettingSlateByGame[key].players.add(p.name);
+      }
+      const bettingSlateBySport = {};
+      Object.values(bettingSlateByGame).forEach(g => {
+        if(!bettingSlateBySport[g.sport]) bettingSlateBySport[g.sport] = { sport: g.sport, gamesDetected: 0, gamesUsed: 0, games: [] };
+        bettingSlateBySport[g.sport].games.push({ home: g.home, away: g.away, players: [...g.players] });
+        bettingSlateBySport[g.sport].gamesUsed++;
+        bettingSlateBySport[g.sport].gamesDetected++;
+      });
+      STATE.slateLog = {
+        mode: 'betting',
+        fetchedAt: Date.now(),
+        sports: Object.values(bettingSlateBySport),
+        validationNotes: []
+      };
+
       showToast(`BETTING MODE — ${new Set(playersToProcess.map(p=>p.gameId)).size} games · ${playersToProcess.length} props`, 'success');
 
     } else {
@@ -1454,24 +1493,20 @@ async function runFetch(sportsToFetch) {
       const scheduleResults = await Promise.all(schedulePromises);
       if(scheduleResults.some(r => r.events.length > 0)) apiStatusMap.ESPN = 'ok';
 
-      // ── ANALYSIS MODE DEBUG LOG ──
-      // Logs game counts per sport to console AND the loading card
-      const debugLines = [];
+      // ── BUILD SLATE LOG (Analysis Mode) ──
+      // Collects game detection + player selection data for the on-screen panel
+      const slateLogSports = [];
       scheduleResults.forEach(r => {
         const gamesDetected = (r.events || []).length;
         const gamesUsed = Math.min(gamesDetected, gps);
-        debugLines.push(`${r.sport}: ${gamesDetected} games detected, ${gamesUsed} used (limit ${gps})`);
+        slateLogSports.push({
+          sport: r.sport,
+          gamesDetected,
+          gamesUsed,
+          games: [] // populated below as games are processed
+        });
         console.log(`[PropEdge] ${r.sport}: ${gamesDetected} games from ESPN, using ${gamesUsed}`);
       });
-      // Also write into the visible loading card
-      const debugEl = document.getElementById('progress-steps');
-      if(debugEl) {
-        const div = document.createElement('div');
-        div.style.cssText = 'margin-top:10px;font-family:var(--mono);font-size:9px;color:var(--muted);border-top:1px solid var(--border);padding-top:8px';
-        div.innerHTML = '<div style="color:var(--blue);margin-bottom:4px">Schedule detected (Analysis Mode):</div>' +
-          debugLines.map(l => '<div>· ' + l + '</div>').join('');
-        debugEl.appendChild(div);
-      }
 
       // Process each sport independently — no cross-sport mixing
       for(const { sport, events } of scheduleResults) {
@@ -1491,12 +1526,13 @@ async function runFetch(sportsToFetch) {
           //   4) alphabetical — last resort only when all real data is absent/tied
           // lineBase excluded — it is a betting line estimate, not a statistical output.
           const volOrder = { high: 3, med: 2, low: 1 };
-          // Log per-game player matching for this game
+          // Record this game in slate log
+          const slateEntry = slateLogSports.find(s => s.sport === sport);
           const allMatched = (PLAYER_DB[sport]||[]).filter(p => {
             const t = p.team.toUpperCase();
             return [home,away].some(a => a===t || a.includes(t.slice(0,3)) || t.includes(a.slice(0,3)));
           });
-          console.log(`[PropEdge] ${sport} game: ${home} vs ${away} — ${allMatched.length} DB players matched, selecting top 3`);
+          console.log(`[PropEdge] ${sport}: ${home} vs ${away} — ${allMatched.length} DB players matched`);
 
           const dbPlayers = (PLAYER_DB[sport]||[])
             .filter(p => {
@@ -1521,6 +1557,15 @@ async function runFetch(sportsToFetch) {
               return a.name.localeCompare(b.name);
             })
             .slice(0, 3); // HARD CAP: max 3 players per game
+
+          // Record selected players in slate log (deduplicated by name)
+          if(slateEntry) {
+            slateEntry.games.push({
+              home, away,
+              players: [...new Set(dbPlayers.map(p => p.name))]
+            });
+          }
+
           for(const p of dbPlayers) {
             playersToProcess.push({
               name:p.name, sport, espnSport, espnLeague, gameId,
@@ -1529,6 +1574,14 @@ async function runFetch(sportsToFetch) {
           }
         }
       }
+
+      // Store analysis mode slate log in STATE
+      STATE.slateLog = {
+        mode: 'analysis',
+        fetchedAt: Date.now(),
+        sports: slateLogSports,
+        validationNotes: []
+      };
     }
 
     // ── GOLF: same structure, 3 players max per event (FIX 3) ──
@@ -1694,6 +1747,7 @@ async function runFetch(sportsToFetch) {
     updateMetrics();
     updateDataSourceBar(apiStatusMap);
     updateModeBanner();
+    renderSlateLog();
 
     const allCached = getAllCachedProps();
     const realLines = allCached.filter(p=>p.dataSource?.hasRealLine).length;
@@ -3210,6 +3264,57 @@ function renderApiStatus(statusMap) {
     const cls = !status ? 'warn' : status === 'ok' ? 'ok' : status === 'err' ? 'err' : 'warn';
     return `<span class="api-badge ${cls}">${item.label}</span>`;
   }).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+// SLATE LOG — shows games detected + players selected
+// Persists on screen after generation completes
+// ═══════════════════════════════════════════════════════
+function renderSlateLog() {
+  const panel = document.getElementById('slate-log-panel');
+  if(!panel) return;
+  const log = STATE.slateLog;
+  if(!log || log.sports.length === 0) { panel.innerHTML = ''; return; }
+
+  const modeColor = log.mode === 'betting' ? 'var(--accent)' : 'var(--amber)';
+  const modeLabel = log.mode === 'betting' ? 'BETTING MODE' : 'ANALYSIS MODE';
+  const timeLabel = log.fetchedAt ? new Date(log.fetchedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+
+  let html = `<div class="slate-log">
+    <div class="slate-log-title">
+      <span style="color:${modeColor}">${modeLabel} — Last slate</span>
+      <span>${timeLabel}</span>
+    </div>`;
+
+  for(const sport of log.sports) {
+    html += `<div class="slate-sport-row">
+      <div class="slate-sport-label">${sport.sport} — ${sport.gamesDetected} game${sport.gamesDetected !== 1 ? 's' : ''} detected, ${sport.gamesUsed} used</div>`;
+
+    if(sport.games.length === 0) {
+      html += `<div class="slate-game-row no-players">No games found on today's slate</div>`;
+    } else {
+      for(const game of sport.games) {
+        const rowClass = game.players.length > 0 ? 'has-players' : 'no-players';
+        const playerChips = game.players.map(p =>
+          `<span class="slate-player-chip">${p}</span>`
+        ).join('');
+        html += `<div class="slate-game-row ${rowClass}">
+          ${game.home} vs ${game.away} — ${game.players.length} player${game.players.length !== 1 ? 's' : ''} selected
+          ${playerChips ? '<div style="margin-top:2px">' + playerChips + '</div>' : ''}
+        </div>`;
+      }
+    }
+    html += `</div>`;
+  }
+
+  if(log.validationNotes && log.validationNotes.length > 0) {
+    html += `<div style="margin-top:6px;font-family:var(--mono);font-size:8px;color:var(--red)">`;
+    log.validationNotes.forEach(n => { html += `<div>⚠ ${n}</div>`; });
+    html += `</div>`;
+  }
+
+  html += `</div>`;
+  panel.innerHTML = html;
 }
 
 function updateDataSourceBar(statusMap) {
