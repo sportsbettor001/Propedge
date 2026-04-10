@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v2.8</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v2.9</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <button class="settings-btn" onclick="openSettings()">⚙</button>
@@ -1783,8 +1783,8 @@ async function runFetch(sportsToFetch) {
               const events = games.map(g => ({
                 id: String(g.gamePk),
                 competitions: [{ competitors: [
-                  { homeAway:'home', team:{ abbreviation: g.teams?.home?.team?.abbreviation||'', id: String(g.teams?.home?.team?.id||'') }},
-                  { homeAway:'away', team:{ abbreviation: g.teams?.away?.team?.abbreviation||'', id: String(g.teams?.away?.team?.id||'') }}
+                  { homeAway:'home', team:{ abbreviation: mlbTeamAbbrev(g.teams?.home?.team?.name), id: String(g.teams?.home?.team?.id||'') }},
+                  { homeAway:'away', team:{ abbreviation: mlbTeamAbbrev(g.teams?.away?.team?.name), id: String(g.teams?.away?.team?.id||'') }}
                 ]}]
               }));
               return { sport, events };
@@ -2400,6 +2400,41 @@ function parseESPNGameLog(gameLogData, statLabel, opp) {
     'Receptions':['rec','receptions','REC'],'Shots on Goal':['sog','shots','shotsOnGoal','shots on goal','SOG']
   };
   const getAliases = (s) => statAliases[s] || [s.toLowerCase(), s];
+
+  // ── FLAT STRUCTURE (current ESPN format) ──
+  // Response has top-level labels/names array, events object at root
+  // e.g. { labels:[...], names:[...], events:{ '401234':{ stats:[...], opponent:{...} } } }
+  if(gameLogData?.labels?.length > 0 || gameLogData?.names?.length > 0) {
+    const labels = (gameLogData.labels || gameLogData.names || []).map(l => (l||'').toString().toLowerCase());
+    const eventsObj = gameLogData?.events || {};
+    const eventArr = Array.isArray(eventsObj) ? eventsObj : Object.values(eventsObj);
+    const flatGames = [];
+    for(const ev of eventArr) {
+      const stats = ev?.stats || ev?.statistics || [];
+      const oppAbbr = (ev?.opponent?.abbreviation || ev?.opponent?.shortDisplayName || '').toUpperCase();
+      if(stats.length) flatGames.push({ stats, labels, opp: oppAbbr, raw: ev });
+    }
+    if(flatGames.length > 0) {
+      const extractFlat = (game, stat) => {
+        const aliases = getAliases(stat);
+        for(const alias of aliases) {
+          const al = alias.toLowerCase();
+          const idx = game.labels.findIndex(l => l === al || l.includes(al) || al.includes(l));
+          if(idx !== -1 && game.stats[idx] !== undefined && game.stats[idx] !== '') {
+            const v = parseFloat(game.stats[idx]);
+            if(!isNaN(v) && v >= 0) return v;
+          }
+        }
+        return null;
+      };
+      const oppNorm = opp?.toUpperCase() || '';
+      const allVals = flatGames.map(g=>extractFlat(g,statLabel)).filter(v=>v!==null);
+      const vsOppVals = flatGames
+        .filter(g => oppNorm && g.opp && (g.opp.includes(oppNorm.slice(0,3)) || oppNorm.includes(g.opp.slice(0,3))))
+        .map(g=>extractFlat(g,statLabel)).filter(v=>v!==null);
+      return { allVals, vsOppVals };
+    }
+  }
 
   const tryParse1 = () => {
     for(const st of (gameLogData?.seasonTypes || [])) {
