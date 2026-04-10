@@ -359,8 +359,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       <button class="gen-btn" id="gen-btn" onclick="generateProps()">
         <span id="gen-btn-text">Generate Props</span>
       </button>
-      <button class="refetch-btn" id="refetch-btn" onclick="refetchAll()" style="display:none">
-        ↺ Re-fetch all sports (force fresh data)
+      <button class="refetch-btn" id="refetch-btn" onclick="refetchAll()">
+        ↺ Refresh all — ignore cache
       </button>
 
       <div id="mode-banner"></div>
@@ -732,9 +732,9 @@ function showCacheRestorePrompt() {
   propsList.innerHTML = `
     <div class="cache-restore-banner">
       <div class="cache-restore-title">📦 Cached data available</div>
-      <div class="cache-restore-sub">${sports.join('<br/>')}<br/><br/>Restore this data or start fresh?</div>
+      <div class="cache-restore-sub">${sports.join('<br/>')}<br/><br/>Load this data or start fresh?</div>
       <div class="cache-restore-btns">
-        <button class="cache-restore-yes" onclick="restoreCachedData()">✓ Yes, restore</button>
+        <button class="cache-restore-yes" onclick="restoreCachedData()">✓ Yes, load it</button>
         <button class="cache-restore-no" onclick="discardCachedData()">✕ Start fresh</button>
       </div>
     </div>`;
@@ -744,9 +744,8 @@ function restoreCachedData() {
   // User confirmed — render from cache as-is
   renderProps();
   updateMetrics();
-  updateCacheStatusBar();
+  updateCacheStatusBar(); // also shows the refetch button if props exist
   updateModeBanner();
-  renderSlateLog();
   showToast('✓ Cached data restored', 'success');
 }
 
@@ -757,7 +756,7 @@ function discardCachedData() {
   saveState();
   renderProps();
   updateMetrics();
-  updateCacheStatusBar();
+  updateCacheStatusBar(); // hides refetch button since no props
   updateModeBanner();
   showToast('Cache cleared — tap Generate to fetch fresh data');
 }
@@ -875,10 +874,7 @@ function updateCacheStatusBar() {
 
   bar.innerHTML = `<span>${allProps.length} props loaded</span>${parts.length ? ' · ' + parts.join(' ') : ''}${ageStr ? ` · <span>fetched ${ageStr}</span>` : ''}`;
 
-  // Show/hide re-fetch button
-  const refetchBtn = document.getElementById('refetch-btn');
-  if(allProps.length > 0) refetchBtn.style.display = 'flex';
-  else refetchBtn.style.display = 'none';
+  // Refetch button is always visible — no show/hide needed
 }
 
 // ═══════════════════════════════════════════════════════
