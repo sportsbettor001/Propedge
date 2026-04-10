@@ -582,8 +582,29 @@ const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 const ESPN_CORE = 'https://sports.core.api.espn.com/v2/sports';
 
 async function fetchESPNSchedule(sport, league, date) {
-  const url = `${ESPN_BASE}/${sport}/${league}/scoreboard?dates=${date.replace(/-/g,'')}`;
-  return await fetchWithFallback(url);
+  const dateStr = date.replace(/-/g,'');
+  // Try multiple ESPN endpoints — playoffs use different URLs
+  const urls = [
+    `${ESPN_BASE}/${sport}/${league}/scoreboard?dates=${dateStr}`,
+    `${ESPN_BASE}/${sport}/${league}/scoreboard?dates=${dateStr}&limit=20`,
+    `${ESPN_BASE}/${sport}/${league}/scoreboard`,  // no date = today's games
+  ];
+  for(const url of urls) {
+    try {
+      const data = await fetchJSON(url);
+      if(data?.events?.length > 0) return data;
+    } catch(e) {}
+  }
+  // Final fallback: core API events endpoint
+  try {
+    const coreUrl = `${ESPN_CORE}/${sport}/leagues/${league}/events?dates=${dateStr}&limit=20`;
+    const data = await fetchJSON(coreUrl);
+    if(data?.items?.length > 0) {
+      // Normalize to same shape as scoreboard
+      return { events: data.items.map(i => ({ id: i.id, competitions: [{ competitors: [] }] })) };
+    }
+  } catch(e) {}
+  return { events: [] };
 }
 
 async function fetchESPNRoster(sport, league, teamId) {
@@ -597,8 +618,23 @@ async function fetchESPNPlayerStats(sport, league, athleteId) {
 }
 
 async function fetchESPNGameLog(sport, league, athleteId) {
-  const url = `https://site.web.api.espn.com/apis/common/v3/sports/${sport}/${league}/athletes/${athleteId}/gamelog`;
-  return await fetchWithFallback(url);
+  if(!athleteId) return null;
+  // Primary: common v3 gamelog (most detailed)
+  const urls = [
+    `https://site.web.api.espn.com/apis/common/v3/sports/${sport}/${league}/athletes/${athleteId}/gamelog`,
+    `${ESPN_BASE}/${sport}/${league}/athletes/${athleteId}/gamelog`,
+    `${ESPN_BASE}/${sport}/${league}/athletes/${athleteId}/splits`,
+  ];
+  for(let attempt = 0; attempt < 3; attempt++) {
+    for(const url of urls) {
+      try {
+        const data = await fetchJSON(url);
+        if(data) return data;
+      } catch(e) {}
+    }
+    if(attempt < 2) await new Promise(r => setTimeout(r, 400)); // wait before retry
+  }
+  return null;
 }
 
 async function fetchESPNInjuries(sport, league) {
@@ -1534,8 +1570,16 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
 
     dataPoints = allVals.length;
 
-    // ── FALLBACK: ESPN athlete stats endpoint ──
-    // If game log gave us nothing, try the season stats endpoint which is more stable
+    // ── DATA QUALITY TIER — determines confidence, never suppresses ──
+    // FULL: 3+ real game logs
+    // LIMITED: 1-2 real game logs
+    // FALLBACK: 0 real logs — use season stats endpoint or sport defaults
+    // HIGH_RISK: nothing found anywhere — use market line as sole anchor
+    let dataQuality = dataPoints >= 3 ? 'FULL' : dataPoints >= 1 ? 'LIMITED' : 'FALLBACK';
+    let dataSource = 'ESPN game log';
+    let lowConfidenceReason = null;
+
+    // Try ESPN athlete stats endpoint as secondary source
     if(allVals.length < 3 && espnId) {
       try {
         const statsData = await fetchESPNPlayerStats(espnSport, espnLeague, espnId);
@@ -1551,17 +1595,17 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
             const idx = labels.findIndex(l => l === al || l.includes(al) || al.includes(l));
             if(idx !== -1 && stats[idx] !== undefined) {
               const val = parseFloat(stats[idx]);
-              // Validate it's in sane range — season avg should be realistic
               if(!isNaN(val) && val >= minV && val <= maxV) {
-                // Build pseudo-gamelog with realistic variance around season avg
                 const variance = val * 0.25;
                 const pseudoGames = Array.from({length:8}, () =>
                   parseFloat(Math.max(minV, val + (Math.random()-0.5)*variance*2).toFixed(1))
                 );
-                // Only use if we got nothing from game log
                 if(allVals.length === 0) {
                   allVals.push(...pseudoGames);
-                  dataPoints = 0; // mark as estimated
+                  dataPoints = 0;
+                  dataQuality = 'FALLBACK';
+                  dataSource = 'ESPN season stats (pseudo-gamelog)';
+                  lowConfidenceReason = 'Game log unavailable — using season average as baseline';
                 }
                 break;
               }
@@ -1569,7 +1613,43 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
           }
           if(allVals.length > 0) break;
         }
-      } catch(e) { /* stats endpoint failed — continue */ }
+      } catch(e) {}
+    }
+
+    // ── LAST RESORT: sport-specific baseline — NEVER suppress ──
+    // If we still have nothing, build from the market line + sport defaults
+    if(allVals.length === 0) {
+      const sportDefaults = {
+        NBA:  { 'Points':18,'Rebounds':7,'Assists':5,'Threes Made':2.5 },
+        WNBA: { 'Points':14,'Rebounds':6,'Assists':4 },
+        MLB:  { 'Hits':0.9,'Total Bases':1.5,'RBIs':0.7,'Strikeouts':6.5 },
+        NFL:  { 'Pass Yards':240,'Rush Yards':65,'Receiving Yards':55,'Receptions':4.5 },
+        NHL:  { 'Points':0.5,'Shots on Goal':3,'Goals':0.3,'Assists':0.4 },
+      };
+      const anchor = hasRealLine ? realLine
+        : (lineBaseOverride || sportDefaults[sport]?.[statLabel] || null);
+      if(anchor && anchor > 0) {
+        const variance = anchor * 0.20;
+        const pseudoGames = Array.from({length:5}, () =>
+          parseFloat(Math.max(minV, anchor + (Math.random()-0.5)*variance*2).toFixed(1))
+        );
+        allVals.push(...pseudoGames);
+        dataPoints = 0;
+        dataQuality = 'HIGH_RISK';
+        dataSource = 'Market line baseline (no ESPN data)';
+        lowConfidenceReason = `No game log data found — HIGH RISK projection from market line only`;
+      }
+      // If anchor is also null, we truly have nothing — use a safe default
+      if(allVals.length === 0) {
+        const safeDefault = sportDefaults[sport]?.[statLabel] || 10;
+        allVals.push(...Array.from({length:5}, () =>
+          parseFloat((safeDefault * (0.85 + Math.random()*0.3)).toFixed(1))
+        ));
+        dataPoints = 0;
+        dataQuality = 'HIGH_RISK';
+        dataSource = 'Sport default (no data found)';
+        lowConfidenceReason = 'No data source available — do not bet without additional research';
+      }
     }
 
     // L5, L10, season averages
@@ -1750,7 +1830,13 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
 
     const line = parseFloat(marketAnchor.toFixed(1));
     const edge = calcEdge(projection, line);
-    const conf = calcConfidence(edge.pct, dataPoints, !!injuryStatus, hasPaceData, hasMatchupData);
+
+    // Confidence capped by data quality tier
+    let conf = calcConfidence(edge.pct, dataPoints, !!injuryStatus, hasPaceData, hasMatchupData);
+    if(dataQuality === 'LIMITED') conf = Math.min(conf, 6);
+    if(dataQuality === 'FALLBACK') conf = Math.min(conf, 4);
+    if(dataQuality === 'HIGH_RISK') conf = Math.min(conf, 2);
+
     const decision = edgeToDecision(edge, conf);
     const winProb = edgeToWinProb(edge.pct);
     const adjPct = parseFloat(((combinedAdj-1)*100).toFixed(1));
@@ -1814,7 +1900,14 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       line, proj:projection, edge, conf, decision, winProb, date,
       narrative, reasoning, injuryStatus,
       hitRateSeason,
-      dataSource:{gamelog:dataPoints, hasRealLine, espnId:playerId},
+      dataSource:{
+        gamelog: dataPoints,
+        hasRealLine,
+        espnId: playerId,
+        quality: dataQuality,
+        source: dataSource,
+        lowConfidenceReason
+      },
       clvEntry:line, clvClose:null, timestamp:Date.now()
     };
   } catch(e) {
@@ -2192,7 +2285,10 @@ function propCardHTML(p) {
   const isExpanded = expandedCards.has(p.id);
   const dots = Array.from({length:10}, (_,i) => `<div class="conf-dot ${i < p.conf ? 'filled' : 'empty'}"></div>`).join('');
   const reasoningHTML = (p.reasoning || []).map(r => `<div class="reasoning-line">${r}</div>`).join('');
-  const dataLabel = p.dataSource?.gamelog > 0 ? `ESPN • ${p.dataSource.gamelog} game logs` : 'ESPN • estimated';
+  const quality = p.dataSource?.quality || 'FULL';
+  const qualityColor = quality==='FULL'?'var(--accent)':quality==='LIMITED'?'var(--blue)':quality==='FALLBACK'?'var(--amber)':'var(--red)';
+  const qualityLabel = quality==='FULL'?`✓ ${p.dataSource.gamelog} real game logs`:quality==='LIMITED'?`⚠ Limited (${p.dataSource.gamelog} games)`:quality==='FALLBACK'?'⚠ Fallback data':'⚠ HIGH RISK — no game data';
+  const dataLabel = `<span style="color:${qualityColor}">${qualityLabel}</span>${p.dataSource?.hasRealLine?' · ✓ Live line':' · Estimated line'}`;
 
   // Season hit rate bar
   let hitRateHTML = '';
@@ -2238,7 +2334,8 @@ function propCardHTML(p) {
     <button class="expand-btn" onclick="toggleReasoning(${p.id})">▾ full data breakdown</button>
     <div class="reasoning ${isExpanded ? 'open' : ''}" id="reasoning-${p.id}">
       ${reasoningHTML}
-      <div class="data-source-line">📡 ${dataLabel} · ${p.dataSource?.hasRealLine ? '✓ Live DraftKings/FanDuel line (Odds API)' : STATE.settings.oddsApiKey ? 'Odds API connected — line from player DB' : 'Estimated line — add Odds API key in ⚙ Settings'}</div>
+      <div class="data-source-line">📡 ${dataLabel}</div>
+      ${p.dataSource?.lowConfidenceReason ? `<div class="data-source-line" style="color:var(--red)">⚠ ${p.dataSource.lowConfidenceReason}</div>` : ''}
     </div>
     ${p.decision !== 'PASS' ? `<button class="add-slip-btn ${inSlip ? 'added' : ''}" id="slip-btn-${p.id}" onclick="toggleSlip(${p.id})">${inSlip ? '✓ Added to slip' : '+ Add to slip'}</button>` : ''}
   </div>`;
