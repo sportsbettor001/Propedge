@@ -479,13 +479,13 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       <div class="setting-hint">⚠ Changing this requires a new fetch to take effect.</div>
     </div>
     <div class="setting-group">
-      <label class="setting-label">Min edge % to show OVER/UNDER (default: 3)</label>
-      <input class="setting-input" id="s-min-edge" type="number" placeholder="3" min="0" max="20" inputmode="decimal"/>
+      <label class="setting-label">Min edge % to show OVER/UNDER (default: 5)</label>
+      <input class="setting-input" id="s-min-edge" type="number" placeholder="5" min="0" max="20" inputmode="decimal"/>
       <div class="setting-hint">⚡ Applied instantly — filters your loaded props without re-fetching.</div>
     </div>
     <div class="setting-group">
-      <label class="setting-label">Min confidence to show (default: 5)</label>
-      <input class="setting-input" id="s-min-conf" type="number" placeholder="5" min="1" max="10" inputmode="numeric"/>
+      <label class="setting-label">Min confidence to show (default: 6)</label>
+      <input class="setting-input" id="s-min-conf" type="number" placeholder="6" min="1" max="10" inputmode="numeric"/>
       <div class="setting-hint">⚡ Applied instantly — filters your loaded props without re-fetching.</div>
     </div>
 
@@ -536,8 +536,8 @@ let STATE = loadState() || {
     oddsApiKey: '',
     balldontlieKey: '',
     corsProxy: '',
-    minEdge: 3,
-    minConf: 5,
+    minEdge: 5,
+    minConf: 6,
     gamesPerSport: 2,
     playersPerGame: 3
   },
@@ -560,7 +560,7 @@ if(STATE.props && Array.isArray(STATE.props) && STATE.props.length > 0 && !STATE
 }
 
 // Ensure settings object has all keys
-STATE.settings = Object.assign({ oddsApiKey:'', balldontlieKey:'', corsProxy:'', minEdge:3, minConf:5, gamesPerSport:2, playersPerGame:3 }, STATE.settings || {});
+STATE.settings = Object.assign({ oddsApiKey:'', balldontlieKey:'', corsProxy:'', minEdge:5, minConf:6, gamesPerSport:2, playersPerGame:3 }, STATE.settings || {});
 if(!STATE.sportCache) STATE.sportCache = {};
 
 // ── MODE DETECTION ──
@@ -814,6 +814,59 @@ async function fetchESPNInjuries(sport, league) {
 }
 async function searchESPNAthlete(sport, league, name) {
   return await fetchWithFallback(`${ESPN_BASE}/${sport}/${league}/athletes?limit=10&search=${encodeURIComponent(name)}`);
+}
+
+// PRIMARY: fetch all players participating in a specific game
+// Returns array of { id, name, teamAbbr, position, starter }
+async function fetchESPNGamePlayers(sport, league, gameId) {
+  try {
+    const data = await fetchWithFallback(`${ESPN_BASE}/${sport}/${league}/summary?event=${gameId}`);
+    const players = [];
+    for(const teamEntry of (data?.boxscore?.players || [])) {
+      const teamAbbr = teamEntry?.team?.abbreviation || '';
+      for(const grp of (teamEntry?.statistics || [])) {
+        for(const entry of (grp?.athletes || [])) {
+          const a = entry?.athlete;
+          if(!a?.id || !a?.displayName) continue;
+          players.push({
+            id: String(a.id),
+            name: a.displayName,
+            teamAbbr,
+            position: a.position?.abbreviation || '',
+            starter: entry?.starter === true,
+          });
+        }
+      }
+    }
+    return players;
+  } catch(e) { return []; }
+}
+
+// SECONDARY: fetch team roster when game summary is unavailable
+async function fetchESPNTeamRoster(sport, league, teamId) {
+  try {
+    const data = await fetchWithFallback(`${ESPN_BASE}/${sport}/${league}/teams/${teamId}/roster`);
+    const players = [];
+    for(const grp of (data?.athletes || [])) {
+      for(const a of (grp?.items || [])) {
+        if(!a?.id || !a?.displayName) continue;
+        players.push({
+          id: String(a.id),
+          name: a.displayName,
+          position: a.position?.abbreviation || '',
+          starter: false,
+        });
+      }
+    }
+    return players;
+  } catch(e) { return []; }
+}
+
+// Default prop type per sport — used when a player is discovered via API
+// but has no matching PLAYER_DB entry to supply a prop type
+function defaultPropForSport(sport) {
+  const d = { NBA:'Points', WNBA:'Points', MLB:'Hits', NFL:'Pass Yards', NHL:'Points', GOLF:'Strokes (Round 1)' };
+  return d[sport] || 'Points';
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1508,80 +1561,126 @@ async function runFetch(sportsToFetch) {
         console.log(`[PropEdge] ${r.sport}: ${gamesDetected} games from ESPN, using ${gamesUsed}`);
       });
 
-      // Process each sport independently — no cross-sport mixing
+      // ═══════════════════════════════════════════════════════
+      // API-FIRST PLAYER DISCOVERY — Sport → Game → Player
+      // Hierarchy: game summary API → team roster API → PLAYER_DB fallback
+      // PLAYER_DB is NEVER primary — used only for enrichment + final fallback
+      // ═══════════════════════════════════════════════════════
+      const volOrder = { high: 3, med: 2, low: 1 };
+
       for(const { sport, events } of scheduleResults) {
         if(!sportsToFetch.includes(sport)) continue;
         const [espnSport, espnLeague] = sportToESPN[sport];
-        // Process each game independently — no cross-game mixing
+        const slateEntry = slateLogSports.find(s => s.sport === sport);
+
         for(const game of events.slice(0, gps)) {
           const gameId = game.id || `${sport}_${game.name || Date.now()}`;
           const comps = game.competitions?.[0]?.competitors || [];
-          const home = comps.find(c=>c.homeAway==='home')?.team?.abbreviation||'';
-          const away = comps.find(c=>c.homeAway==='away')?.team?.abbreviation||'';
-          // Select ONLY players from THIS game's teams.
-          // Sort order — fully data-driven, no proxies:
-          //   1) usage (real stat from DB — gap >2% required to trigger)
-          //   2) vol/role (starter vs rotation — 'high'/'med'/'low')
-          //   3) l5base (recent L5 performance average — real stat if present in DB)
-          //   4) alphabetical — last resort only when all real data is absent/tied
-          // lineBase excluded — it is a betting line estimate, not a statistical output.
-          const volOrder = { high: 3, med: 2, low: 1 };
-          // Record this game in slate log
-          const slateEntry = slateLogSports.find(s => s.sport === sport);
-          const allMatched = (PLAYER_DB[sport]||[]).filter(p => {
-            const t = p.team.toUpperCase();
-            return [home,away].some(a => a===t || a.includes(t.slice(0,3)) || t.includes(a.slice(0,3)));
-          });
-          console.log(`[PropEdge] ${sport}: ${home} vs ${away} — ${allMatched.length} DB players matched`);
+          const homeComp = comps.find(c=>c.homeAway==='home') || comps[0] || {};
+          const awayComp  = comps.find(c=>c.homeAway==='away')  || comps[1] || {};
+          const home = homeComp?.team?.abbreviation || '';
+          const away = awayComp?.team?.abbreviation  || '';
+          const homeTeamId = homeComp?.team?.id || null;
+          const awayTeamId  = awayComp?.team?.id  || null;
 
-          const dbPlayers = (PLAYER_DB[sport]||[])
-            .filter(p => {
-              const t = p.team.toUpperCase();
-              return [home,away].some(a => a===t || a.includes(t.slice(0,3)) || t.includes(a.slice(0,3)));
-            })
-            .sort((a, b) => {
-              // 1) Usage rate (real stat if present in DB entry)
-              const uA = a.usage ?? null;
-              const uB = b.usage ?? null;
-              if(uA !== null && uB !== null && Math.abs(uA - uB) > 0.02) return uB - uA;
-              // 2) Role stability (vol field — starter vs rotation)
-              const vA = volOrder[a.vol] ?? 0;
-              const vB = volOrder[b.vol] ?? 0;
-              if(vA !== vB) return vB - vA;
-              // 3) L5 production — recent performance average from DB if available
-              // l5base is a real observed stat average, not a betting estimate
-              const l5A = a.l5base ?? null;
-              const l5B = b.l5base ?? null;
-              if(l5A !== null && l5B !== null && Math.abs(l5A - l5B) > 0.5) return l5B - l5A;
-              // 4) Alphabetical — last resort only, when all real data is identical/missing
-              return a.name.localeCompare(b.name);
-            })
-            .slice(0, 3); // HARD CAP: max 3 players per game
-
-          // Record selected players in slate log (deduplicated by name)
-          if(slateEntry) {
-            slateEntry.games.push({
-              home, away,
-              players: [...new Set(dbPlayers.map(p => p.name))]
-            });
+          // ── TIER 1: Game summary (all participating players) ──
+          let candidatePool = [];
+          if(game.id) {
+            const apiPlayers = await fetchESPNGamePlayers(espnSport, espnLeague, game.id);
+            console.log(`[PropEdge] ${sport} ${home} vs ${away}: ${apiPlayers.length} from game API`);
+            for(const ap of apiPlayers) {
+              const db = (PLAYER_DB[sport]||[]).find(p =>
+                p.name.toLowerCase() === ap.name.toLowerCase() ||
+                ap.name.toLowerCase().includes((p.name.split(' ').pop()||'').toLowerCase())
+              );
+              candidatePool.push({
+                id: ap.id, name: ap.name, teamAbbr: ap.teamAbbr,
+                starter: ap.starter, position: ap.position,
+                usage: db?.usage ?? null, vol: db?.vol ?? null,
+                l5base: db?.l5base ?? null,
+                prop: db?.prop || defaultPropForSport(sport),
+                lineBase: db?.lineBase || null, meta: db || null,
+              });
+            }
           }
 
-          for(const p of dbPlayers) {
+          // ── TIER 2: Team rosters — if game summary returned nothing ──
+          if(candidatePool.length === 0) {
+            console.log(`[PropEdge] ${sport} ${home} vs ${away}: game API empty, trying rosters`);
+            const rFetches = [];
+            if(homeTeamId) rFetches.push(fetchESPNTeamRoster(espnSport, espnLeague, homeTeamId));
+            if(awayTeamId)  rFetches.push(fetchESPNTeamRoster(espnSport, espnLeague, awayTeamId));
+            const rosters = await Promise.all(rFetches);
+            for(const roster of rosters) {
+              for(const rp of roster) {
+                const db = (PLAYER_DB[sport]||[]).find(p =>
+                  p.name.toLowerCase() === rp.name.toLowerCase() ||
+                  rp.name.toLowerCase().includes((p.name.split(' ').pop()||'').toLowerCase())
+                );
+                candidatePool.push({
+                  id: rp.id, name: rp.name, teamAbbr: '', starter: false, position: rp.position,
+                  usage: db?.usage ?? null, vol: db?.vol ?? null, l5base: db?.l5base ?? null,
+                  prop: db?.prop || defaultPropForSport(sport),
+                  lineBase: db?.lineBase || null, meta: db || null,
+                });
+              }
+            }
+            console.log(`[PropEdge] ${sport} ${home} vs ${away}: ${candidatePool.length} from rosters`);
+          }
+
+          // ── TIER 3: PLAYER_DB filtered by team — final fallback only ──
+          if(candidatePool.length === 0) {
+            console.log(`[PropEdge] ${sport} ${home} vs ${away}: using PLAYER_DB fallback`);
+            (PLAYER_DB[sport]||[])
+              .filter(p => {
+                const t = p.team.toUpperCase();
+                return [home,away].some(a => a===t || a.includes(t.slice(0,3)) || t.includes(a.slice(0,3)));
+              })
+              .forEach(p => candidatePool.push({
+                id: p.id, name: p.name, teamAbbr: p.team, starter: true, position: '',
+                usage: p.usage ?? null, vol: p.vol ?? null, l5base: p.l5base ?? null,
+                prop: p.prop, lineBase: p.lineBase, meta: p,
+              }));
+          }
+
+          // ── RANK + SELECT TOP 3 — data-driven sort ──
+          const seen = new Set();
+          const top3 = candidatePool
+            .filter(p => p.name && p.name.length > 1)
+            .sort((a, b) => {
+              // 1) Confirmed starter from API (real role data)
+              if(a.starter !== b.starter) return a.starter ? -1 : 1;
+              // 2) Usage rate
+              const uA = a.usage ?? null, uB = b.usage ?? null;
+              if(uA !== null && uB !== null && Math.abs(uA - uB) > 0.02) return uB - uA;
+              // 3) Role/vol flag from DB enrichment
+              const vA = volOrder[a.vol] ?? 0, vB = volOrder[b.vol] ?? 0;
+              if(vA !== vB) return vB - vA;
+              // 4) L5 production from DB enrichment
+              const l5A = a.l5base ?? null, l5B = b.l5base ?? null;
+              if(l5A !== null && l5B !== null && Math.abs(l5A - l5B) > 0.5) return l5B - l5A;
+              // 5) Alphabetical — absolute last resort
+              return a.name.localeCompare(b.name);
+            })
+            .filter(p => { const k = p.name.toLowerCase(); if(seen.has(k)) return false; seen.add(k); return true; })
+            .slice(0, 3);
+
+          console.log(`[PropEdge] ${sport} ${home} vs ${away}: selected [${top3.map(p=>p.name).join(', ')}]`);
+
+          if(slateEntry) slateEntry.games.push({ home, away, players: top3.map(p=>p.name) });
+
+          for(const p of top3) {
             playersToProcess.push({
-              name:p.name, sport, espnSport, espnLeague, gameId,
-              prop:p.prop, line:p.lineBase, homeTeam:home, awayTeam:away, espnId:p.id, meta:p
+              name: p.name, sport, espnSport, espnLeague, gameId,
+              prop: p.prop, line: p.lineBase || 0,
+              homeTeam: home, awayTeam: away,
+              espnId: p.id || null, meta: p.meta || null,
             });
           }
         }
       }
 
-      // Store analysis mode slate log in STATE
-      STATE.slateLog = {
-        mode: 'analysis',
-        fetchedAt: Date.now(),
-        sports: slateLogSports,
-        validationNotes: []
-      };
+      STATE.slateLog = { mode:'analysis', fetchedAt:Date.now(), sports:slateLogSports, validationNotes:[] };
     }
 
     // ── GOLF: same structure, 3 players max per event (FIX 3) ──
