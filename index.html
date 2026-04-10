@@ -217,6 +217,21 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .clv-row{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;padding:5px 0;border-bottom:1px solid var(--border)}
 .clv-row:last-child{border-bottom:none}
 
+/* MODE INDICATOR */
+.mode-banner{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;margin-bottom:10px;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.4px}
+.mode-banner.betting{background:rgba(0,229,160,.08);border:1px solid rgba(0,229,160,.25);color:var(--accent)}
+.mode-banner.analysis{background:rgba(255,181,71,.08);border:1px solid rgba(255,181,71,.25);color:var(--amber)}
+.mode-banner-dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
+.analysis-card{background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:14px;margin-bottom:10px}
+.analysis-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.analysis-player{font-size:14px;font-weight:700}
+.analysis-meta{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px}
+.analysis-badge{font-family:var(--mono);font-size:9px;padding:3px 8px;border-radius:6px;background:rgba(255,181,71,.1);color:var(--amber);border:1px solid rgba(255,181,71,.2)}
+.analysis-nums{display:flex;gap:14px;margin:10px 0;flex-wrap:wrap}
+.analysis-num-block .an-label{font-family:var(--mono);font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.analysis-num-block .an-val{font-family:var(--mono);font-size:16px;font-weight:500}
+.watchlist-rank{font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:4px}
+
 /* LOADING STATE */
 .loading-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:28px;text-align:center;margin-bottom:10px}
 .loading-title{font-size:13px;font-weight:700;margin-bottom:6px}
@@ -311,12 +326,13 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       <div class="cache-status-bar" id="cache-status-bar"></div>
 
       <button class="gen-btn" id="gen-btn" onclick="generateProps()">
-        <span id="gen-btn-text">Generate Live Props</span>
+        <span id="gen-btn-text">Generate Props</span>
       </button>
       <button class="refetch-btn" id="refetch-btn" onclick="refetchAll()" style="display:none">
         ↺ Re-fetch all sports (force fresh data)
       </button>
 
+      <div id="mode-banner"></div>
       <div id="data-source-bar" class="data-source-bar"></div>
       <div id="props-list"></div>
     </div>
@@ -532,6 +548,35 @@ if(STATE.props && Array.isArray(STATE.props) && STATE.props.length > 0 && !STATE
 STATE.settings = Object.assign({ oddsApiKey:'', balldontlieKey:'', corsProxy:'', minEdge:3, minConf:5, gamesPerSport:2, playersPerGame:3 }, STATE.settings || {});
 if(!STATE.sportCache) STATE.sportCache = {};
 
+// ── MODE DETECTION ──
+// BETTING MODE: valid Odds API key AND real lines were successfully fetched
+// ANALYSIS MODE: no key, key invalid, or Odds API returned no lines
+// No hybrid states — one or the other, determined fresh each session
+function getAppMode() {
+  if(!STATE.settings.oddsApiKey) return 'analysis';
+  // Check if any cached props have real sportsbook lines
+  const allProps = getAllCachedProps();
+  if(allProps.length === 0) return 'unknown'; // not yet fetched
+  const hasRealLines = allProps.some(p => p.dataSource?.hasRealLine === true);
+  return hasRealLines ? 'betting' : 'analysis';
+}
+
+function updateModeBanner() {
+  const el = document.getElementById('mode-banner');
+  if(!el) return;
+  const mode = getAppMode();
+  if(mode === 'betting') {
+    el.className = 'mode-banner betting';
+    el.innerHTML = `<div class="mode-banner-dot"></div>BETTING MODE — Real sportsbook lines active (DraftKings / FanDuel)`;
+  } else if(mode === 'analysis') {
+    el.className = 'mode-banner analysis';
+    el.innerHTML = `<div class="mode-banner-dot"></div>ANALYSIS MODE — No market lines · Projections only · No betting recommendations`;
+  } else {
+    el.className = '';
+    el.innerHTML = '';
+  }
+}
+
 // ── CACHE HELPERS ──
 const CACHE_FRESH_MS = 2 * 60 * 60 * 1000; // 2 hours = fresh (green)
 const CACHE_STALE_MS = 6 * 60 * 60 * 1000; // 6 hours = stale (yellow) — beyond this we force re-fetch
@@ -582,6 +627,7 @@ document.addEventListener('DOMContentLoaded', function() {
   updateMetrics();
   updateSportChipStatus();
   updateCacheStatusBar();
+  updateModeBanner();
 });
 
 function setDateBar() {
@@ -643,13 +689,15 @@ function saveSettings() {
   const fetchSettingsChanged = (STATE.settings.gamesPerSport !== prevGamesPerSport || STATE.settings.playersPerGame !== prevPlayersPerGame);
 
   if(filterSettingsChanged) {
-    // Instant re-filter from cache — NO API call needed
     renderProps();
     updateMetrics();
+    updateModeBanner();
     showToast('⚡ Filters updated instantly', 'success');
   } else if(fetchSettingsChanged) {
+    updateModeBanner();
     showToast('Settings saved — re-fetch to apply', 'success');
   } else {
+    updateModeBanner();
     showToast('Settings saved', 'success');
   }
 }
@@ -1138,12 +1186,19 @@ async function generateProps() {
   });
 
   if(sportsToFetch.length === 0) {
-    // All selected sports already cached — just re-filter
-    showToast('✓ Using cached data — all sports fresh', 'success');
+    // All selected sports already cached — just re-filter, no API calls
+    const mode = getAppMode();
+    showToast(
+      mode === 'betting'
+        ? '✓ Using cached lines — no re-fetch needed'
+        : '✓ Using cached projections — Analysis Mode',
+      'success'
+    );
     renderProps();
     updateMetrics();
     updateSportChipStatus();
     updateCacheStatusBar();
+    updateModeBanner();
     return;
   }
 
@@ -1171,16 +1226,21 @@ async function runFetch(sportsToFetch) {
   document.getElementById('live-label').textContent = 'LIVE';
 
   const propsList = document.getElementById('props-list');
+  const loadingMode = STATE.settings.oddsApiKey ? 'BETTING MODE' : 'ANALYSIS MODE';
+  const loadingModeSub = STATE.settings.oddsApiKey
+    ? 'Fetching sportsbook lines → game logs → building picks'
+    : 'No Odds API key — Analysis Mode · Projections only · No betting recommendations';
   propsList.innerHTML = `
     <div class="loading-card">
+      <div style="font-family:var(--mono);font-size:10px;font-weight:700;color:${STATE.settings.oddsApiKey ? 'var(--accent)' : 'var(--amber)'};margin-bottom:6px">${loadingMode}</div>
       <div class="loading-title">Fetching ${sportsToFetch.join(', ')}</div>
-      <div class="loading-sub">Pulling sportsbook lines → fetching game logs → building projections</div>
+      <div class="loading-sub">${loadingModeSub}</div>
       <div class="progress-steps" id="progress-steps">
-        <div class="progress-step active" id="step-schedule"><span class="step-icon">⟳</span>Fetching sportsbook player props...</div>
-        <div class="progress-step" id="step-stats"><span class="step-icon">○</span>Discovering players...</div>
-        <div class="progress-step" id="step-matchups"><span class="step-icon">○</span>Fetching game logs & matchup data...</div>
+        <div class="progress-step active" id="step-schedule"><span class="step-icon">⟳</span>${STATE.settings.oddsApiKey ? 'Fetching sportsbook player props...' : 'Fetching schedule...'}</div>
+        <div class="progress-step" id="step-stats"><span class="step-icon">○</span>Selecting top 3 players per game...</div>
+        <div class="progress-step" id="step-matchups"><span class="step-icon">○</span>Fetching game logs & context data...</div>
         <div class="progress-step" id="step-engine"><span class="step-icon">○</span>Running projection engine...</div>
-        <div class="progress-step" id="step-odds"><span class="step-icon">○</span>Building picks & narratives...</div>
+        <div class="progress-step" id="step-odds"><span class="step-icon">○</span>${STATE.settings.oddsApiKey ? 'Building picks & edge calculations...' : 'Building projections & watchlist...'}</div>
       </div>
     </div>`;
 
@@ -1265,12 +1325,14 @@ async function runFetch(sportsToFetch) {
     renderApiStatus(apiStatusMap);
 
     let playersToProcess = [];
-    const ppg = STATE.settings.playersPerGame || 3;
+    // TOP 3 PER GAME — enforced in both modes
+    const ppg = Math.min(STATE.settings.playersPerGame || 3, 3);
 
     // Filter lines to only the sports we're fetching this run
     const filteredLines = allPlayersWithLines.filter(p => sportsToFetch.includes(p.sport));
 
     if(filteredLines.length > 0) {
+      // BETTING MODE: top 3 props per game per prop-type
       const seen = new Set();
       const perEventCount = {};
       for(const p of filteredLines) {
@@ -1285,7 +1347,7 @@ async function runFetch(sportsToFetch) {
           }
         }
       }
-      showToast(`Found ${playersToProcess.length} props from sportsbooks`, 'success');
+      showToast(`BETTING MODE — ${playersToProcess.length} props with live lines`, 'success');
     } else {
       // Fallback: PLAYER_DB + ESPN schedule for the sports we're fetching
       const gps = STATE.settings.gamesPerSport || 2;
@@ -1308,10 +1370,21 @@ async function runFetch(sportsToFetch) {
           const comps = game.competitions?.[0]?.competitors || [];
           const home = comps.find(c=>c.homeAway==='home')?.team?.abbreviation||'';
           const away = comps.find(c=>c.homeAway==='away')?.team?.abbreviation||'';
-          const dbPlayers = (PLAYER_DB[sport]||[]).filter(p=>{
-            const t = p.team.toUpperCase();
-            return [home,away].some(a=>a===t||a.includes(t.slice(0,3))||t.includes(a.slice(0,3)));
-          }).slice(0, ppg);
+          // ANALYSIS MODE: select TOP 3 players per game by usage/production
+          // Sort by usage rate desc (or lineBase as proxy for production level)
+          // Never random — deterministic ranking by real DB stats
+          const dbPlayers = (PLAYER_DB[sport]||[])
+            .filter(p => {
+              const t = p.team.toUpperCase();
+              return [home,away].some(a=>a===t||a.includes(t.slice(0,3))||t.includes(a.slice(0,3)));
+            })
+            .sort((a, b) => {
+              // Sort by usage rate if available, else by lineBase (production proxy)
+              const usageA = a.usage || (a.lineBase / 30); // normalise
+              const usageB = b.usage || (b.lineBase / 30);
+              return usageB - usageA;
+            })
+            .slice(0, 3); // HARD CAP: top 3 per game, always
           for(const p of dbPlayers) {
             playersToProcess.push({
               name:p.name, sport, espnSport, espnLeague,
@@ -1414,10 +1487,17 @@ async function runFetch(sportsToFetch) {
     renderProps();
     updateMetrics();
     updateDataSourceBar(apiStatusMap);
+    updateModeBanner();
 
     const allCached = getAllCachedProps();
     const realLines = allCached.filter(p=>p.dataSource?.hasRealLine).length;
-    showToast(`✓ ${totalNew} new props — ${allCached.length} total loaded`, 'success');
+    const mode = getAppMode();
+    showToast(
+      mode === 'betting'
+        ? `✓ BETTING MODE — ${realLines} live lines · ${allCached.length} props`
+        : `✓ ANALYSIS MODE — ${allCached.length} projections (no market lines)`,
+      'success'
+    );
 
   } catch(err) {
     console.error('Generation error:', err);
@@ -2151,6 +2231,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       completeness: completeness.score,
       completenessThreshold: thresholdInfo.threshold,
       completenessLabel: thresholdInfo.label,
+      analysisMode: !hasRealLine, // true = Analysis Mode (no betting recommendation)
       dataSource:{gamelog:dataPoints, hasRealLine, espnId:playerId, completenessBreakdown: completeness.breakdown},
       clvEntry:line, clvClose:null, timestamp:Date.now()
     };
@@ -2470,7 +2551,12 @@ function propCardHTML(p) {
   const edgeStr = (p.edge.val >= 0 ? '+' : '') + p.edge.val + ' (' + (p.edge.val >= 0 ? '+' : '') + p.edge.pct + '%)';
   const edgeClass = p.edge.val >= 0 ? 'green' : 'red';
   const decLow = p.decision === 'PASS' ? 'pass' : p.decision.toLowerCase();
-  const decBadgeLabel = p.decision === 'PASS' && !p.dataSource?.hasRealLine ? 'PASS · No market line' : p.decision;
+  // Analysis mode: never show OVER/UNDER — show projection rank instead
+  const isAnalysis = p.analysisMode === true;
+  const decBadgeLabel = isAnalysis
+    ? 'ANALYSIS ONLY'
+    : (p.decision === 'PASS' && !p.dataSource?.hasRealLine ? 'PASS · No market line' : p.decision);
+  const decBadgeClass = isAnalysis ? 'pass' : decLow; // amber styling for analysis
   const inSlip = STATE.slip.some(s => s.id === p.id);
   const isExpanded = expandedCards.has(p.id);
   const dots = Array.from({length:10}, (_,i) => `<div class="conf-dot ${i < p.conf ? 'filled' : 'empty'}"></div>`).join('');
@@ -2493,7 +2579,10 @@ function propCardHTML(p) {
     <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:6px">${p.hitRateSeason.hits}/${p.hitRateSeason.total} games over ${p.line} ${p.prop.toLowerCase()} this season</div>`;
   }
 
-  const narrativeHTML = p.narrative ? `<div class="prop-narrative ${decLow}">${p.narrative}</div>` : '';
+  const analysisWarningHTML = isAnalysis
+    ? `<div style="font-family:var(--mono);font-size:9px;color:var(--amber);background:rgba(255,181,71,.06);border:1px solid rgba(255,181,71,.15);border-radius:6px;padding:5px 9px;margin-bottom:6px">⚠ NO MARKET DATA — ANALYSIS MODE ONLY. No betting recommendation.</div>`
+    : '';
+  const narrativeHTML = p.narrative ? `<div class="prop-narrative ${isAnalysis ? 'pass' : decLow}">${p.narrative}</div>` : '';
 
   return `<div class="prop-card ${decLow}" id="pcard-${p.id}">
     <div class="prop-top">
@@ -2512,9 +2601,10 @@ function propCardHTML(p) {
       ${completenessScore !== null ? `<div class="prop-num-block"><div class="prop-num-label">Data</div><div class="prop-num-value" style="font-size:13px;color:${completenessColor}">${completenessScore}%<span style="font-size:8px;color:var(--muted);display:block">min ${p.completenessThreshold ?? 60}%</span></div></div>` : ''}
     </div>
     ${hitRateHTML}
+    ${analysisWarningHTML}
     ${narrativeHTML}
     <div class="prop-bottom">
-      <div class="decision-badge ${decLow}">${decBadgeLabel}</div>
+      <div class="decision-badge ${decBadgeClass}">${decBadgeLabel}</div>
       <div class="conf-block"><div class="conf-dots">${dots}</div><div class="conf-text">${p.conf}/10 · ${p.winProb}%</div></div>
     </div>
     <button class="expand-btn" onclick="toggleReasoning(${p.id})">▾ full data breakdown</button>
@@ -2522,7 +2612,7 @@ function propCardHTML(p) {
       ${reasoningHTML}
       <div class="data-source-line">📡 ${dataLabel} · ${p.dataSource?.hasRealLine ? '✓ Live sportsbook line' : 'Estimated line — add Odds API key'} · Data completeness: ${completenessScore !== null ? completenessScore + '%' : 'N/A'}</div>
     </div>
-    ${p.decision !== 'PASS' ? `<button class="add-slip-btn ${inSlip ? 'added' : ''}" id="slip-btn-${p.id}" onclick="toggleSlip(${p.id})">${inSlip ? '✓ Added to slip' : '+ Add to slip'}</button>` : ''}
+    ${(!isAnalysis && p.decision !== 'PASS') ? `<button class="add-slip-btn ${inSlip ? 'added' : ''}" id="slip-btn-${p.id}" onclick="toggleSlip(${p.id})">${inSlip ? '✓ Added to slip' : '+ Add to slip'}</button>` : ''}
   </div>`;
 }
 
