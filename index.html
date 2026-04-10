@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v2.9</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v3.0</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <button class="settings-btn" onclick="openSettings()">⚙</button>
@@ -374,12 +374,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px">Tap each to test the API connection live from your device</div>
       <div id="api-test-results" style="margin-bottom:14px"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
-        <button onclick="testApi('nhl_schedule')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">Test NHL Schedule</button>
-        <button onclick="testApi('nhl_player')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">Test NHL Player</button>
-        <button onclick="testApi('mlb_schedule')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">Test MLB Schedule</button>
-        <button onclick="testApi('mlb_player')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">Test MLB Player</button>
-        <button onclick="testApi('nba_gamelog')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">Test NBA GameLog</button>
-        <button onclick="testApi('espn_schedule')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">Test ESPN Schedule</button>
+        <button onclick="testApi('espn_nhl_sched')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">ESPN NHL Schedule</button>
+        <button onclick="testApi('espn_nhl_player')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">ESPN NHL Player</button>
+        <button onclick="testApi('mlb_schedule')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">MLB Schedule</button>
+        <button onclick="testApi('mlb_player')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">MLB Player Log</button>
+        <button onclick="testApi('nba_gamelog')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">NBA GameLog</button>
+        <button onclick="testApi('espn_nba_sched')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">ESPN NBA Schedule</button>
+        <button onclick="testApi('mlb_gamelog_raw')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">MLB Gamelog Raw</button>
+        <button onclick="testApi('nba_gamelog_raw')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">NBA Gamelog Raw</button>
       </div>
 
       <div class="section-title">Slate</div>
@@ -680,14 +682,59 @@ async function testApi(which) {
         return `${evts.length>0?'✅':'❌'} ${evts.length} games. Keys:${keys.slice(0,4).join(',')}. Labels[0]:${labels[0]}. Categories:${cats.map(c=>c.name||c.displayName||'?').join('|')}. Stats:${firstStat.length}`;
       }
     },
-    'espn_schedule': {
+    'espn_nba_sched': {
       label: 'ESPN NBA Schedule',
       url: `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${today.replace(/-/g,'')}`,
       parse: d => {
         const events = d?.events || [];
-        return events.length > 0
-          ? `✅ ${events.length} games: ${events.slice(0,3).map(e=>e.shortName).join(', ')}`
-          : `⚠ 0 events today`;
+        return events.length > 0 ? `✅ ${events.length} games: ${events.slice(0,3).map(e=>e.shortName).join(', ')}` : `⚠ 0 events`;
+      }
+    },
+    'espn_nhl_sched': {
+      label: 'ESPN NHL Schedule',
+      url: `https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard?dates=${today.replace(/-/g,'')}`,
+      parse: d => {
+        const events = d?.events || [];
+        if(!events.length) return `⚠ 0 NHL games today. Keys: ${Object.keys(d||{}).join(',')}`;
+        return `✅ ${events.length} games: ${events.slice(0,3).map(e=>e.shortName||e.name).join(', ')}`;
+      }
+    },
+    'espn_nhl_player': {
+      label: 'ESPN NHL Player - Connor McDavid (3895074)',
+      url: 'https://site.web.api.espn.com/apis/common/v3/sports/hockey/nhl/athletes/3895074/gamelog',
+      parse: d => {
+        const keys = Object.keys(d||{});
+        const labels = d?.labels||d?.names||[];
+        const evObj = d?.events||{};
+        const evArr = Array.isArray(evObj)?evObj:Object.values(evObj);
+        const firstEv = evArr[0];
+        const stats = firstEv?.stats||firstEv?.statistics||[];
+        return `Keys:${keys.join(',')} | Labels[0]:${labels[0]} | Events:${evArr.length} | Stats[0]:${stats[0]}`;
+      }
+    },
+    'mlb_gamelog_raw': {
+      label: 'MLB Gamelog raw - Aaron Judge (592450)',
+      url: 'https://statsapi.mlb.com/api/v1/people/592450/stats?stats=gameLog&season=2025&group=hitting',
+      parse: d => {
+        const splits = d?.stats?.[0]?.splits||[];
+        if(!splits.length) return `❌ No splits. Keys: ${Object.keys(d||{}).join(',')}`;
+        const s0 = splits[0];
+        const statKeys = Object.keys(s0?.stat||{}).join(',');
+        return `✅ ${splits.length} games. StatKeys: ${statKeys.slice(0,100)}`;
+      }
+    },
+    'nba_gamelog_raw': {
+      label: 'NBA Gamelog raw - Luka (3136193)',
+      url: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/3136193/gamelog',
+      parse: d => {
+        const keys = Object.keys(d||{});
+        const evObj = d?.events||{};
+        const evArr = Array.isArray(evObj)?evObj:Object.values(evObj);
+        const labels = d?.labels||d?.names||[];
+        const firstEv = evArr[0];
+        const stats = firstEv?.stats||[];
+        const opp = firstEv?.opponent?.abbreviation||firstEv?.opponent?.shortDisplayName||JSON.stringify(firstEv?.opponent||{}).slice(0,40);
+        return `Keys:${keys.join(',')} | Labels:${labels.slice(0,4).join('|')} | Events:${evArr.length} | Stats:${JSON.stringify(stats).slice(0,60)} | Opp:${opp}`;
       }
     }
   };
