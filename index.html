@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v2.5</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v2.6</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <button class="settings-btn" onclick="openSettings()">⚙</button>
@@ -2402,34 +2402,27 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
 
     // ══════════════════════════════════════════════════════
     // SPORT-SPECIFIC DATA FETCHING
-    // Each sport uses its best available free API.
-    // Fallbacks are used only if primary source fails.
-    // allVals = chronological game-by-game stat values
-    // vsOppVals = subset of games vs today's opponent
-    // contextData = sport-specific context (pitcher ERA, goalie SV%, weather)
+    // Clean independent if-blocks — no else-if chains that
+    // accidentally skip sports. Each sport runs independently.
     // ══════════════════════════════════════════════════════
 
     let allVals = [];
     let vsOppVals = [];
-    let contextData = {}; // pitcher ERA, goalie SV%, weather, etc.
+    let contextData = {};
     const season = new Date().getFullYear();
 
-    // ── MLB: Official MLB Stats API (statsapi.mlb.com) ──
+    // ── MLB: Official MLB Stats API → ESPN fallback ──
     if(sport === 'MLB') {
+      const mlbId = playerMeta.mlbId || playerId;
       try {
-        const mlbId = playerMeta.mlbId || playerId;
         const mlbStatGroups = await fetchMLBGameLog(mlbId, season);
-
-        // Extract hitting or pitching game log
         const ispitcher = ['Strikeouts'].includes(statLabel);
         const group = mlbStatGroups.find(g => g.group?.displayName === (ispitcher ? 'pitching' : 'hitting'));
         const splits = group?.splits || [];
-
-        // Map each game to our stat value
         const statKeyMap = {
-          'Hits': 'hits', 'Total Bases': 'totalBases', 'RBIs': 'rbi',
-          'Strikeouts': 'strikeOuts', 'Runs': 'runs', 'Home Runs': 'homeRuns',
-          'Walks': 'baseOnBalls', 'At Bats': 'atBats'
+          'Hits':'hits','Total Bases':'totalBases','RBIs':'rbi',
+          'Strikeouts':'strikeOuts','Runs':'runs','Home Runs':'homeRuns',
+          'Walks':'baseOnBalls','At Bats':'atBats'
         };
         const mlbStatKey = statKeyMap[statLabel];
         if(mlbStatKey) {
@@ -2438,62 +2431,52 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
             if(val !== undefined && val !== null) {
               const num = parseFloat(val);
               if(!isNaN(num) && num >= 0) {
-                const gameOpp = split.opponent?.abbreviation?.toUpperCase() || '';
                 allVals.push(num);
-                if(opp && gameOpp && (gameOpp.includes(opp.slice(0,3)) || opp.includes(gameOpp.slice(0,3)))) {
-                  vsOppVals.push(num);
-                }
+                const gameOpp = split.opponent?.abbreviation?.toUpperCase() || '';
+                if(opp && gameOpp && (gameOpp.includes(opp.slice(0,3)) || opp.includes(gameOpp.slice(0,3)))) vsOppVals.push(num);
               }
             }
           }
         }
-
-        // Fetch probable pitcher stats for context (ERA, WHIP, K/9)
         if(playerMeta.probablePitcherId) {
           try {
-            const pitcherSeason = await fetchMLBPitcherStats(playerMeta.probablePitcherId, season);
-            if(pitcherSeason) {
-              contextData.pitcher = {
-                era: pitcherSeason.era,
-                whip: pitcherSeason.whip,
-                kPer9: pitcherSeason.strikeoutsPer9Inn,
-                name: playerMeta.probablePitcherName || 'TBD',
-              };
-            }
+            const ps = await fetchMLBPitcherStats(playerMeta.probablePitcherId, season);
+            if(ps) contextData.pitcher = { era:ps.era, whip:ps.whip, kPer9:ps.strikeoutsPer9Inn, name:playerMeta.probablePitcherName||'TBD' };
           } catch(e) {}
         }
-
-        // Fetch weather for outdoor MLB parks
         if(team && date) {
-          const weather = await fetchMLBWeather(team, date === 'today' ? todayStr() : tomorrowStr());
-          if(weather) {
-            const weatherInterp = interpretMLBWeather(weather, team);
-            contextData.weather = { ...weather, ...weatherInterp };
-          }
+          try {
+            const weather = await fetchMLBWeather(team, date === 'today' ? todayStr() : tomorrowStr());
+            if(weather) contextData.weather = { ...weather, ...interpretMLBWeather(weather, team) };
+          } catch(e) {}
         }
-
-        dataPoints = allVals.length;
       } catch(e) {
-        // MLB API failed — return null (no fallback simulation)
         console.warn('MLB API failed for', playerName, e.message);
-        return null;
       }
+      // ESPN fallback if MLB API returned nothing
+      if(allVals.length === 0) {
+        try {
+          const gl = await fetchESPNGameLog('baseball', 'mlb', playerId);
+          const p = parseESPNGameLog(gl, statLabel, opp);
+          allVals = p.allVals; vsOppVals = p.vsOppVals;
+          if(allVals.length > 0) traceLog('projectionEngine', `${playerName} (MLB): ESPN fallback got ${allVals.length} games`, 'warn');
+        } catch(e) {}
+      }
+      dataPoints = allVals.length;
     }
 
-    // ── NHL: Official NHL API (api-web.nhle.com) ──
-    else if(sport === 'NHL') {
+    // ── NHL: Official NHL API → ESPN fallback ──
+    if(sport === 'NHL') {
+      const nhlId = playerMeta.nhlId || playerId;
       try {
-        const nhlId = playerMeta.nhlId || playerId;
         const nhlSeason = `${season}${season+1}`;
         const gameLogResp = await fetchNHLPlayerGameLog(nhlId, nhlSeason);
         const games = gameLogResp?.gameLog || [];
-
-        // Map NHL game log fields to our stat
         const nhlStatMap = {
-          'Points': g => (g.goals || 0) + (g.assists || 0),
-          'Goals': g => g.goals || 0,
-          'Assists': g => g.assists || 0,
-          'Shots on Goal': g => g.shots || 0,
+          'Points': g => (g.goals||0)+(g.assists||0),
+          'Goals': g => g.goals||0,
+          'Assists': g => g.assists||0,
+          'Shots on Goal': g => g.shots||0,
         };
         const extractor = nhlStatMap[statLabel];
         if(extractor) {
@@ -2502,75 +2485,44 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
             if(!isNaN(val) && val >= 0) {
               allVals.push(val);
               const gameOpp = g.opponentAbbrev?.toUpperCase() || '';
-              if(opp && gameOpp && (gameOpp.includes(opp.slice(0,3)) || opp.includes(gameOpp.slice(0,3)))) {
-                vsOppVals.push(val);
-              }
+              if(opp && gameOpp && (gameOpp.includes(opp.slice(0,3)) || opp.includes(gameOpp.slice(0,3)))) vsOppVals.push(val);
             }
           }
         }
-
-        // Time on ice — parse MM:SS from most recent games
         const toiValues = games.slice(-5).map(g => {
           if(!g.toi) return null;
           const parts = g.toi.split(':');
           return parts.length === 2 ? parseFloat(parts[0]) + parseFloat(parts[1])/60 : null;
         }).filter(v => v !== null);
-        if(toiValues.length > 0) {
-          contextData.toiAvgL5 = parseFloat((toiValues.reduce((a,b)=>a+b,0)/toiValues.length).toFixed(1));
-        }
-
-        // Fetch goalie stats for opponent — if nhlGoalieId is known
+        if(toiValues.length > 0) contextData.toiAvgL5 = parseFloat((toiValues.reduce((a,b)=>a+b,0)/toiValues.length).toFixed(1));
         if(playerMeta.oppGoalieId) {
           try {
             const goalieLog = await fetchNHLGoalieStats(playerMeta.oppGoalieId, nhlSeason);
-            const goalieGames = goalieLog?.gameLog || [];
-            if(goalieGames.length > 0) {
-              const svPcts = goalieGames.slice(-10).map(g => g.savePctg).filter(v => v !== null && !isNaN(v));
-              if(svPcts.length > 0) {
-                contextData.goalieSvPct = parseFloat((svPcts.reduce((a,b)=>a+b,0)/svPcts.length).toFixed(3));
-                contextData.goalieGaa = goalieGames.slice(-5).reduce((a,g) => a + (g.goalsAgainst||0), 0) / Math.min(5, goalieGames.length);
-              }
+            const gg = goalieLog?.gameLog || [];
+            if(gg.length > 0) {
+              const svPcts = gg.slice(-10).map(g => g.savePctg).filter(v => v !== null && !isNaN(v));
+              if(svPcts.length > 0) contextData.goalieSvPct = parseFloat((svPcts.reduce((a,b)=>a+b,0)/svPcts.length).toFixed(3));
             }
           } catch(e) {}
         }
-
-        dataPoints = allVals.length;
       } catch(e) {
         console.warn('NHL API failed for', playerName, e.message);
-        // Don't hard return — fall through to ESPN fallback below
       }
-    }
-
-    // If NHL fetch returned nothing, try ESPN game log as fallback
-    if(sport === 'NHL' && allVals.length === 0 && playerId) {
-      try {
-        const glData = await fetchESPNGameLog('hockey', 'nhl', playerId);
-        const parsed = parseESPNGameLog(glData, statLabel, opp);
-        if(parsed.allVals.length > 0) {
-          allVals = parsed.allVals; vsOppVals = parsed.vsOppVals;
-          traceLog('projectionEngine', `${playerName} (NHL): ESPN fallback got ${allVals.length} games`, 'warn');
-        }
-      } catch(e) {}
-      dataPoints = allVals.length;
-    }
-
-    // If MLB fetch returned nothing, try ESPN game log as fallback
-    if(sport === 'MLB' && allVals.length === 0 && playerId) {
-      try {
-        const glData = await fetchESPNGameLog('baseball', 'mlb', playerId);
-        const parsed = parseESPNGameLog(glData, statLabel, opp);
-        if(parsed.allVals.length > 0) {
-          allVals = parsed.allVals; vsOppVals = parsed.vsOppVals;
-          traceLog('projectionEngine', `${playerName} (MLB): ESPN fallback got ${allVals.length} games`, 'warn');
-        }
-      } catch(e) {}
+      // ESPN fallback if NHL API returned nothing
+      if(allVals.length === 0) {
+        try {
+          const gl = await fetchESPNGameLog('hockey', 'nhl', playerId);
+          const p = parseESPNGameLog(gl, statLabel, opp);
+          allVals = p.allVals; vsOppVals = p.vsOppVals;
+          if(allVals.length > 0) traceLog('projectionEngine', `${playerName} (NHL): ESPN fallback got ${allVals.length} games`, 'warn');
+        } catch(e) {}
+      }
       dataPoints = allVals.length;
     }
 
     // ── NBA / WNBA: BallDontLie (if key) → ESPN fallback ──
-    else if(sport === 'NBA' || sport === 'WNBA') {
+    if(sport === 'NBA' || sport === 'WNBA') {
       let usedBDL = false;
-      // Try BallDontLie first (richer stat fields: pts, reb, ast, min, fg3m)
       if(STATE.settings.balldontlieKey) {
         try {
           const dateFrom = new Date(); dateFrom.setDate(dateFrom.getDate()-180);
@@ -2579,35 +2531,28 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
             dateFrom.toISOString().slice(0,10), dateTo.toISOString().slice(0,10));
           if(bdlData?.games?.length > 0) {
             const bdlStatMap = {
-              'Points': 'pts', 'Rebounds': 'reb', 'Assists': 'ast',
-              'Threes Made': 'fg3m', 'Steals': 'stl', 'Blocks': 'blk',
-              'Turnovers': 'turnover', 'Minutes': 'min'
+              'Points':'pts','Rebounds':'reb','Assists':'ast',
+              'Threes Made':'fg3m','Steals':'stl','Blocks':'blk',
+              'Turnovers':'turnover','Minutes':'min'
             };
             const bdlKey = bdlStatMap[statLabel];
             if(bdlKey) {
               for(const g of bdlData.games) {
                 const val = parseFloat(g[bdlKey]);
-                if(!isNaN(val) && val >= 0) {
-                  allVals.push(val);
-                  const gameOpp = g.team?.abbreviation?.toUpperCase() || '';
-                  // BDL returns the player's team stats, use game.game opponent
-                  vsOppVals = []; // BDL doesn't easily expose opponent per row — skip matchup for now
-                }
+                if(!isNaN(val) && val >= 0) allVals.push(val);
               }
-              usedBDL = true;
+              usedBDL = allVals.length > 0;
             }
           }
         } catch(e) {}
       }
-      // Fallback: ESPN game log by ID, then by name search if ID fails
       if(!usedBDL || allVals.length === 0) {
         try {
           const gameLogData = await fetchESPNGameLog(espnSport, espnLeague, playerId);
           const parsed = parseESPNGameLog(gameLogData, statLabel, opp);
-          allVals = parsed.allVals;
-          vsOppVals = parsed.vsOppVals;
+          allVals = parsed.allVals; vsOppVals = parsed.vsOppVals;
         } catch(e) {}
-        // If ID-based fetch returned nothing, try searching by name to get correct ID
+        // Name-search fallback if ID returned nothing
         if(allVals.length === 0 && playerName) {
           try {
             const searchData = await searchESPNAthlete(espnSport, espnLeague, playerName);
@@ -2616,9 +2561,8 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
               const gameLogData2 = await fetchESPNGameLog(espnSport, espnLeague, foundId);
               const parsed2 = parseESPNGameLog(gameLogData2, statLabel, opp);
               if(parsed2.allVals.length > 0) {
-                allVals = parsed2.allVals;
-                vsOppVals = parsed2.vsOppVals;
-                traceLog('projectionEngine', `${playerName}: ID fallback via name search worked (id=${foundId})`, 'warn');
+                allVals = parsed2.allVals; vsOppVals = parsed2.vsOppVals;
+                traceLog('projectionEngine', `${playerName}: ID fallback via name search (id=${foundId})`, 'warn');
               }
             }
           } catch(e) {}
@@ -2627,28 +2571,36 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       dataPoints = allVals.length;
     }
 
-    // ── NFL: ESPN game log (snap/target share unavailable free) ──
-    else {
+    // ── NFL: ESPN game log ──
+    if(sport === 'NFL') {
       try {
         const gameLogData = await fetchESPNGameLog(espnSport, espnLeague, playerId);
         const parsed = parseESPNGameLog(gameLogData, statLabel, opp);
-        allVals = parsed.allVals;
-        vsOppVals = parsed.vsOppVals;
+        allVals = parsed.allVals; vsOppVals = parsed.vsOppVals;
         contextData.snapShareNote = 'UNAVAILABLE IN FREE DATA LAYER';
         contextData.targetShareNote = 'UNAVAILABLE IN FREE DATA LAYER';
       } catch(e) {}
-      // Name-search fallback if ID returned nothing
       if(allVals.length === 0 && playerName) {
         try {
           const searchData = await searchESPNAthlete(espnSport, espnLeague, playerName);
           const foundId = searchData?.athletes?.[0]?.id || searchData?.items?.[0]?.id;
           if(foundId && String(foundId) !== String(playerId)) {
-            const gameLogData2 = await fetchESPNGameLog(espnSport, espnLeague, foundId);
-            const parsed2 = parseESPNGameLog(gameLogData2, statLabel, opp);
-            if(parsed2.allVals.length > 0) { allVals = parsed2.allVals; vsOppVals = parsed2.vsOppVals; }
+            const gl2 = await fetchESPNGameLog(espnSport, espnLeague, foundId);
+            const p2 = parseESPNGameLog(gl2, statLabel, opp);
+            if(p2.allVals.length > 0) { allVals = p2.allVals; vsOppVals = p2.vsOppVals; }
           }
         } catch(e) {}
       }
+      dataPoints = allVals.length;
+    }
+
+    // ── GOLF: falls through — game log fetch via ESPN (round scores) ──
+    if(sport === 'GOLF') {
+      try {
+        const gameLogData = await fetchESPNGameLog('golf', 'pga', playerId);
+        const parsed = parseESPNGameLog(gameLogData, statLabel, opp);
+        allVals = parsed.allVals; vsOppVals = parsed.vsOppVals;
+      } catch(e) {}
       dataPoints = allVals.length;
     }
 
