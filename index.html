@@ -120,10 +120,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .decision-badge.under{background:rgba(255,77,106,.1);color:var(--red);border:1px solid rgba(255,77,106,.25)}
 .decision-badge.pass{background:rgba(255,181,71,.1);color:var(--amber);border:1px solid rgba(255,181,71,.25)}
 .conf-block{display:flex;align-items:center;gap:6px}
-.conf-dots{display:flex;gap:2px}
-.conf-dot{width:5px;height:5px;border-radius:50%}
+.conf-dots{display:flex;gap:3px;align-items:center}
+.conf-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;display:inline-block}
 .conf-dot.filled{background:var(--accent)}
-.conf-dot.empty{background:var(--border2)}
+.conf-dot.empty{background:transparent;border:1px solid var(--border2)}
 .conf-text{font-family:var(--mono);font-size:9px;color:var(--muted)}
 .expand-btn{font-family:var(--mono);font-size:10px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;margin-top:10px;width:100%;text-align:center;transition:all .15s}
 .expand-btn:active{background:var(--bg3)}
@@ -217,6 +217,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .clv-row{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;padding:5px 0;border-bottom:1px solid var(--border)}
 .clv-row:last-child{border-bottom:none}
 
+/* CACHE RESTORE BANNER */
+.cache-restore-banner{background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:14px 16px;margin-bottom:12px;display:flex;flex-direction:column;gap:10px}
+.cache-restore-title{font-size:12px;font-weight:700;color:var(--text)}
+.cache-restore-sub{font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.5}
+.cache-restore-btns{display:flex;gap:8px}
+.cache-restore-yes{flex:1;padding:10px;background:var(--accent);color:#000;font-family:var(--sans);font-size:13px;font-weight:700;border:none;border-radius:10px;cursor:pointer}
+.cache-restore-no{flex:1;padding:10px;background:var(--bg3);color:var(--muted);font-family:var(--sans);font-size:13px;font-weight:600;border:1px solid var(--border2);border-radius:10px;cursor:pointer}
+
 /* SLATE LOG PANEL */
 .slate-log{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px}
 .slate-log-title{font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
@@ -263,6 +271,15 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .warning-card{background:rgba(255,181,71,.06);border:1px solid rgba(255,181,71,.2);border-radius:14px;padding:14px;margin-bottom:12px;font-family:var(--mono);font-size:11px;color:var(--amber);line-height:1.6}
 .info-card{background:rgba(77,184,255,.06);border:1px solid rgba(77,184,255,.2);border-radius:14px;padding:14px;margin-bottom:12px;font-family:var(--mono);font-size:11px;color:var(--blue);line-height:1.6}
 
+/* TRACE TAB */
+.trace-section{margin-bottom:14px}
+.trace-section-title{font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--blue);padding:6px 10px;background:var(--bg3);border-radius:8px 8px 0 0;border:1px solid var(--border);border-bottom:none}
+.trace-entries{background:var(--bg2);border:1px solid var(--border);border-radius:0 0 8px 8px;overflow:hidden}
+.trace-entry{font-family:var(--mono);font-size:9px;padding:4px 10px;border-bottom:1px solid var(--border);line-height:1.5;color:var(--muted)}
+.trace-entry:last-child{border-bottom:none}
+.trace-entry.ok{color:var(--text)}.trace-entry.warn{color:var(--amber)}.trace-entry.fail{color:var(--red)}.trace-entry.pass{color:var(--accent)}
+.trace-empty{font-family:var(--mono);font-size:10px;color:var(--muted);text-align:center;padding:24px}
+
 /* TOAST */
 .toast{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 70px);left:50%;transform:translateX(-50%) translateY(120px);background:var(--bg3);border:1px solid var(--border2);border-radius:12px;padding:9px 16px;font-family:var(--mono);font-size:11px;color:var(--text);z-index:300;transition:transform .3s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;pointer-events:none}
 .toast.show{transform:translateX(-50%) translateY(0)}
@@ -299,6 +316,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
     <div class="tab" onclick="showTab('check',this)">Check Pick</div>
     <div class="tab" onclick="showTab('slip',this)">Slip</div>
     <div class="tab" onclick="showTab('tracker',this)">Tracker</div>
+    <div class="tab" onclick="showTab('trace',this)">Trace</div>
   </div>
 
   <div class="content">
@@ -346,9 +364,19 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       </button>
 
       <div id="mode-banner"></div>
-      <div id="slate-log-panel"></div>
       <div id="data-source-bar" class="data-source-bar"></div>
       <div id="props-list"></div>
+    </div>
+
+    <!-- TRACE TAB -->
+    <div id="tab-trace" class="page">
+      <div class="section-title">Slate</div>
+      <div id="slate-log-panel" style="margin-bottom:14px"></div>
+      <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+        Pipeline Trace
+        <button onclick="clearTrace()" style="font-family:var(--mono);font-size:9px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:3px 10px;color:var(--muted);cursor:pointer">Clear</button>
+      </div>
+      <div id="trace-panel"><div class="trace-empty">Run "Generate Props" to populate trace log.</div></div>
     </div>
 
     <!-- CHECK PICK TAB -->
@@ -529,6 +557,7 @@ let STATE = loadState() || {
   // { NBA: { props: [...], fetchedAt: 1234567890, propCount: 45 }, ... }
   sportCache: {},
   slateLog: null, // stores last fetch result: games detected, players selected per game
+  trace: null,   // full pipeline trace log — cleared and rebuilt on every run
   slip: [],
   history: [],
   savedSlips: [],
@@ -562,6 +591,40 @@ if(STATE.props && Array.isArray(STATE.props) && STATE.props.length > 0 && !STATE
 // Ensure settings object has all keys
 STATE.settings = Object.assign({ oddsApiKey:'', balldontlieKey:'', corsProxy:'', minEdge:5, minConf:6, gamesPerSport:2, playersPerGame:3 }, STATE.settings || {});
 if(!STATE.sportCache) STATE.sportCache = {};
+
+// ═══════════════════════════════════════════════════════
+// TRACE ENGINE — full pipeline observability, never affects logic
+// ═══════════════════════════════════════════════════════
+const TRACE_SECTIONS = ['gameIngestion','playerDiscovery','projectionEngine','filteringLog','outputLog'];
+
+function initTrace() {
+  STATE.trace = { runAt: new Date().toISOString(), mode: null,
+    gameIngestion:[], playerDiscovery:[], projectionEngine:[], filteringLog:[], outputLog:[] };
+  renderTrace();
+}
+function traceLog(section, msg, level='ok') {
+  if(!STATE.trace || !STATE.trace[section]) return;
+  STATE.trace[section].push({ msg, level });
+}
+function clearTrace() { STATE.trace = null; renderTrace(); }
+function renderTrace() {
+  const panel = document.getElementById('trace-panel');
+  if(!panel) return;
+  const t = STATE.trace;
+  if(!t) { panel.innerHTML = '<div class="trace-empty">No trace data. Run "Generate Props" to populate.</div>'; return; }
+  const labels = { gameIngestion:'1 · Game Ingestion', playerDiscovery:'2 · Player Discovery',
+    projectionEngine:'3 · Projection Engine', filteringLog:'4 · Filtering', outputLog:'5 · Output' };
+  const modeColor = t.mode==='betting' ? 'var(--accent)' : 'var(--amber)';
+  let html = `<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:10px">Run: ${t.runAt} · Mode: <span style="color:${modeColor}">${(t.mode||'unknown').toUpperCase()}</span></div>`;
+  for(const s of TRACE_SECTIONS) {
+    const entries = t[s] || [];
+    html += `<div class="trace-section"><div class="trace-section-title">${labels[s]} (${entries.length})</div><div class="trace-entries">`;
+    if(!entries.length) html += '<div class="trace-entry">No entries</div>';
+    else entries.forEach(e => { html += `<div class="trace-entry ${e.level}">${e.msg}</div>`; });
+    html += '</div></div>';
+  }
+  panel.innerHTML = html;
+}
 
 // ── MODE DETECTION ──
 // BETTING MODE: valid Odds API key AND real lines were successfully fetched
@@ -635,16 +698,69 @@ let fetchingSports = new Set(); // sports currently being fetched
 document.addEventListener('DOMContentLoaded', function() {
   setDateBar();
   loadSettingsIntoForm();
-  renderMetrics();
-  renderProps();
   renderSlip();
   renderApiStatus({});
-  updateMetrics();
   updateSportChipStatus();
+
+  // On open: check if cached data exists — ask user before restoring
+  const hasCachedData = STATE.sportCache &&
+    Object.values(STATE.sportCache).some(e => e?.props?.length > 0);
+
+  if(hasCachedData) {
+    // Show restore prompt instead of silently loading stale data
+    showCacheRestorePrompt();
+  } else {
+    // No cache — clean start
+    renderProps();
+    updateMetrics();
+    updateModeBanner();
+    // Don't render slate log — nothing fetched yet
+  }
+});
+
+function showCacheRestorePrompt() {
+  // Build a summary of what's cached
+  const sports = Object.entries(STATE.sportCache)
+    .filter(([, e]) => e?.props?.length > 0)
+    .map(([sport, e]) => {
+      const age = e.fetchedAt ? Math.round((Date.now() - e.fetchedAt) / 60000) : null;
+      const ageStr = age !== null ? (age < 60 ? `${age}m ago` : `${Math.round(age/60)}h ago`) : 'unknown age';
+      return `${sport}: ${e.props.length} props (${ageStr})`;
+    });
+
+  const propsList = document.getElementById('props-list');
+  propsList.innerHTML = `
+    <div class="cache-restore-banner">
+      <div class="cache-restore-title">📦 Cached data available</div>
+      <div class="cache-restore-sub">${sports.join('<br/>')}<br/><br/>Restore this data or start fresh?</div>
+      <div class="cache-restore-btns">
+        <button class="cache-restore-yes" onclick="restoreCachedData()">✓ Yes, restore</button>
+        <button class="cache-restore-no" onclick="discardCachedData()">✕ Start fresh</button>
+      </div>
+    </div>`;
+}
+
+function restoreCachedData() {
+  // User confirmed — render from cache as-is
+  renderProps();
+  updateMetrics();
   updateCacheStatusBar();
   updateModeBanner();
   renderSlateLog();
-});
+  showToast('✓ Cached data restored', 'success');
+}
+
+function discardCachedData() {
+  // User chose fresh start — wipe cache and slate log
+  STATE.sportCache = {};
+  STATE.slateLog = null;
+  saveState();
+  renderProps();
+  updateMetrics();
+  updateCacheStatusBar();
+  updateModeBanner();
+  showToast('Cache cleared — tap Generate to fetch fresh data');
+}
 
 function setDateBar() {
   const now = new Date();
@@ -661,6 +777,7 @@ function showTab(id, el) {
   if(el) el.classList.add('active');
   if(id === 'tracker') renderTracker();
   if(id === 'slip') renderSlip();
+  if(id === 'trace') { renderTrace(); renderSlateLog(); }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1261,6 +1378,7 @@ async function generateProps() {
   if(sportsToFetch.length === 0) {
     // All selected sports already cached — just re-filter, no API calls
     const mode = getAppMode();
+    if(STATE.trace) { STATE.trace.mode = mode; renderTrace(); }
     showToast(
       mode === 'betting'
         ? '✓ Using cached lines — no re-fetch needed'
@@ -1318,6 +1436,8 @@ async function runFetch(sportsToFetch) {
     </div>`;
 
   const apiStatusMap = {};
+  initTrace();
+  traceLog('gameIngestion', `Run started — sports: ${sportsToFetch.join(', ')}`, 'ok');
 
   try {
     const today = todayStr();
@@ -1546,18 +1666,14 @@ async function runFetch(sportsToFetch) {
       const scheduleResults = await Promise.all(schedulePromises);
       if(scheduleResults.some(r => r.events.length > 0)) apiStatusMap.ESPN = 'ok';
 
-      // ── BUILD SLATE LOG (Analysis Mode) ──
-      // Collects game detection + player selection data for the on-screen panel
+      // ── BUILD SLATE LOG + TRACE (Analysis Mode) ──
       const slateLogSports = [];
       scheduleResults.forEach(r => {
         const gamesDetected = (r.events || []).length;
         const gamesUsed = Math.min(gamesDetected, gps);
-        slateLogSports.push({
-          sport: r.sport,
-          gamesDetected,
-          gamesUsed,
-          games: [] // populated below as games are processed
-        });
+        slateLogSports.push({ sport: r.sport, gamesDetected, gamesUsed, games: [] });
+        const level = gamesDetected > 0 ? 'ok' : 'warn';
+        traceLog('gameIngestion', `${r.sport}: ${gamesDetected} games from ESPN, using ${gamesUsed} (limit ${gps})`, level);
         console.log(`[PropEdge] ${r.sport}: ${gamesDetected} games from ESPN, using ${gamesUsed}`);
       });
 
@@ -1587,6 +1703,7 @@ async function runFetch(sportsToFetch) {
           let candidatePool = [];
           if(game.id) {
             const apiPlayers = await fetchESPNGamePlayers(espnSport, espnLeague, game.id);
+            traceLog('playerDiscovery', `${sport} ${home}v${away} T1-GameAPI: ${apiPlayers.length} players`, apiPlayers.length>0?'pass':'warn');
             console.log(`[PropEdge] ${sport} ${home} vs ${away}: ${apiPlayers.length} from game API`);
             for(const ap of apiPlayers) {
               const db = (PLAYER_DB[sport]||[]).find(p =>
@@ -1606,6 +1723,7 @@ async function runFetch(sportsToFetch) {
 
           // ── TIER 2: Team rosters — if game summary returned nothing ──
           if(candidatePool.length === 0) {
+            traceLog('playerDiscovery', `${sport} ${home}v${away} T1 empty — trying T2 rosters`, 'warn');
             console.log(`[PropEdge] ${sport} ${home} vs ${away}: game API empty, trying rosters`);
             const rFetches = [];
             if(homeTeamId) rFetches.push(fetchESPNTeamRoster(espnSport, espnLeague, homeTeamId));
@@ -1625,11 +1743,13 @@ async function runFetch(sportsToFetch) {
                 });
               }
             }
+            traceLog('playerDiscovery', `${sport} ${home}v${away} T2-Rosters: ${candidatePool.length} players`, candidatePool.length>0?'pass':'warn');
             console.log(`[PropEdge] ${sport} ${home} vs ${away}: ${candidatePool.length} from rosters`);
           }
 
           // ── TIER 3: PLAYER_DB filtered by team — final fallback only ──
           if(candidatePool.length === 0) {
+            traceLog('playerDiscovery', `${sport} ${home}v${away} T2 empty — using T3 PLAYER_DB fallback`, 'warn');
             console.log(`[PropEdge] ${sport} ${home} vs ${away}: using PLAYER_DB fallback`);
             (PLAYER_DB[sport]||[])
               .filter(p => {
@@ -1665,7 +1785,9 @@ async function runFetch(sportsToFetch) {
             .filter(p => { const k = p.name.toLowerCase(); if(seen.has(k)) return false; seen.add(k); return true; })
             .slice(0, 3);
 
-          console.log(`[PropEdge] ${sport} ${home} vs ${away}: selected [${top3.map(p=>p.name).join(', ')}]`);
+          const top3Names = top3.map(p=>p.name).join(', ');
+          traceLog('playerDiscovery', `${sport} ${home}v${away} SELECTED (${top3.length}): ${top3Names}`, top3.length===3?'pass':top3.length>0?'ok':'fail');
+          console.log(`[PropEdge] ${sport} ${home} vs ${away}: selected [${top3Names}]`);
 
           if(slateEntry) slateEntry.games.push({ home, away, players: top3.map(p=>p.name) });
 
@@ -1735,15 +1857,73 @@ async function runFetch(sportsToFetch) {
     for(const player of playersToProcess) {
       try {
         const injuries = injuriesBySport[player.sport] || {};
-        const dbEntry = player.meta || (PLAYER_DB[player.sport]||[]).find(p =>
-          p.name.toLowerCase() === player.name.toLowerCase() ||
-          p.name.toLowerCase().includes(player.name.split(' ').pop()?.toLowerCase()||'')
-        );
+        // ID-first matching — never drop player on name mismatch alone
+        let dbEntry = player.meta || null;
+        if(!dbEntry) {
+          const db = PLAYER_DB[player.sport] || [];
+          // 1) Match by ESPN athlete ID (primary key — most reliable)
+          if(player.espnId) dbEntry = db.find(p => String(p.id) === String(player.espnId)) || null;
+          // 2) Exact full name match (case-insensitive)
+          if(!dbEntry) dbEntry = db.find(p => p.name.toLowerCase() === player.name.toLowerCase()) || null;
+          // 3) Last name match (handles "LeBron James" vs "James")
+          if(!dbEntry) {
+            const lastName = player.name.split(' ').pop()?.toLowerCase() || '';
+            if(lastName.length > 2) dbEntry = db.find(p => p.name.toLowerCase().endsWith(lastName)) || null;
+          }
+          // 4) Partial first+last (handles accents/hyphens stripped)
+          if(!dbEntry) {
+            const norm = s => s.toLowerCase().replace(/[^a-z]/g,'');
+            dbEntry = db.find(p => norm(p.name) === norm(player.name)) || null;
+          }
+          // NEVER discard player because DB match failed — proceed with nulls for enrichment
+        }
         const espnId = player.espnId || dbEntry?.id || null;
         const opp = player.homeTeam && player.awayTeam
-          ? (dbEntry?.team && player.homeTeam.includes(dbEntry.team.slice(0,3))
-              ? player.awayTeam : player.homeTeam)
+          ? (dbEntry?.team && (player.homeTeam.toUpperCase().includes(dbEntry.team.toUpperCase().slice(0,3)) || player.awayTeam.toUpperCase().includes(dbEntry.team.toUpperCase().slice(0,3)))
+              ? (player.homeTeam.toUpperCase().includes(dbEntry.team.toUpperCase().slice(0,3)) ? player.awayTeam : player.homeTeam)
+              : player.awayTeam)
           : '?';
+
+        // ══════════════════════════════════════════════════════
+        // PRE-PROJECTION VALIDATION GATE (FIX 1 + 2)
+        // Single mandatory checkpoint — every player must pass before
+        // entering the projection engine. No exceptions, no silent drops.
+        // ══════════════════════════════════════════════════════
+        const gateReasons = [];
+
+        // G1: player must have a name
+        if(!player.name || player.name.trim().length < 2) {
+          gateReasons.push('missing player name');
+        }
+
+        // G2: player must have an ESPN ID or a confirmed name match
+        // (ID-first matching above sets dbEntry if name matched — so dbEntry OR espnId = valid)
+        const hasValidIdentity = !!(espnId || dbEntry);
+        if(!hasValidIdentity) {
+          gateReasons.push('no ESPN ID and no DB name match — identity unconfirmed');
+        }
+
+        // G3: must have a prop type
+        if(!player.prop || player.prop.trim().length === 0) {
+          gateReasons.push('missing prop type');
+        }
+
+        // G4: golf-specific gate — require sgTotal OR explicit form data in DB
+        // Without these, golf will always fail completeness — reject early to save API calls
+        // Note: playerMeta is a buildPlayerProp param — use player.meta or dbEntry here
+        if(player.sport === 'GOLF') {
+          const hasSgTotal = player.meta?.sgTotal !== undefined ||
+                             dbEntry?.sgTotal !== undefined;
+          if(!hasSgTotal) {
+            gateReasons.push('GOLF: no sgTotal in DB entry — insufficient baseline data');
+          }
+        }
+
+        if(gateReasons.length > 0) {
+          const reason = gateReasons.join('; ');
+          traceLog('outputLog', `${player.name || '[unnamed]'} (${player.sport}): REJECTED at pre-projection gate — ${reason}`, 'fail');
+          continue; // skip this player entirely — do not enter projection engine
+        }
 
         const prop = await buildPlayerProp(
           espnId, player.name, player.sport, player.espnSport, player.espnLeague,
@@ -1752,8 +1932,14 @@ async function runFetch(sportsToFetch) {
         );
         if(prop && newPropsBySport[player.sport] !== undefined) {
           newPropsBySport[player.sport].push(prop);
+          traceLog('outputLog', `${player.name} (${player.sport}): prop built — ${prop.decision} proj=${prop.proj}`, prop.decision !== 'PASS' ? 'pass' : 'ok');
+        } else if(!prop) {
+          traceLog('outputLog', `${player.name} (${player.sport}): buildPlayerProp returned null — suppressed`, 'warn');
         }
-      } catch(e) {}
+      } catch(e) {
+        traceLog('outputLog', `${player.name} (${player.sport}): ERROR — ${e.message}`, 'fail');
+        console.warn(`buildPlayerProp error for ${player.name}:`, e);
+      }
     }
 
     setStep('step-engine', 'done');
@@ -2143,41 +2329,22 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     // Only hard-gate on line in betting mode — analysis mode proceeds without real line
     if(hasRealLine && (!line || line <= 0)) return null;
 
-    // ── GOLF: SG-based deterministic model ──
+    // ══════════════════════════════════════════════════════
+    // GOLF ISOLATION GATE (FIX 3)
+    // Golf MUST pass this dedicated gate before entering projection.
+    // No heuristic path. No SG-only fallback. Real round data required.
+    // This gate runs at entry — before any data fetching — to set statLabel.
+    // The POST-DATA golf gate runs below after game logs are fetched.
+    // ══════════════════════════════════════════════════════
     if(sport === 'GOLF') {
       statLabel = propTypeOverride || 'Strokes (Round 1)';
-      const sgTotal = playerMeta.sgTotal;
-      if(sgTotal === undefined || sgTotal === null) return null;
-      const sgAdj = -(sgTotal - 2.0) * 0.8;
-      let golfProj = null;
-      if(statLabel.includes('Strokes')) {
-        golfProj = parseFloat((70.5 + sgAdj).toFixed(1));
-      } else if(statLabel === 'Birdies or Better') {
-        golfProj = parseFloat(Math.max(1.0, 3.5 + (sgTotal - 2.0) * 0.5).toFixed(1));
-      } else if(statLabel === 'Bogeys or Worse') {
-        golfProj = parseFloat(Math.max(0.5, 2.5 - (sgTotal - 2.0) * 0.4).toFixed(1));
-      } else if(statLabel === 'Made Cut') {
-        golfProj = parseFloat(Math.max(0.20, Math.min(0.95, 0.60 + sgTotal * 0.07)).toFixed(2));
+      // PRE-FETCH golf check: must have sgTotal baseline in DB for enrichment
+      // (post-fetch gate checks actual round data count — see below)
+      if(!playerMeta?.sgTotal && !playerMeta?.sgTotal === 0) {
+        traceLog('filteringLog', `${playerName} GOLF pre-gate: no sgTotal baseline — will require real rounds only`, 'warn');
       }
-      if(!golfProj) return null;
-      const golfEdge = calcEdge(golfProj, line);
-      const golfConf = computeConfidence(5, null, null, false, false);
-      return {
-        id, player:playerName, sport:'GOLF', team:'PGA', opp:'Field', prop:statLabel,
-        line, proj:golfProj, edge:golfEdge,
-        conf:golfConf, decision:edgeToDecision(golfEdge, golfConf),
-        winProb:edgeToWinProb(golfEdge.pct), date,
-        reasoning:[
-          `Golf SG model — ${statLabel}`,
-          `SG:Total = ${sgTotal} (tour avg 2.0) → adj: ${sgAdj >= 0 ? '+' : ''}${sgAdj.toFixed(2)} strokes`,
-          `Projection: ${golfProj} vs line ${line} | Edge: ${golfEdge.val >= 0 ? '+' : ''}${golfEdge.val} (${golfEdge.pct}%)`,
-          `Line source: ${hasRealLine ? 'The Odds API ✓' : 'Estimated'}`,
-          `⚠ Course history and weather data not yet available — confidence capped`
-        ],
-        hitRateSeason:null, injuryStatus:null,
-        dataSource:{gamelog:0, hasRealLine, espnId:playerId},
-        clvEntry:line, clvClose:null, timestamp:Date.now()
-      };
+      // No SG-formula path. Golf proceeds through standard pipeline.
+      // Projection requires allVals.length >= 3 (enforced in post-data gate below).
     }
 
     // ══════════════════════════════════════════════════════
@@ -2413,20 +2580,49 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     // (line is required only for betting decisions, not for projection itself)
     // ══════════════════════════════════════════════════════
 
-    // HARD GATE: no game log data → cannot project anything
-    if(allVals.length === 0) return null;
+    // HARD GATE: no game log data — attempt fallback before discarding
+    if(allVals.length === 0) {
+      traceLog('projectionEngine', `${playerName} (${sport}): no game logs fetched — suppressed`, 'fail');
+      return null; // truly no data from any source — cannot project
+    }
 
     // ── CORE PROJECTION ALWAYS RUNS if game logs exist ──
-    // Missing derived features skip only themselves — they never stop the projection.
     let finalProjection = parseFloat((computeProjection(allVals) || 0).toFixed(1));
-    if(!finalProjection || finalProjection <= 0) return null;
+    traceLog('projectionEngine', `${playerName} (${sport}) — ${dataPoints} games, L5avg=${l5avg}, proj=${finalProjection}`, finalProjection>0?'ok':'fail');
+
+    // Fallback: if weighted average returns 0 or invalid, use L10 or season avg
+    if(!finalProjection || finalProjection <= 0) {
+      const fallback = l10avg ?? seasonAvg ?? null;
+      if(fallback && fallback > 0) {
+        finalProjection = fallback;
+        traceLog('projectionEngine', `${playerName}: weighted avg=0, using fallback=${fallback}`, 'warn');
+      } else {
+        traceLog('projectionEngine', `${playerName}: proj=0 and no fallback — skipped`, 'fail');
+        return null;
+      }
+    }
+
+    // ══════════════════════════════════════════════════════
+    // POST-DATA GOLF ISOLATION GATE
+    // After game logs are fetched — verify golf has enough real rounds.
+    // If < 3 valid round scores exist → hard reject with trace log.
+    // This is the definitive golf gate — completeness scoring is secondary.
+    // ══════════════════════════════════════════════════════
+    if(sport === 'GOLF' && allVals.length < 3) {
+      traceLog('filteringLog',
+        `${playerName} GOLF gate FAIL: only ${allVals.length} round(s) fetched — need ≥3 — SUPPRESSED`,
+        'fail'
+      );
+      return null; // cannot project golf without ≥3 real rounds
+    }
 
     // ── DETERMINE DATA AVAILABILITY for scoring + derived features ──
     const hasOpponentContext = vsOppVals.length >= 2;
     const hasAdditionalStats = !!(
       (sport === 'MLB' && (contextData.pitcher?.era !== undefined || contextData.weather)) ||
       (sport === 'NHL' && (contextData.goalieSvPct !== undefined || contextData.toiAvgL5 !== undefined)) ||
-      (sport === 'NBA' || sport === 'WNBA') // game logs alone are sufficient
+      ((sport === 'NBA' || sport === 'WNBA') && dataPoints >= 5) ||
+      (sport === 'GOLF' && playerMeta.sgTotal !== undefined && dataPoints >= 3)
     );
 
     // ── DATA COMPLETENESS SCORE — gates output, NOT projection ──
@@ -2565,8 +2761,10 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     // Projection has already been computed above.
     // This only determines whether we surface it to the user.
     // ══════════════════════════════════════════════════════
+    traceLog('filteringLog', `${playerName} completeness ${completeness.score}% vs ${thresholdInfo.threshold}% (${sport})`, completeness.score>=thresholdInfo.threshold?'pass':'fail');
     if(completeness.score < thresholdInfo.threshold) {
-      return null; // below sport+season threshold — suppress output entirely
+      traceLog('outputLog', `${playerName}: SUPPRESSED — completeness ${completeness.score}% < ${thresholdInfo.threshold}%`, 'fail');
+      return null;
     }
 
     // ── EDGE, CONFIDENCE, DECISION ──
@@ -2601,6 +2799,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     if(dataPoints < 5) reasoning.push(`⚠ Only ${dataPoints} game log entries — low confidence`);
     if(dataPoints === 0) reasoning.push(`⚠ DATA INSUFFICIENT — no game logs found`);
 
+    traceLog('filteringLog', `${playerName} conf=${conf}/10 edge=${edge.val>=0?'+':''}${edge.val} decision=${finalDecision}`, finalDecision!=='PASS'?'pass':'ok');
     // Feature 2 final rule: if narrative cannot be written from real data, PASS
     let narrative = buildNarrative(
       playerName, sport, statLabel, line, finalProjection, decision,
@@ -2617,6 +2816,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       ? 'PASS'
       : decision;
 
+    traceLog('outputLog', `${playerName} → ${finalDecision} | proj=${finalProjection} conf=${conf} data=${completeness.score}%`, finalDecision!=='PASS'?'pass':'ok');
     // Add completeness score + threshold to reasoning
     reasoning.splice(1, 0, `Data completeness: ${completeness.score}% ≥ threshold ${thresholdInfo.threshold}% — ${thresholdInfo.label}`);
     reasoning.splice(2, 0, `Breakdown: ${completeness.breakdown?.join(' · ')}`);
@@ -2633,16 +2833,21 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       reasoning.splice(3, 0, `Derived features: none available — core projection only`);
     }
 
+    const isAnalysisProp = !hasRealLine;
+    const safeEdge = isAnalysisProp ? { val: 0, pct: 0 } : edge;
+    const safeDecision = isAnalysisProp ? 'PASS' : finalDecision;
+
     return {
       id, player:playerName, sport, team, opp, prop:statLabel,
-      line, proj:finalProjection, edge, conf, decision: finalDecision, winProb, date,
+      line: isAnalysisProp ? null : line,
+      proj:finalProjection, edge: safeEdge, conf, decision: safeDecision, winProb, date,
       narrative, reasoning, injuryStatus, hitRateSeason,
       completeness: completeness.score,
       completenessThreshold: thresholdInfo.threshold,
       completenessLabel: thresholdInfo.label,
-      analysisMode: !hasRealLine, // true = Analysis Mode (no betting recommendation)
+      analysisMode: isAnalysisProp,
       dataSource:{gamelog:dataPoints, hasRealLine, espnId:playerId, completenessBreakdown: completeness.breakdown},
-      clvEntry:line, clvClose:null, timestamp:Date.now()
+      clvEntry: isAnalysisProp ? null : line, clvClose:null, timestamp:Date.now()
     };
   } catch(e) { return null; }
 }
@@ -2957,7 +3162,7 @@ function renderProps() {
 }
 
 function propCardHTML(p) {
-  const edgeStr = (p.edge.val >= 0 ? '+' : '') + p.edge.val + ' (' + (p.edge.val >= 0 ? '+' : '') + p.edge.pct + '%)';
+  const edgeStr = isAnalysis ? '—' : ((p.edge.val >= 0 ? '+' : '') + p.edge.val + ' (' + (p.edge.val >= 0 ? '+' : '') + p.edge.pct + '%)');
   const edgeClass = p.edge.val >= 0 ? 'green' : 'red';
   const decLow = p.decision === 'PASS' ? 'pass' : p.decision.toLowerCase();
   // Analysis mode: never show OVER/UNDER — show projection rank instead
@@ -2985,7 +3190,7 @@ function propCardHTML(p) {
       <div class="hit-rate-track"><div class="hit-rate-fill" style="width:${pct}%;background:${barColor}"></div></div>
       <div class="hit-rate-pct" style="color:${pctColor}">${pct}%</div>
     </div>
-    <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:6px">${p.hitRateSeason.hits}/${p.hitRateSeason.total} games over ${p.line} ${p.prop.toLowerCase()} this season</div>`;
+    <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:6px">${p.hitRateSeason.hits}/${p.hitRateSeason.total} games this season${p.line != null ? ' over ' + p.line + ' ' + p.prop.toLowerCase() : ''}</div>`;
   }
 
   const analysisWarningHTML = isAnalysis
@@ -3004,7 +3209,7 @@ function propCardHTML(p) {
     </div>
     <div class="prop-numbers">
       <div class="prop-num-block"><div class="prop-num-label">Prop</div><div class="prop-num-value" style="font-size:12px;margin-top:2px">${p.prop}</div></div>
-      <div class="prop-num-block"><div class="prop-num-label">Line</div><div class="prop-num-value">${p.line}</div></div>
+      <div class="prop-num-block"><div class="prop-num-label">Line</div><div class="prop-num-value" style="${isAnalysis?'color:var(--muted)':''}">${isAnalysis ? '—' : (p.line ?? '—')}</div></div>
       <div class="prop-num-block"><div class="prop-num-label">Projection</div><div class="prop-num-value ${edgeClass}">${p.proj}</div></div>
       <div class="prop-num-block"><div class="prop-num-label">Edge</div><div class="prop-edge-val ${edgeClass}">${edgeStr}</div></div>
       ${completenessScore !== null ? `<div class="prop-num-block"><div class="prop-num-label">Data</div><div class="prop-num-value" style="font-size:13px;color:${completenessColor}">${completenessScore}%<span style="font-size:8px;color:var(--muted);display:block">min ${p.completenessThreshold ?? 60}%</span></div></div>` : ''}
@@ -3019,7 +3224,7 @@ function propCardHTML(p) {
     <button class="expand-btn" onclick="toggleReasoning(${p.id})">▾ full data breakdown</button>
     <div class="reasoning ${isExpanded ? 'open' : ''}" id="reasoning-${p.id}">
       ${reasoningHTML}
-      <div class="data-source-line">📡 ${dataLabel} · ${p.dataSource?.hasRealLine ? '✓ Live sportsbook line' : 'Estimated line — add Odds API key'} · Data completeness: ${completenessScore !== null ? completenessScore + '%' : 'N/A'}</div>
+      <div class="data-source-line">📡 ${dataLabel}${isAnalysis ? ' · ANALYSIS MODE — no market data' : p.dataSource?.hasRealLine ? ' · ✓ Live sportsbook line' : ' · Estimated line — add Odds API key'} · completeness ${completenessScore !== null ? completenessScore + '%' : 'N/A'}</div>
     </div>
     ${(!isAnalysis && p.decision !== 'PASS') ? `<button class="add-slip-btn ${inSlip ? 'added' : ''}" id="slip-btn-${p.id}" onclick="toggleSlip(${p.id})">${inSlip ? '✓ Added to slip' : '+ Add to slip'}</button>` : ''}
   </div>`;
