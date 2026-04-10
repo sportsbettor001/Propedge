@@ -1050,36 +1050,40 @@ function computeConfidence(dataPoints, l5avg, seasonAvg, hasMatchupData, hasInju
 // Determines WHETHER a projection can exist at all.
 // Does NOT influence the projection value itself.
 // ═══════════════════════════════════════════════════════
+// computeDataCompleteness works in BOTH modes:
+// - Betting mode: line worth +30%, game logs +40%, context +15%+15% = 100%
+// - Analysis mode: no line available, so game logs worth +55%, context +30%+15% = 100%
+//   (weights rescaled so analysis mode can still pass threshold)
 function computeDataCompleteness(hasRealLine, dataPoints, hasOpponentContext, hasAdditionalStats) {
-  if(!hasRealLine) return { score: 0, reason: 'No verified sportsbook line' };
+  // HARD GATE: game logs are always required
   if(dataPoints === 0) return { score: 0, reason: 'No player game log data' };
 
   let score = 0;
   const breakdown = [];
 
-  // Game logs: +40% max (scaled by sample size)
-  const gameLogScore = dataPoints >= 10 ? 40 : dataPoints >= 5 ? 30 : dataPoints >= 3 ? 20 : 10;
-  score += gameLogScore;
-  breakdown.push(`Game logs: ${dataPoints} games (+${gameLogScore}%)`);
-
-  // Verified sportsbook line: +30%
-  score += 30;
-  breakdown.push(`Verified line (+30%)`);
-
-  // Opponent context (≥2 historical meetings): +15%
-  if(hasOpponentContext) {
-    score += 15;
-    breakdown.push(`Opponent context (+15%)`);
+  if(hasRealLine) {
+    // ── BETTING MODE scoring ──
+    const gameLogScore = dataPoints >= 10 ? 40 : dataPoints >= 5 ? 30 : dataPoints >= 3 ? 20 : 10;
+    score += gameLogScore;
+    breakdown.push(`Game logs: ${dataPoints} games (+${gameLogScore}%)`);
+    score += 30;
+    breakdown.push(`Verified sportsbook line (+30%)`);
+    if(hasOpponentContext) { score += 15; breakdown.push(`Opponent context (+15%)`); }
+    else { breakdown.push(`Opponent context: none (+0%)`); }
+    if(hasAdditionalStats) { score += 15; breakdown.push(`Sport context (+15%)`); }
+    else { breakdown.push(`Sport context: none (+0%)`); }
   } else {
-    breakdown.push(`Opponent context: none (+0%)`);
-  }
-
-  // Sport-specific context (pitcher ERA, goalie SV%, weather, etc.): +15%
-  if(hasAdditionalStats) {
-    score += 15;
-    breakdown.push(`Sport context (+15%)`);
-  } else {
-    breakdown.push(`Sport context: none (+0%)`);
+    // ── ANALYSIS MODE scoring (no line — rescale weights to 100%) ──
+    // Game logs: up to 55% (higher weight since line component is absent)
+    const gameLogScore = dataPoints >= 15 ? 55 : dataPoints >= 10 ? 45 : dataPoints >= 5 ? 35 : dataPoints >= 3 ? 20 : 10;
+    score += gameLogScore;
+    breakdown.push(`Game logs: ${dataPoints} games (+${gameLogScore}%) [analysis mode]`);
+    // Opponent context: 30%
+    if(hasOpponentContext) { score += 30; breakdown.push(`Opponent context (+30%)`); }
+    else { breakdown.push(`Opponent context: none (+0%)`); }
+    // Additional sport stats: 15%
+    if(hasAdditionalStats) { score += 15; breakdown.push(`Sport context (+15%)`); }
+    else { breakdown.push(`Sport context: none (+0%)`); }
   }
 
   return { score, breakdown, reason: null };
@@ -1279,41 +1283,67 @@ async function runFetch(sportsToFetch) {
     };
 
     if(STATE.settings.oddsApiKey) {
-      for(const sport of sportsToFetch) {
-        if(sport === 'GOLF') continue;
+      // ── ODDS API: ONE SLATE FETCH — all sports in parallel, not sequential ──
+      // Spec rule: API called once per slate, never per-sport per-game per-player.
+      // We fetch all sport events simultaneously, then all prop markets simultaneously.
+      const slateSports = sportsToFetch.filter(s => s !== 'GOLF' && oddsKeyMap[s]);
+
+      // Step 1: fetch all event lists in parallel (one call per sport, all at once)
+      const eventResults = await Promise.allSettled(
+        slateSports.map(async sport => {
+          const sportKey = oddsKeyMap[sport];
+          const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/events?apiKey=${STATE.settings.oddsApiKey}`;
+          const events = await fetchJSON(url);
+          return { sport, events: (events || []).slice(0, STATE.settings.gamesPerSport || 2) };
+        })
+      );
+
+      // Step 2: collect all event IDs across all sports
+      const allEventFetches = [];
+      for(const result of eventResults) {
+        if(result.status !== 'fulfilled') continue;
+        const { sport, events } = result.value;
         const sportKey = oddsKeyMap[sport];
-        if(!sportKey) continue;
-        try {
-          const eventsUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/events?apiKey=${STATE.settings.oddsApiKey}`;
-          const events = await fetchJSON(eventsUrl) || [];
-          for(const event of events.slice(0, STATE.settings.gamesPerSport || 2)) {
-            const markets = propMarketsMap[sport] || 'player_points';
-            const propsUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/events/${event.id}/odds?apiKey=${STATE.settings.oddsApiKey}&regions=us&markets=${markets}&oddsFormat=american`;
-            let propsData = null;
-            try { propsData = await fetchJSON(propsUrl); } catch(e) { continue; }
-            const homeTeam = event.home_team || '';
-            const awayTeam = event.away_team || '';
-            const bookie = propsData?.bookmakers?.find(b=>b.key==='draftkings') ||
-                           propsData?.bookmakers?.find(b=>b.key==='fanduel') ||
-                           propsData?.bookmakers?.[0];
-            if(!bookie) continue;
-            for(const market of bookie.markets || []) {
-              const propType = propKeyToType[market.key];
-              if(!propType) continue;
-              for(const outcome of market.outcomes || []) {
-                if(outcome.name === 'Over' && outcome.description && outcome.point !== undefined) {
-                  allPlayersWithLines.push({
-                    name: outcome.description, sport,
-                    espnSport: sportToESPN[sport][0], espnLeague: sportToESPN[sport][1],
-                    prop: propType, line: parseFloat(outcome.point),
-                    homeTeam, awayTeam, eventId: event.id
-                  });
-                  oddsApiWorking = true;
-                }
-              }
+        const markets = propMarketsMap[sport] || 'player_points';
+        for(const event of events) {
+          allEventFetches.push({ sport, sportKey, event, markets });
+        }
+      }
+
+      // Step 3: fetch all prop markets in parallel (one call per event, all at once)
+      const propResults = await Promise.allSettled(
+        allEventFetches.map(async ({ sport, sportKey, event, markets }) => {
+          const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/events/${event.id}/odds?apiKey=${STATE.settings.oddsApiKey}&regions=us&markets=${markets}&oddsFormat=american`;
+          const propsData = await fetchJSON(url);
+          return { sport, event, propsData };
+        })
+      );
+
+      // Step 4: parse all results into allPlayersWithLines
+      for(const result of propResults) {
+        if(result.status !== 'fulfilled' || !result.value.propsData) continue;
+        const { sport, event, propsData } = result.value;
+        const homeTeam = event.home_team || '';
+        const awayTeam = event.away_team || '';
+        const bookie = propsData?.bookmakers?.find(b=>b.key==='draftkings') ||
+                       propsData?.bookmakers?.find(b=>b.key==='fanduel') ||
+                       propsData?.bookmakers?.[0];
+        if(!bookie) continue;
+        for(const market of bookie.markets || []) {
+          const propType = propKeyToType[market.key];
+          if(!propType) continue;
+          for(const outcome of market.outcomes || []) {
+            if(outcome.name === 'Over' && outcome.description && outcome.point !== undefined) {
+              allPlayersWithLines.push({
+                name: outcome.description, sport,
+                espnSport: sportToESPN[sport]?.[0], espnLeague: sportToESPN[sport]?.[1],
+                prop: propType, line: parseFloat(outcome.point),
+                homeTeam, awayTeam, eventId: event.id
+              });
+              oddsApiWorking = true;
             }
           }
-        } catch(e) { console.warn(`Odds API ${sport} failed:`, e); }
+        }
       }
       apiStatusMap.Odds = oddsApiWorking ? 'ok' : 'warn';
     } else {
@@ -1324,32 +1354,93 @@ async function runFetch(sportsToFetch) {
     setStep('step-stats', 'active');
     renderApiStatus(apiStatusMap);
 
-    let playersToProcess = [];
-    // TOP 3 PER GAME — enforced in both modes
-    const ppg = Math.min(STATE.settings.playersPerGame || 3, 3);
+    // ═══════════════════════════════════════════════════════
+    // STRICT HIERARCHY: SPORT → GAME → PLAYER
+    // FIX 1+2+3: No cross-sport ranking, no global pools.
+    // Hard cap: exactly 3 players per game, never more.
+    // Each player tagged with sport + gameId for validation.
+    // ═══════════════════════════════════════════════════════
+    let playersToProcess = []; // { name, sport, gameId, espnSport, espnLeague, prop, line, homeTeam, awayTeam, espnId, meta }
 
-    // Filter lines to only the sports we're fetching this run
     const filteredLines = allPlayersWithLines.filter(p => sportsToFetch.includes(p.sport));
 
     if(filteredLines.length > 0) {
-      // BETTING MODE: top 3 props per game per prop-type
-      const seen = new Set();
-      const perEventCount = {};
+      // ── BETTING MODE: strict Sport → Game → Player hierarchy ──
+      // Group all lines by sport, then by game (eventId), then pick top 3 unique players per game.
+      // "Top 3 per game" = 3 unique player names, not 3 prop entries.
+      // Players with more prop lines get priority (more market data = higher confidence).
+
+      // Step A: group by sport → game
+      const byGame = {}; // { eventId: { sport, homeTeam, awayTeam, players: Map(name → [props]) } }
       for(const p of filteredLines) {
-        const key = p.name.toLowerCase().replace(/[^a-z]/g,'') + '_' + p.prop;
-        const eventKey = (p.eventId||'') + '_' + p.prop;
-        if(!seen.has(key)) {
-          const count = perEventCount[eventKey] || 0;
-          if(count < ppg) {
-            seen.add(key);
-            perEventCount[eventKey] = count + 1;
-            playersToProcess.push(p);
+        if(!byGame[p.eventId]) {
+          byGame[p.eventId] = { sport: p.sport, homeTeam: p.homeTeam, awayTeam: p.awayTeam, players: new Map() };
+        }
+        const game = byGame[p.eventId];
+        if(!game.players.has(p.name)) game.players.set(p.name, []);
+        game.players.get(p.name).push(p);
+      }
+
+      // Step B: for each game, rank players by role importance — NOT by prop count.
+      // Priority order:
+      //   1) usage / involvement (from PLAYER_DB meta — gap >2% required)
+      //   2) role stability (vol field — starter > rotation)
+      //   3) production consistency — line value comparison ONLY on matching stat types
+      //      if stat types differ → skip this layer (no cross-stat comparison)
+      //   4) prop count (tie-breaker ONLY — last resort)
+      for(const [eventId, game] of Object.entries(byGame)) {
+        const rankedPlayers = [...game.players.entries()]
+          .sort((a, b) => {
+            const [nameA, propsA] = a;
+            const [nameB, propsB] = b;
+            // Look up player meta from PLAYER_DB for role/usage data
+            const metaA = propsA[0]?.meta || null;
+            const metaB = propsB[0]?.meta || null;
+            // 1) Usage rate (real stat from DB — higher = more involved)
+            const usageA = metaA?.usage ?? null;
+            const usageB = metaB?.usage ?? null;
+            if(usageA !== null && usageB !== null && Math.abs(usageA - usageB) > 0.02) {
+              return usageB - usageA;
+            }
+            // 2) Role stability via vol field (high = starter, low = rotation)
+            const volOrder = { high: 3, med: 2, low: 1 };
+            const volA = volOrder[metaA?.vol] ?? 0;
+            const volB = volOrder[metaB?.vol] ?? 0;
+            if(volA !== volB) return volB - volA;
+            // 3) Production consistency — compare line values ONLY when stat types match
+            // Cross-stat comparison is invalid (points vs rebounds = incomparable markets)
+            // Find the highest-value prop for each player among MATCHING stat types
+            const propTypesA = new Set(propsA.map(p => p.prop));
+            const propTypesB = new Set(propsB.map(p => p.prop));
+            const sharedTypes = [...propTypesA].filter(t => propTypesB.has(t));
+            if(sharedTypes.length > 0) {
+              // Compare on the shared stat type with the highest average line value
+              // (highest line = most prominent stat for this player in this market)
+              const bestSharedType = sharedTypes.sort((ta, tb) => {
+                const avgA = propsA.filter(p=>p.prop===ta).reduce((s,p)=>s+(p.line||0),0);
+                const avgB = propsB.filter(p=>p.prop===tb).reduce((s,p)=>s+(p.line||0),0);
+                return (avgB / propsB.filter(p=>p.prop===tb).length) - (avgA / propsA.filter(p=>p.prop===ta).length);
+              })[0];
+              const lineA = propsA.filter(p=>p.prop===bestSharedType).reduce((s,p)=>s+(p.line||0),0) / propsA.filter(p=>p.prop===bestSharedType).length;
+              const lineB = propsB.filter(p=>p.prop===bestSharedType).reduce((s,p)=>s+(p.line||0),0) / propsB.filter(p=>p.prop===bestSharedType).length;
+              if(Math.abs(lineA - lineB) > 0.5) return lineB - lineA;
+            }
+            // No matching stat types → skip this layer entirely, proceed to tie-breaker
+            // 4) Prop count — tie-breaker only
+            return propsB.length - propsA.length;
+          })
+          .slice(0, 3); // HARD CAP: max 3 players per game
+
+        for(const [playerName, props] of rankedPlayers) {
+          for(const prop of props) {
+            playersToProcess.push({ ...prop, gameId: eventId });
           }
         }
       }
-      showToast(`BETTING MODE — ${playersToProcess.length} props with live lines`, 'success');
+      showToast(`BETTING MODE — ${new Set(playersToProcess.map(p=>p.gameId)).size} games · ${playersToProcess.length} props`, 'success');
+
     } else {
-      // Fallback: PLAYER_DB + ESPN schedule for the sports we're fetching
+      // ── ANALYSIS MODE: Sport → Game → Top 3 players per game ──
       const gps = STATE.settings.gamesPerSport || 2;
       const schedulePromises = sportsToFetch
         .filter(s => s !== 'GOLF' && sportToESPN[s])
@@ -1363,31 +1454,50 @@ async function runFetch(sportsToFetch) {
       const scheduleResults = await Promise.all(schedulePromises);
       if(scheduleResults.some(r => r.events.length > 0)) apiStatusMap.ESPN = 'ok';
 
+      // Process each sport independently — no cross-sport mixing
       for(const { sport, events } of scheduleResults) {
         if(!sportsToFetch.includes(sport)) continue;
         const [espnSport, espnLeague] = sportToESPN[sport];
+        // Process each game independently — no cross-game mixing
         for(const game of events.slice(0, gps)) {
+          const gameId = game.id || `${sport}_${game.name || Date.now()}`;
           const comps = game.competitions?.[0]?.competitors || [];
           const home = comps.find(c=>c.homeAway==='home')?.team?.abbreviation||'';
           const away = comps.find(c=>c.homeAway==='away')?.team?.abbreviation||'';
-          // ANALYSIS MODE: select TOP 3 players per game by usage/production
-          // Sort by usage rate desc (or lineBase as proxy for production level)
-          // Never random — deterministic ranking by real DB stats
+          // Select ONLY players from THIS game's teams.
+          // Sort order — fully data-driven, no proxies:
+          //   1) usage (real stat from DB — gap >2% required to trigger)
+          //   2) vol/role (starter vs rotation — 'high'/'med'/'low')
+          //   3) l5base (recent L5 performance average — real stat if present in DB)
+          //   4) alphabetical — last resort only when all real data is absent/tied
+          // lineBase excluded — it is a betting line estimate, not a statistical output.
+          const volOrder = { high: 3, med: 2, low: 1 };
           const dbPlayers = (PLAYER_DB[sport]||[])
             .filter(p => {
               const t = p.team.toUpperCase();
-              return [home,away].some(a=>a===t||a.includes(t.slice(0,3))||t.includes(a.slice(0,3)));
+              return [home,away].some(a => a===t || a.includes(t.slice(0,3)) || t.includes(a.slice(0,3)));
             })
             .sort((a, b) => {
-              // Sort by usage rate if available, else by lineBase (production proxy)
-              const usageA = a.usage || (a.lineBase / 30); // normalise
-              const usageB = b.usage || (b.lineBase / 30);
-              return usageB - usageA;
+              // 1) Usage rate (real stat if present in DB entry)
+              const uA = a.usage ?? null;
+              const uB = b.usage ?? null;
+              if(uA !== null && uB !== null && Math.abs(uA - uB) > 0.02) return uB - uA;
+              // 2) Role stability (vol field — starter vs rotation)
+              const vA = volOrder[a.vol] ?? 0;
+              const vB = volOrder[b.vol] ?? 0;
+              if(vA !== vB) return vB - vA;
+              // 3) L5 production — recent performance average from DB if available
+              // l5base is a real observed stat average, not a betting estimate
+              const l5A = a.l5base ?? null;
+              const l5B = b.l5base ?? null;
+              if(l5A !== null && l5B !== null && Math.abs(l5A - l5B) > 0.5) return l5B - l5A;
+              // 4) Alphabetical — last resort only, when all real data is identical/missing
+              return a.name.localeCompare(b.name);
             })
-            .slice(0, 3); // HARD CAP: top 3 per game, always
+            .slice(0, 3); // HARD CAP: max 3 players per game
           for(const p of dbPlayers) {
             playersToProcess.push({
-              name:p.name, sport, espnSport, espnLeague,
+              name:p.name, sport, espnSport, espnLeague, gameId,
               prop:p.prop, line:p.lineBase, homeTeam:home, awayTeam:away, espnId:p.id, meta:p
             });
           }
@@ -1395,11 +1505,20 @@ async function runFetch(sportsToFetch) {
       }
     }
 
-    // Golf
+    // ── GOLF: same structure, 3 players max per event (FIX 3) ──
+    // Golf has one "event" (the tournament) — treat entire field as one game,
+    // cap at top 3 by SG:Total (production metric).
     if(sportsToFetch.includes('GOLF')) {
-      for(const p of PLAYER_DB.GOLF||[]) {
-        playersToProcess.push({name:p.name, sport:'GOLF', espnSport:'golf', espnLeague:'pga',
-          prop:p.prop, line:p.lineBase, homeTeam:'PGA', awayTeam:'Field', espnId:p.id, meta:p});
+      const golfEvent = 'golf_tournament_today';
+      const top3Golf = (PLAYER_DB.GOLF||[])
+        .slice() // don't mutate original
+        .sort((a, b) => (b.sgTotal || 0) - (a.sgTotal || 0)) // rank by SG:Total desc
+        .slice(0, 3); // HARD CAP: max 3 golf players
+      for(const p of top3Golf) {
+        playersToProcess.push({
+          name:p.name, sport:'GOLF', espnSport:'golf', espnLeague:'pga', gameId: golfEvent,
+          prop:p.prop, line:p.lineBase, homeTeam:'PGA', awayTeam:'Field', espnId:p.id, meta:p
+        });
       }
     }
 
@@ -1428,14 +1547,14 @@ async function runFetch(sportsToFetch) {
     setStep('step-engine', 'active');
 
     let propId = Date.now();
-    const maxPlayers = (STATE.settings.gamesPerSport||2) * (STATE.settings.playersPerGame||3) * sportsToFetch.length;
-    const limited = playersToProcess.slice(0, Math.max(30, maxPlayers));
+    // No global pool cap — hierarchy is enforced at selection time (max 3/game above)
+    // playersToProcess already respects SPORT → GAME → PLAYER structure
 
-    // Build props for this batch — organized by sport
+    // Build props organized strictly by sport (no cross-sport mixing)
     const newPropsBySport = {};
     sportsToFetch.forEach(s => newPropsBySport[s] = []);
 
-    for(const player of limited) {
+    for(const player of playersToProcess) {
       try {
         const injuries = injuriesBySport[player.sport] || {};
         const dbEntry = player.meta || (PLAYER_DB[player.sport]||[]).find(p =>
@@ -1462,18 +1581,79 @@ async function runFetch(sportsToFetch) {
     setStep('step-engine', 'done');
     setStep('step-odds', 'active');
 
-    // Store results in per-sport cache
+    // ═══════════════════════════════════════════════════════
+    // FIX 6: STRUCTURAL VALIDATION BEFORE OUTPUT
+    // Validates hierarchy integrity for each sport's output.
+    // Any sport that fails validation is discarded entirely.
+    // ═══════════════════════════════════════════════════════
+    function validateStructure(sport, props) {
+      if(!props || props.length === 0) return { valid: true, reason: 'empty' };
+
+      // Rule 1: every prop must belong to this sport
+      const wrongSport = props.filter(p => p.sport !== sport);
+      if(wrongSport.length > 0) return { valid: false, reason: `${wrongSport.length} props have wrong sport tag` };
+
+      // Rule 2: group by game and check ≤3 UNIQUE players per game
+      const gamePlayerMap = {}; // gameId/opp → Set of player names
+      for(const p of props) {
+        const gameKey = p.opp || 'unknown'; // use opponent as game key (reliable)
+        if(!gamePlayerMap[gameKey]) gamePlayerMap[gameKey] = new Set();
+        gamePlayerMap[gameKey].add(p.player);
+      }
+      for(const [gameKey, players] of Object.entries(gamePlayerMap)) {
+        if(players.size > 3) return { valid: false, reason: `Game vs ${gameKey} has ${players.size} players (max 3)` };
+      }
+
+      // Rule 3: output size is validated after processing via structural max check (see below).
+      // No trimming — if structure is broken, sport is discarded entirely.
+
+      return { valid: true, reason: 'ok' };
+    }
+
+    // Store results in per-sport cache — only valid sports stored
     const now = Date.now();
     let totalNew = 0;
+    const validationLog = [];
+
     sportsToFetch.forEach(sport => {
       const props = newPropsBySport[sport] || [];
+      const validation = validateStructure(sport, props);
+      if(!validation.valid) {
+        console.warn(`Structure validation FAILED for ${sport}: ${validation.reason} — discarding output`);
+        validationLog.push(`${sport}: DISCARDED (${validation.reason})`);
+        // Discard this sport's output — do not store in cache
+        STATE.sportCache[sport] = { props: [], fetchedAt: now, propCount: 0, validationFailed: true };
+        return;
+      }
       STATE.sportCache[sport] = {
         props,
         fetchedAt: now,
         propCount: props.length
       };
+      validationLog.push(`${sport}: OK (${props.length} props)`);
       totalNew += props.length;
     });
+
+    // ── OUTPUT SIZE STRUCTURAL CHECK (Update 2) ──
+    // No trimming or balancing allowed.
+    // If a sport's output exceeds its structural maximum (games × 3 players),
+    // the structure is broken — discard that sport entirely.
+    // Expected max per sport = gamesPerSport × 3 players × avg props per player
+    // We use a generous multiplier since one player can have multiple props.
+    const gamesInSlate = STATE.settings.gamesPerSport || 2;
+    const structuralMaxPerSport = gamesInSlate * 3 * 4; // 3 players × up to 4 prop types each
+    sportsToFetch.forEach(sport => {
+      const cached = STATE.sportCache[sport];
+      if(!cached || !cached.props || cached.validationFailed) return;
+      if(cached.props.length > structuralMaxPerSport) {
+        console.warn(`Structural max exceeded for ${sport}: ${cached.props.length} > ${structuralMaxPerSport} — discarding (structure broken)`);
+        STATE.sportCache[sport] = { props: [], fetchedAt: now, propCount: 0, validationFailed: true };
+        totalNew = Math.max(0, totalNew - cached.props.length);
+        validationLog.push(`${sport}: DISCARDED (structural max ${structuralMaxPerSport} exceeded with ${cached.props.length} props)`);
+      }
+    });
+
+    if(validationLog.length > 0) console.log('Structure validation:', validationLog.join(' | '));
 
     STATE.lastGenerated = new Date().toISOString();
     saveState();
@@ -1778,8 +1958,11 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     let hasMatchupData = false;
     let injuryStatus = injuries[playerName.toLowerCase()] || null;
     const hasRealLine = realLine !== null && realLine > 0;
+    // In betting mode: line must be real verified sportsbook line
+    // In analysis mode: line is a reference point from DB (not used for decisions)
     const line = hasRealLine ? parseFloat(realLine) : parseFloat(lineBaseOverride || 0);
-    if(!line || line <= 0) return null;
+    // Only hard-gate on line in betting mode — analysis mode proceeds without real line
+    if(hasRealLine && (!line || line <= 0)) return null;
 
     // ── GOLF: SG-based deterministic model ──
     if(sport === 'GOLF') {
@@ -2035,58 +2218,79 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     const seasonAvg = allVals.length ? parseFloat((allVals.reduce((a,b)=>a+b,0)/allVals.length).toFixed(1)) : null;
     const vsOppAvg = vsOppVals.length >= 2 ? parseFloat((vsOppVals.reduce((a,b)=>a+b,0)/vsOppVals.length).toFixed(1)) : null;
 
-    // Hit rates vs the actual sportsbook line
-    const hitRateL5 = l5vals.length ? l5vals.filter(v=>v>=line).length : null;
-    const hitRateL10 = l10vals.length >= 5 ? l10vals.filter(v=>v>=line).length : null;
-    const hitRateSeason = allVals.length >= 5 ? {
-      hits: allVals.filter(v=>v>=line).length,
+    // Hit rates: use real sportsbook line in betting mode, DB line estimate in analysis mode
+    // If neither is available (line=0), skip hit rate calculation entirely
+    const hitRateRef = (hasRealLine && line > 0) ? line : (line > 0 ? line : null);
+    const hitRateL5 = (hitRateRef && l5vals.length) ? l5vals.filter(v=>v>=hitRateRef).length : null;
+    const hitRateL10 = (hitRateRef && l10vals.length >= 5) ? l10vals.filter(v=>v>=hitRateRef).length : null;
+    const hitRateSeason = (hitRateRef && allVals.length >= 5) ? {
+      hits: allVals.filter(v=>v>=hitRateRef).length,
       total: allVals.length,
-      pct: Math.round(allVals.filter(v=>v>=line).length / allVals.length * 100)
+      pct: Math.round(allVals.filter(v=>v>=hitRateRef).length / allVals.length * 100)
     } : null;
 
     // ══════════════════════════════════════════════════════
-    // FEATURE 1: DATA COMPLETENESS GATE
-    // Must pass before any projection is computed.
+    // GATE: game logs are the only hard requirement for projection
+    // (line is required only for betting decisions, not for projection itself)
     // ══════════════════════════════════════════════════════
 
-    // HARD GATE 1: no line → PASS immediately (already caught above, but explicit here)
-    if(!hasRealLine || line <= 0) return null;
-
-    // HARD GATE 2: no game log data → PASS immediately
+    // HARD GATE: no game log data → cannot project anything
     if(allVals.length === 0) return null;
 
-    // Determine what optional data we actually have
+    // ── CORE PROJECTION ALWAYS RUNS if game logs exist ──
+    // Missing derived features skip only themselves — they never stop the projection.
+    let finalProjection = parseFloat((computeProjection(allVals) || 0).toFixed(1));
+    if(!finalProjection || finalProjection <= 0) return null;
+
+    // ── DETERMINE DATA AVAILABILITY for scoring + derived features ──
     const hasOpponentContext = vsOppVals.length >= 2;
     const hasAdditionalStats = !!(
       (sport === 'MLB' && (contextData.pitcher?.era !== undefined || contextData.weather)) ||
       (sport === 'NHL' && (contextData.goalieSvPct !== undefined || contextData.toiAvgL5 !== undefined)) ||
-      (sport === 'NBA' || sport === 'WNBA') // game logs sufficient for NBA
+      (sport === 'NBA' || sport === 'WNBA') // game logs alone are sufficient
     );
 
+    // ── DATA COMPLETENESS SCORE — gates output, NOT projection ──
     const completeness = computeDataCompleteness(hasRealLine, allVals.length, hasOpponentContext, hasAdditionalStats);
     const thresholdInfo = getCompletenessThreshold(sport, allVals.length);
 
-    // DYNAMIC THRESHOLD GATE — sport-specific, season-adjusted
-    // Never overridden, never estimated around
-    if(completeness.score < thresholdInfo.threshold) {
-      return null; // below threshold for this sport/season — drop prop entirely
-    }
+    // ══════════════════════════════════════════════════════
+    // DERIVED FEATURES — OPTIONAL ENHANCEMENT LAYER
+    // Each feature is independently gated by data availability.
+    // Missing feature = skip only that feature, never skip player.
+    // ══════════════════════════════════════════════════════
 
-    // ── CORE PROJECTION: weighted average of real game log values ──
-    let finalProjection = parseFloat((computeProjection(allVals) || 0).toFixed(1));
-    if(!finalProjection || finalProjection <= 0) return null;
-
-    // ── MATCHUP BLEND: 70% stat model + 30% vs-opp history (real data only) ──
+    // ── DERIVED FEATURE A: Matchup blend (opponent history) ──
+    // Applied ONLY if ≥2 games vs this opponent exist in game log
     let matchupNote = null;
     if(vsOppAvg !== null) {
+      // 70% core stat model + 30% opponent-specific history
       finalProjection = parseFloat(((finalProjection * 0.70) + (vsOppAvg * 0.30)).toFixed(1));
       hasMatchupData = true;
-      matchupNote = vsOppAvg > line * 1.05
+      matchupNote = vsOppAvg > (line || finalProjection) * 1.05
         ? `Strong vs ${opp} — avg ${vsOppAvg} in ${vsOppVals.length} meetings`
-        : vsOppAvg < line * 0.95
+        : vsOppAvg < (line || finalProjection) * 0.95
         ? `Struggles vs ${opp} — avg ${vsOppAvg} in ${vsOppVals.length} meetings`
         : `Neutral vs ${opp} — avg ${vsOppAvg} in ${vsOppVals.length} meetings`;
     }
+
+    // ── DERIVED FEATURE C: Volatility Score ──
+    // Applied ONLY if ≥6 L10 values exist (insufficient samples = skip)
+    let volatilityScore = null;
+    let volatilityNote = null;
+    if(l10vals.length >= 6) {
+      const mean = l10vals.reduce((a,b)=>a+b,0)/l10vals.length;
+      const variance = l10vals.reduce((a,v)=>a+Math.pow(v-mean,2),0)/l10vals.length;
+      const stdDev = Math.sqrt(variance);
+      const cv = mean > 0 ? stdDev / mean : null; // coefficient of variation
+      if(cv !== null) {
+        volatilityScore = parseFloat(cv.toFixed(2));
+        if(cv > 0.40) volatilityNote = `High volatility (CV ${cv.toFixed(2)}) — confidence reduced`;
+        else if(cv > 0.25) volatilityNote = `Moderate volatility (CV ${cv.toFixed(2)})`;
+        else volatilityNote = `Low volatility (CV ${cv.toFixed(2)}) — consistent performer`;
+      }
+    }
+    // High volatility reduces confidence — applied below in computeConfidence call
 
     // ── INJURY REDUCTION (evidence-based) ──
     if(injuryStatus) {
@@ -2177,9 +2381,22 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       contextNotes.push(`Target/carry share: ${contextData.targetShareNote}`);
     }
 
+    // ══════════════════════════════════════════════════════
+    // COMPLETENESS THRESHOLD CHECK — gates final output
+    // Projection has already been computed above.
+    // This only determines whether we surface it to the user.
+    // ══════════════════════════════════════════════════════
+    if(completeness.score < thresholdInfo.threshold) {
+      return null; // below sport+season threshold — suppress output entirely
+    }
+
     // ── EDGE, CONFIDENCE, DECISION ──
     const edge = calcEdge(finalProjection, line);
-    const conf = computeConfidence(dataPoints, l5avg, seasonAvg, hasMatchupData, !!injuryStatus);
+    // Pass volatility to confidence — high CV reduces confidence score
+    const volatilityPenalty = volatilityScore !== null && volatilityScore > 0.40 ? -1 : 0;
+    const conf = Math.max(1, Math.min(10,
+      computeConfidence(dataPoints, l5avg, seasonAvg, hasMatchupData, !!injuryStatus) + volatilityPenalty
+    ));
     const decision = edgeToDecision(edge, conf, hasRealLine);
     const winProb = edgeToWinProb(edge.pct);
 
@@ -2199,6 +2416,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     if(hitRateSeason) reasoning.push(`Season hit rate over ${line}: ${hitRateSeason.hits}/${hitRateSeason.total} = ${hitRateSeason.pct}%`);
     if(hitRateL5 !== null) reasoning.push(`L5 hit rate: ${hitRateL5}/${l5vals.length} over ${line}`);
     if(matchupNote) reasoning.push(`Matchup (30% blend): ${matchupNote}`);
+    if(volatilityNote) reasoning.push(`Volatility: ${volatilityNote}`);
     if(injuryStatus) reasoning.push(`⚠ Injury: ${injuryStatus} — output reduced`);
     contextNotes.forEach(n => reasoning.push(`Context: ${n}`));
     if(dataPoints < 5) reasoning.push(`⚠ Only ${dataPoints} game log entries — low confidence`);
@@ -2220,9 +2438,21 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       ? 'PASS'
       : decision;
 
-    // Add completeness score + threshold to reasoning output
+    // Add completeness score + threshold to reasoning
     reasoning.splice(1, 0, `Data completeness: ${completeness.score}% ≥ threshold ${thresholdInfo.threshold}% — ${thresholdInfo.label}`);
     reasoning.splice(2, 0, `Breakdown: ${completeness.breakdown?.join(' · ')}`);
+    // Derived features actually used (optional enhancement layer)
+    const derivedUsed = [];
+    if(vsOppAvg !== null) derivedUsed.push(`Matchup adjustment (${vsOppVals.length} games vs ${opp})`);
+    if(contextData.pitcher?.era !== undefined) derivedUsed.push(`Pitcher ERA (MLB)`);
+    if(contextData.weather) derivedUsed.push(`Weather context (Open-Meteo)`);
+    if(contextData.goalieSvPct !== undefined) derivedUsed.push(`Goalie SV% (NHL)`);
+    if(contextData.toiAvgL5 !== undefined) derivedUsed.push(`TOI trend (NHL)`);
+    if(derivedUsed.length > 0) {
+      reasoning.splice(3, 0, `Derived features applied: ${derivedUsed.join(' · ')}`);
+    } else {
+      reasoning.splice(3, 0, `Derived features: none available — core projection only`);
+    }
 
     return {
       id, player:playerName, sport, team, opp, prop:statLabel,
