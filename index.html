@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v3.1</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v3.3</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <button class="settings-btn" onclick="openSettings()">⚙</button>
@@ -2303,33 +2303,33 @@ const PLAYER_DB = {
     {id:'3149673',name:'Dejounte Murray',team:'ATL',prop:'Points',lineBase:19,usage:0.22,vol:'med'},
   ],
   MLB: [
-    {id:'33912',name:'Shohei Ohtani',team:'LAD',prop:'Total Bases',lineBase:1.5,batOrder:3,throwsL:false},
-    {id:'33972',name:'Mookie Betts',team:'LAD',prop:'Hits',lineBase:0.5,batOrder:2,throwsL:false},
-    {id:'33898',name:'Freddie Freeman',team:'LAD',prop:'Hits',lineBase:0.5,batOrder:4,throwsL:true},
-    {id:'33680',name:'Aaron Judge',team:'NYY',prop:'Total Bases',lineBase:1.5,batOrder:3,throwsL:false},
-    {id:'33843',name:'Juan Soto',team:'NYM',prop:'Total Bases',lineBase:1.5,batOrder:3,throwsL:true},
-    {id:'34014',name:'Ronald Acuna Jr.',team:'ATL',prop:'Hits',lineBase:0.5,batOrder:1,throwsL:false},
-    {id:'33879',name:'Fernando Tatis Jr.',team:'SD',prop:'Total Bases',lineBase:1.5,batOrder:3,throwsL:false},
-    {id:'33860',name:'Yordan Alvarez',team:'HOU',prop:'Total Bases',lineBase:1.5,batOrder:4,throwsL:true},
-    {id:'33873',name:'Jose Ramirez',team:'CLE',prop:'Hits',lineBase:0.5,batOrder:3,throwsL:true},
-    {id:'33833',name:'Bobby Witt Jr.',team:'KC',prop:'Hits',lineBase:0.5,batOrder:1,throwsL:false},
-    {id:'33890',name:'Julio Rodriguez',team:'SEA',prop:'Hits',lineBase:0.5,batOrder:2,throwsL:false},
-    {id:'33916',name:'Bryce Harper',team:'PHI',prop:'Total Bases',lineBase:1.5,batOrder:4,throwsL:true},
-    {id:'33929',name:'Corbin Carroll',team:'ARI',prop:'Hits',lineBase:0.5,batOrder:1,throwsL:true},
-    {id:'33844',name:'Gunnar Henderson',team:'BAL',prop:'Hits',lineBase:0.5,batOrder:2,throwsL:true},
-    {id:'33867',name:'Matt Olson',team:'ATL',prop:'Total Bases',lineBase:1.5,batOrder:4,throwsL:true},
-    {id:'33837',name:'Vladimir Guerrero Jr.',team:'TOR',prop:'Total Bases',lineBase:1.5,batOrder:3,throwsL:false},
-    {id:'33836',name:'Kyle Tucker',team:'CHC',prop:'Total Bases',lineBase:1.5,batOrder:4,throwsL:true},
-    {id:'33934',name:'Gerrit Cole',team:'NYY',prop:'Strikeouts',lineBase:7.5,starter:true},
-    {id:'33822',name:'Spencer Strider',team:'ATL',prop:'Strikeouts',lineBase:8.5,starter:true},
-    {id:'33948',name:'Zack Wheeler',team:'PHI',prop:'Strikeouts',lineBase:7.5,starter:true},
-    {id:'33931',name:'Framber Valdez',team:'HOU',prop:'Strikeouts',lineBase:6.5,starter:true},
-    {id:'33942',name:'Logan Webb',team:'SF',prop:'Strikeouts',lineBase:6.5,starter:true},
-    {id:'33887',name:'Dylan Cease',team:'SD',prop:'Strikeouts',lineBase:7.5,starter:true},
-    {id:'33871',name:'Corbin Burnes',team:'BAL',prop:'Strikeouts',lineBase:7.5,starter:true},
-    {id:'33874',name:'Tyler Glasnow',team:'LAD',prop:'Strikeouts',lineBase:8.5,starter:true},
-    {id:'33884',name:'Tarik Skubal',team:'DET',prop:'Strikeouts',lineBase:7.5,starter:true},
-    {id:'33876',name:'Yoshinobu Yamamoto',team:'LAD',prop:'Strikeouts',lineBase:7.5,starter:true},
+    {id:'33912',name:'Shohei Ohtani',team:'LAD',prop:'Total Bases',lineBase:1.5,batOrder:3,throwsL:false,mlbId:'660271'},
+    {id:'33972',name:'Mookie Betts',team:'LAD',prop:'Hits',lineBase:0.5,batOrder:2,throwsL:false,mlbId:'605141'},
+    {id:'33898',name:'Freddie Freeman',team:'LAD',prop:'Hits',lineBase:0.5,batOrder:4,throwsL:true,mlbId:'518692'},
+    {id:'33680',name:'Aaron Judge',team:'NYY',prop:'Total Bases',lineBase:1.5,batOrder:3,throwsL:false,mlbId:'592450'},
+    {id:'33843',name:'Juan Soto',team:'NYM',prop:'Total Bases',lineBase:1.5,batOrder:3,throwsL:true,mlbId:'665742'},
+    {id:'34014',name:'Ronald Acuna Jr.',team:'ATL',prop:'Hits',lineBase:0.5,batOrder:1,throwsL:false,mlbId:'660670'},
+    {id:'33879',name:'Fernando Tatis Jr.',team:'SD',prop:'Total Bases',lineBase:1.5,batOrder:3,throwsL:false,mlbId:'665487'},
+    {id:'33860',name:'Yordan Alvarez',team:'HOU',prop:'Total Bases',lineBase:1.5,batOrder:4,throwsL:true,mlbId:'670541'},
+    {id:'33873',name:'Jose Ramirez',team:'CLE',prop:'Hits',lineBase:0.5,batOrder:3,throwsL:true,mlbId:'608070'},
+    {id:'33833',name:'Bobby Witt Jr.',team:'KC',prop:'Hits',lineBase:0.5,batOrder:1,throwsL:false,mlbId:'677951'},
+    {id:'33890',name:'Julio Rodriguez',team:'SEA',prop:'Hits',lineBase:0.5,batOrder:2,throwsL:false,mlbId:'677594'},
+    {id:'33916',name:'Bryce Harper',team:'PHI',prop:'Total Bases',lineBase:1.5,batOrder:4,throwsL:true,mlbId:'547180'},
+    {id:'33929',name:'Corbin Carroll',team:'ARI',prop:'Hits',lineBase:0.5,batOrder:1,throwsL:true,mlbId:'682998'},
+    {id:'33844',name:'Gunnar Henderson',team:'BAL',prop:'Hits',lineBase:0.5,batOrder:2,throwsL:true,mlbId:'683002'},
+    {id:'33867',name:'Matt Olson',team:'ATL',prop:'Total Bases',lineBase:1.5,batOrder:4,throwsL:true,mlbId:'621566'},
+    {id:'33837',name:'Vladimir Guerrero Jr.',team:'TOR',prop:'Total Bases',lineBase:1.5,batOrder:3,throwsL:false,mlbId:'665489'},
+    {id:'33836',name:'Kyle Tucker',team:'CHC',prop:'Total Bases',lineBase:1.5,batOrder:4,throwsL:true,mlbId:'663656'},
+    {id:'33934',name:'Gerrit Cole',team:'NYY',prop:'Strikeouts',lineBase:7.5,starter:true,mlbId:'543037'},
+    {id:'33822',name:'Spencer Strider',team:'ATL',prop:'Strikeouts',lineBase:8.5,starter:true,mlbId:'675911'},
+    {id:'33948',name:'Zack Wheeler',team:'PHI',prop:'Strikeouts',lineBase:7.5,starter:true,mlbId:'554430'},
+    {id:'33931',name:'Framber Valdez',team:'HOU',prop:'Strikeouts',lineBase:6.5,starter:true,mlbId:'664285'},
+    {id:'33942',name:'Logan Webb',team:'SF',prop:'Strikeouts',lineBase:6.5,starter:true,mlbId:'657277'},
+    {id:'33887',name:'Dylan Cease',team:'SD',prop:'Strikeouts',lineBase:7.5,starter:true,mlbId:'656302'},
+    {id:'33871',name:'Corbin Burnes',team:'BAL',prop:'Strikeouts',lineBase:7.5,starter:true,mlbId:'669203'},
+    {id:'33874',name:'Tyler Glasnow',team:'LAD',prop:'Strikeouts',lineBase:8.5,starter:true,mlbId:'607192'},
+    {id:'33884',name:'Tarik Skubal',team:'DET',prop:'Strikeouts',lineBase:7.5,starter:true,mlbId:'669373'},
+    {id:'33876',name:'Yoshinobu Yamamoto',team:'LAD',prop:'Strikeouts',lineBase:7.5,starter:true,mlbId:'808967'},
   ],
   NHL: [
     {id:'3114733',name:'Connor McDavid',team:'EDM',prop:'Points',lineBase:0.5,pp:true},
@@ -2412,11 +2412,6 @@ const PLAYER_DB = {
   ]
 };
 
-// ═══════════════════════════════════════════════════════
-// MLB TEAM NAME → ABBREVIATION LOOKUP
-// MLB Stats API returns full team names, not abbreviations.
-// This maps the name field to the standard 2-3 letter abbrev.
-// ═══════════════════════════════════════════════════════
 function mlbTeamAbbrev(teamName) {
   if(!teamName) return '???';
   const map = {
@@ -2430,12 +2425,10 @@ function mlbTeamAbbrev(teamName) {
     'Pittsburgh Pirates':'PIT','San Diego Padres':'SD','San Francisco Giants':'SF',
     'Seattle Mariners':'SEA','St. Louis Cardinals':'STL','Tampa Bay Rays':'TB',
     'Texas Rangers':'TEX','Toronto Blue Jays':'TOR','Washington Nationals':'WSH',
-    'Athletics':'OAK','Sacramento River Cats':'OAK'
+    'Athletics':'OAK'
   };
-  // Exact match first
   if(map[teamName]) return map[teamName];
-  // Partial match fallback (handles "Pittsburgh Pirates" vs "Pirates")
-  const entry = Object.entries(map).find(([k]) => k.includes(teamName) || teamName.includes(k.split(' ').pop()));
+  const entry = Object.entries(map).find(([k]) => teamName.includes(k.split(' ').pop()));
   return entry ? entry[1] : teamName.slice(0,3).toUpperCase();
 }
 
@@ -2478,8 +2471,6 @@ function parseESPNGameLog(gameLogData, statLabel, opp) {
   // ── FLAT STRUCTURE (current ESPN format) ──
   // Response has top-level labels/names array, events object at root
   // e.g. { labels:[...], names:[...], events:{ '401234':{ stats:[...], opponent:{...} } } }
-  // IMPORTANT: only use this path if we actually get stats — otherwise fall through
-  // to tryParse1 (seasonTypes path) which NHL uses.
   if(gameLogData?.labels?.length > 0 || gameLogData?.names?.length > 0) {
     const labels = (gameLogData.labels || gameLogData.names || []).map(l => (l||'').toString().toLowerCase());
     const eventsObj = gameLogData?.events || {};
@@ -2487,7 +2478,6 @@ function parseESPNGameLog(gameLogData, statLabel, opp) {
     const flatGames = [];
     for(const ev of eventArr) {
       const stats = ev?.stats || ev?.statistics || [];
-      // Only include events that actually have stats — skip empty arrays
       if(stats.length > 0) {
         const oppAbbr = (ev?.opponent?.abbreviation || ev?.opponent?.shortDisplayName || '').toUpperCase();
         flatGames.push({ stats, labels, opp: oppAbbr, raw: ev });
@@ -2511,18 +2501,20 @@ function parseESPNGameLog(gameLogData, statLabel, opp) {
       const vsOppVals = flatGames
         .filter(g => oppNorm && g.opp && (g.opp.includes(oppNorm.slice(0,3)) || oppNorm.includes(g.opp.slice(0,3))))
         .map(g=>extractFlat(g,statLabel)).filter(v=>v!==null);
-      // Only return from flat path if we extracted real values — otherwise fall through
       if(allVals.length > 0) return { allVals, vsOppVals };
     }
-    // flatGames empty or no values extracted → fall through to seasonTypes parser below
+    // No values from flat path — fall through to seasonTypes parser
   }
 
   const tryParse1 = () => {
+    const topLabels = (gameLogData?.labels || gameLogData?.names || []).map(l=>(l||'').toString().toLowerCase());
     for(const st of (gameLogData?.seasonTypes || [])) {
       for(const cat of (st?.categories || [])) {
-        const labels = (cat?.labels || cat?.names || []).map(l=>(l||'').toString().toLowerCase());
-        const events = cat?.events || [];
-        if(!labels.length || !events.length) continue;
+        const labels = (cat?.labels || cat?.names || topLabels).map(l=>(l||'').toString().toLowerCase());
+        if(!labels.length) continue;
+        const eventsRaw = cat?.events || {};
+        const events = Array.isArray(eventsRaw) ? eventsRaw : Object.values(eventsRaw);
+        if(!events.length) continue;
         for(const ev of events) {
           const stats = ev?.stats || ev?.statistics || [];
           if(!stats.length) continue;
@@ -2539,12 +2531,13 @@ function parseESPNGameLog(gameLogData, statLabel, opp) {
     const eventsObj = gameLogData?.events || {};
     const eventArr = Array.isArray(eventsObj) ? eventsObj : Object.values(eventsObj);
     if(!eventArr.length) return false;
-    const topLabels = (gameLogData?.labels || []).map(l=>(l||'').toLowerCase());
+    const topLabels = (gameLogData?.labels || gameLogData?.names || []).map(l=>(l||'').toLowerCase());
     for(const ev of eventArr) {
       const stats = ev?.stats || ev?.statistics || [];
+      if(!stats.length) continue;
       const labels = topLabels.length ? topLabels : (ev?.labels || []).map(l=>(l||'').toLowerCase());
       const oppAbbr = (ev?.opponent?.abbreviation || '').toUpperCase();
-      if(stats.length) allGames.push({ stats, labels, opp: oppAbbr, raw: ev });
+      allGames.push({ stats, labels, opp: oppAbbr, raw: ev });
     }
     return allGames.length > 0;
   };
@@ -2624,33 +2617,69 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     let contextData = {};
     const season = new Date().getFullYear();
 
-    // ── MLB: Official MLB Stats API → ESPN fallback ──
+    // ── MLB: Try BOTH official MLB API and ESPN — use whichever returns more data ──
+    // Plain English: we ask two different websites for the player's game history.
+    // If one fails or returns nothing, we use the other. If both work, we use whichever
+    // has more games (more data = better projection).
     if(sport === 'MLB') {
-      const mlbId = playerMeta.mlbId || playerId;
-      try {
-        const mlbStatGroups = await fetchMLBGameLog(mlbId, season);
-        const ispitcher = ['Strikeouts'].includes(statLabel);
-        const group = mlbStatGroups.find(g => g.group?.displayName === (ispitcher ? 'pitching' : 'hitting'));
-        const splits = group?.splits || [];
-        const statKeyMap = {
-          'Hits':'hits','Total Bases':'totalBases','RBIs':'rbi',
-          'Strikeouts':'strikeOuts','Runs':'runs','Home Runs':'homeRuns',
-          'Walks':'baseOnBalls','At Bats':'atBats'
-        };
-        const mlbStatKey = statKeyMap[statLabel];
-        if(mlbStatKey) {
-          for(const split of splits) {
-            const val = split.stat?.[mlbStatKey];
-            if(val !== undefined && val !== null) {
-              const num = parseFloat(val);
-              if(!isNaN(num) && num >= 0) {
-                allVals.push(num);
-                const gameOpp = split.opponent?.abbreviation?.toUpperCase() || '';
-                if(opp && gameOpp && (gameOpp.includes(opp.slice(0,3)) || opp.includes(gameOpp.slice(0,3)))) vsOppVals.push(num);
+      let mlbApiVals = [], mlbApiOppVals = [];
+      let espnApiVals = [], espnApiOppVals = [];
+
+      // Source 1: Official MLB Stats API (statsapi.mlb.com)
+      // Uses the real MLB player ID stored in PLAYER_DB as mlbId
+      const mlbId = playerMeta.mlbId || null;
+      if(mlbId) {
+        try {
+          const mlbStatGroups = await fetchMLBGameLog(mlbId, season);
+          const ispitcher = ['Strikeouts'].includes(statLabel);
+          const group = mlbStatGroups.find(g => g.group?.displayName === (ispitcher ? 'pitching' : 'hitting'));
+          const splits = group?.splits || [];
+          const statKeyMap = {
+            'Hits':'hits','Total Bases':'totalBases','RBIs':'rbi',
+            'Strikeouts':'strikeOuts','Runs':'runs','Home Runs':'homeRuns',
+            'Walks':'baseOnBalls','At Bats':'atBats'
+          };
+          const mlbStatKey = statKeyMap[statLabel];
+          if(mlbStatKey) {
+            for(const split of splits) {
+              const val = split.stat?.[mlbStatKey];
+              if(val !== undefined && val !== null) {
+                const num = parseFloat(val);
+                if(!isNaN(num) && num >= 0) {
+                  mlbApiVals.push(num);
+                  const gameOpp = split.opponent?.abbreviation?.toUpperCase() || '';
+                  if(opp && gameOpp && (gameOpp.includes(opp.slice(0,3)) || opp.includes(gameOpp.slice(0,3)))) mlbApiOppVals.push(num);
+                }
               }
             }
           }
+          traceLog('projectionEngine', `${playerName} (MLB): MLB API got ${mlbApiVals.length} games`, mlbApiVals.length>0?'ok':'warn');
+        } catch(e) {
+          traceLog('projectionEngine', `${playerName} (MLB): MLB API failed — ${e.message}`, 'warn');
         }
+      }
+
+      // Source 2: ESPN game log (uses ESPN athlete ID from PLAYER_DB.id)
+      try {
+        const gl = await fetchESPNGameLog('baseball', 'mlb', playerId);
+        const p = parseESPNGameLog(gl, statLabel, opp);
+        espnApiVals = p.allVals; espnApiOppVals = p.vsOppVals;
+        traceLog('projectionEngine', `${playerName} (MLB): ESPN got ${espnApiVals.length} games`, espnApiVals.length>0?'ok':'warn');
+      } catch(e) {
+        traceLog('projectionEngine', `${playerName} (MLB): ESPN failed — ${e.message}`, 'warn');
+      }
+
+      // Use whichever source returned more game entries
+      if(mlbApiVals.length >= espnApiVals.length && mlbApiVals.length > 0) {
+        allVals = mlbApiVals; vsOppVals = mlbApiOppVals;
+        traceLog('projectionEngine', `${playerName} (MLB): using MLB API (${allVals.length} games)`, 'ok');
+      } else if(espnApiVals.length > 0) {
+        allVals = espnApiVals; vsOppVals = espnApiOppVals;
+        traceLog('projectionEngine', `${playerName} (MLB): using ESPN (${allVals.length} games)`, 'ok');
+      }
+
+      // Pitcher context and weather (MLB API extras — only if MLB API worked)
+      if(mlbApiVals.length > 0) {
         if(playerMeta.probablePitcherId) {
           try {
             const ps = await fetchMLBPitcherStats(playerMeta.probablePitcherId, season);
@@ -2663,37 +2692,99 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
             if(weather) contextData.weather = { ...weather, ...interpretMLBWeather(weather, team) };
           } catch(e) {}
         }
-      } catch(e) {
-        console.warn('MLB API failed for', playerName, e.message);
       }
-      // ESPN fallback if MLB API returned nothing
-      if(allVals.length === 0) {
-        try {
-          const gl = await fetchESPNGameLog('baseball', 'mlb', playerId);
-          const p = parseESPNGameLog(gl, statLabel, opp);
-          allVals = p.allVals; vsOppVals = p.vsOppVals;
-          if(allVals.length > 0) traceLog('projectionEngine', `${playerName} (MLB): ESPN fallback got ${allVals.length} games`, 'warn');
-        } catch(e) {}
-      }
+
       dataPoints = allVals.length;
     }
 
-    // ── NHL: ESPN only — api-web.nhle.com is CORS-blocked on Safari ──
+    // ── NHL: Try ESPN first, then NHL official API as backup ──
+    // Plain English: ESPN is our first choice because the NHL's own website
+    // blocks requests from phones (CORS issue). But we still try the NHL API
+    // as a backup — if ESPN fails, NHL API might still work on some devices.
     if(sport === 'NHL') {
+      let espnVals = [], espnOppVals = [];
+      let nhlVals = [], nhlOppVals = [];
+
+      // Source 1: ESPN (primary — works on all devices)
       try {
         const gl = await fetchESPNGameLog('hockey', 'nhl', playerId);
         const p = parseESPNGameLog(gl, statLabel, opp);
-        allVals = p.allVals; vsOppVals = p.vsOppVals;
-        traceLog('projectionEngine', `${playerName} (NHL): ESPN got ${allVals.length} games`, allVals.length>0?'ok':'warn');
+        espnVals = p.allVals; espnOppVals = p.vsOppVals;
+        traceLog('projectionEngine', `${playerName} (NHL): ESPN got ${espnVals.length} games`, espnVals.length>0?'ok':'warn');
       } catch(e) {
-        traceLog('projectionEngine', `${playerName} (NHL): ESPN failed — ${e.message}`, 'fail');
+        traceLog('projectionEngine', `${playerName} (NHL): ESPN failed — ${e.message}`, 'warn');
       }
+
+      // Source 2: Official NHL API (backup — may be blocked on Safari/iPhone)
+      if(espnVals.length === 0) {
+        try {
+          const nhlId = playerMeta.nhlId || playerId;
+          const glData = await fetchNHLPlayerGameLog(nhlId, season + '' + (season+1));
+          const gameLog = glData?.gameLog || [];
+          const nhlStatMap = {
+            'Points': g => (g.goals||0) + (g.assists||0),
+            'Shots on Goal': g => g.shots||0,
+            'Goals': g => g.goals||0,
+            'Assists': g => g.assists||0,
+          };
+          const extractor = nhlStatMap[statLabel] || (g => (g.goals||0) + (g.assists||0));
+          for(const g of gameLog) {
+            const val = extractor(g);
+            nhlVals.push(val);
+            const gameOpp = (g.opponentAbbrev||g.opponentTeamAbbrev||'').toUpperCase();
+            if(opp && gameOpp && (gameOpp.includes(opp.slice(0,3)) || opp.includes(gameOpp.slice(0,3)))) nhlOppVals.push(val);
+          }
+          if(nhlVals.length > 0) traceLog('projectionEngine', `${playerName} (NHL): NHL API backup got ${nhlVals.length} games`, 'ok');
+        } catch(e) {
+          traceLog('projectionEngine', `${playerName} (NHL): NHL API also failed — ${e.message}`, 'warn');
+        }
+      }
+
+      // Use ESPN if it returned data, otherwise NHL API backup
+      if(espnVals.length > 0) {
+        allVals = espnVals; vsOppVals = espnOppVals;
+      } else if(nhlVals.length > 0) {
+        allVals = nhlVals; vsOppVals = nhlOppVals;
+      }
+
       dataPoints = allVals.length;
     }
 
-    // ── NBA / WNBA: BallDontLie (if key) → ESPN fallback ──
+    // ── NBA / WNBA: ESPN primary + BallDontLie supplement (if key provided) ──
+    // Plain English: ESPN is always fetched first. If you've added a BallDontLie
+    // API key in Settings, we ALSO fetch from that site and use whichever has
+    // more games. BallDontLie often has a longer history which improves accuracy.
     if(sport === 'NBA' || sport === 'WNBA') {
-      let usedBDL = false;
+      let espnVals = [], espnOppVals = [];
+      let bdlVals = [];
+
+      // Source 1: ESPN (always attempted — primary source)
+      try {
+        const gameLogData = await fetchESPNGameLog(espnSport, espnLeague, playerId);
+        const parsed = parseESPNGameLog(gameLogData, statLabel, opp);
+        espnVals = parsed.allVals; espnOppVals = parsed.vsOppVals;
+        traceLog('projectionEngine', `${playerName} (${sport}): ESPN got ${espnVals.length} games`, espnVals.length>0?'ok':'warn');
+      } catch(e) {
+        traceLog('projectionEngine', `${playerName} (${sport}): ESPN failed — ${e.message}`, 'warn');
+      }
+
+      // ESPN name-search fallback if ID lookup returned nothing
+      if(espnVals.length === 0 && playerName) {
+        try {
+          const searchData = await searchESPNAthlete(espnSport, espnLeague, playerName);
+          const foundId = searchData?.athletes?.[0]?.id || searchData?.items?.[0]?.id;
+          if(foundId && String(foundId) !== String(playerId)) {
+            const gameLogData2 = await fetchESPNGameLog(espnSport, espnLeague, foundId);
+            const parsed2 = parseESPNGameLog(gameLogData2, statLabel, opp);
+            if(parsed2.allVals.length > 0) {
+              espnVals = parsed2.allVals; espnOppVals = parsed2.vsOppVals;
+              traceLog('projectionEngine', `${playerName}: ESPN name-search fallback (id=${foundId}) got ${espnVals.length} games`, 'warn');
+            }
+          }
+        } catch(e) {}
+      }
+
+      // Source 2: BallDontLie (only if key is set — supplements ESPN)
       if(STATE.settings.balldontlieKey) {
         try {
           const dateFrom = new Date(); dateFrom.setDate(dateFrom.getDate()-180);
@@ -2710,35 +2801,23 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
             if(bdlKey) {
               for(const g of bdlData.games) {
                 const val = parseFloat(g[bdlKey]);
-                if(!isNaN(val) && val >= 0) allVals.push(val);
+                if(!isNaN(val) && val >= 0) bdlVals.push(val);
               }
-              usedBDL = allVals.length > 0;
+              if(bdlVals.length > 0) traceLog('projectionEngine', `${playerName} (${sport}): BallDontLie got ${bdlVals.length} games`, 'ok');
             }
           }
         } catch(e) {}
       }
-      if(!usedBDL || allVals.length === 0) {
-        try {
-          const gameLogData = await fetchESPNGameLog(espnSport, espnLeague, playerId);
-          const parsed = parseESPNGameLog(gameLogData, statLabel, opp);
-          allVals = parsed.allVals; vsOppVals = parsed.vsOppVals;
-        } catch(e) {}
-        // Name-search fallback if ID returned nothing
-        if(allVals.length === 0 && playerName) {
-          try {
-            const searchData = await searchESPNAthlete(espnSport, espnLeague, playerName);
-            const foundId = searchData?.athletes?.[0]?.id || searchData?.items?.[0]?.id;
-            if(foundId && String(foundId) !== String(playerId)) {
-              const gameLogData2 = await fetchESPNGameLog(espnSport, espnLeague, foundId);
-              const parsed2 = parseESPNGameLog(gameLogData2, statLabel, opp);
-              if(parsed2.allVals.length > 0) {
-                allVals = parsed2.allVals; vsOppVals = parsed2.vsOppVals;
-                traceLog('projectionEngine', `${playerName}: ID fallback via name search (id=${foundId})`, 'warn');
-              }
-            }
-          } catch(e) {}
-        }
+
+      // Use whichever source has more games
+      if(bdlVals.length > espnVals.length) {
+        allVals = bdlVals; vsOppVals = espnOppVals; // BDL doesn't have opp context so keep ESPN's
+        traceLog('projectionEngine', `${playerName} (${sport}): using BallDontLie (${allVals.length} games)`, 'ok');
+      } else if(espnVals.length > 0) {
+        allVals = espnVals; vsOppVals = espnOppVals;
+        traceLog('projectionEngine', `${playerName} (${sport}): using ESPN (${allVals.length} games)`, 'ok');
       }
+
       dataPoints = allVals.length;
     }
 
@@ -3028,21 +3107,16 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     if(dataPoints < 5) reasoning.push(`⚠ Only ${dataPoints} game log entries — low confidence`);
     if(dataPoints === 0) reasoning.push(`⚠ DATA INSUFFICIENT — no game logs found`);
 
-    // Feature 2 final rule: if narrative cannot be written from real data, PASS
     let narrative = buildNarrative(
       playerName, sport, statLabel, line, finalProjection, decision,
       l5avg, l10avg, seasonAvg, hitRateSeason, hitRateL5,
       vsOppAvg, vsOppVals.length, opp, injuryStatus, {}, dataPoints, hasRealLine
     );
-    // If the write-up generator returned null, the data cannot support a pick
     if(narrative === null) {
       narrative = 'Insufficient data to generate a factual explanation for this pick.';
-      // Force to PASS — cannot output OVER/UNDER without a written justification
-      // (decision was already PASS or we reassign it here)
     }
     const finalDecision = (narrative === 'Insufficient data to generate a factual explanation for this pick.' && decision !== 'PASS')
-      ? 'PASS'
-      : decision;
+      ? 'PASS' : decision;
     traceLog('filteringLog', `${playerName} conf=${conf}/10 edge=${edge.val>=0?'+':''}${edge.val} decision=${finalDecision}`, finalDecision!=='PASS'?'pass':'ok');
 
     traceLog('outputLog', `${playerName} → ${finalDecision} | proj=${finalProjection} conf=${conf} data=${completeness.score}%`, finalDecision!=='PASS'?'pass':'ok');
