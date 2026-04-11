@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v3.3</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v3.4 - Sharp Edge Engine</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <button class="settings-btn" onclick="openSettings()">⚙</button>
@@ -3968,6 +3968,56 @@ function renderMetrics() {
   updateMetrics();
   renderApiStatus({});
 }
+
+
+/* ===== v3.4 Sharp Engine Upgrade ===== */
+
+function expWeightedMean(values, alpha = 0.25) {
+  let weight = 1, sum = 0, total = 0;
+  for (let i = values.length - 1; i >= 0; i--) {
+    sum += values[i] * weight;
+    total += weight;
+    weight *= (1 - alpha);
+  }
+  return sum / total;
+}
+
+function cleanVals(values){
+  return values.filter(v => v !== null && !isNaN(v) && v > 0 && v < 80);
+}
+
+function getStdDev(values, mean) {
+  const variance = values.reduce((s,v)=>s+Math.pow(v-mean,2),0)/values.length;
+  return Math.sqrt(variance);
+}
+
+function erf(x){
+  const sign = x>=0?1:-1;
+  x=Math.abs(x);
+  const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+  const t=1/(1+p*x);
+  const y=1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+  return sign*y;
+}
+
+function calculateProbability(values,line){
+  const v = cleanVals(values);
+  if(v.length<5) return null;
+  const mean = expWeightedMean(v);
+  const std = getStdDev(v,mean);
+  if(std<0.5) return null;
+  const z=(line-mean)/std;
+  const cdf=0.5*(1+erf(z/Math.sqrt(2)));
+  return {overProb:1-cdf,underProb:cdf,mean,std};
+}
+
+function calculateEV(prob, odds){
+  const implied = 1/odds;
+  return prob - implied;
+}
+
+/* ===== End v3.4 Upgrade ===== */
+
 </script>
 </body>
 </html>
