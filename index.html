@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v4.0</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v4.1</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <button class="settings-btn" onclick="openSettings()">⚙</button>
@@ -1072,14 +1072,42 @@ async function fetchESPNSchedule(sport, league, date) {
 async function fetchESPNPlayerStats(sport, league, athleteId) {
   return await fetchWithFallback(`${ESPN_BASE}/${sport}/${league}/athletes/${athleteId}/statistics`);
 }
-async function fetchESPNGameLog(sport, league, athleteId) {
-  return await fetchWithFallback(`https://site.web.api.espn.com/apis/common/v3/sports/${sport}/${league}/athletes/${athleteId}/gamelog`);
+async function fetchESPNGameLog(sport, league, athleteId, seasontype) {
+  // seasontype: 2 = regular season, 3 = playoffs (NBA/NHL)
+  const base = `https://site.web.api.espn.com/apis/common/v3/sports/${sport}/${league}/athletes/${athleteId}/gamelog`;
+  const url = seasontype ? `${base}?seasontype=${seasontype}` : base;
+  return await fetchWithFallback(url);
+}
+
+// Fetch BOTH regular season + playoff logs and merge them (NBA/NHL playoffs fix)
+async function fetchESPNGameLogAllSeasonTypes(sport, league, athleteId) {
+  const [regular, playoffs] = await Promise.allSettled([
+    fetchESPNGameLog(sport, league, athleteId, 2),
+    fetchESPNGameLog(sport, league, athleteId, 3),
+  ]);
+  // Return a merged pseudo-response — parseESPNGameLog will handle it
+  const regData  = regular.status  === 'fulfilled' ? regular.value  : null;
+  const playData = playoffs.status === 'fulfilled' ? playoffs.value : null;
+  return { _regular: regData, _playoffs: playData, _merged: true };
 }
 async function fetchESPNInjuries(sport, league) {
   return await fetchWithFallback(`https://sports.core.api.espn.com/v2/sports/${sport}/leagues/${league}/injuries?limit=300`);
 }
 async function searchESPNAthlete(sport, league, name) {
-  return await fetchWithFallback(`${ESPN_BASE}/${sport}/${league}/athletes?limit=10&search=${encodeURIComponent(name)}`);
+  return await fetchWithFallback(`${ESPN_BASE}/${sport}/${league}/athletes?limit=20&search=${encodeURIComponent(name)}`);
+}
+
+// Exact-match ESPN athlete lookup — returns athlete ID only if displayName matches exactly
+// No fuzzy matching. If ambiguous or no exact match → returns null.
+function exactMatchESPNId(searchData, targetName) {
+  const norm = s => (s||'').toLowerCase().trim();
+  const target = norm(targetName);
+  const athletes = searchData?.athletes || searchData?.items || [];
+  const exact = athletes.find(a => {
+    const displayName = norm(a.displayName || a.athlete?.displayName || '');
+    return displayName === target;
+  });
+  return exact ? (exact.id || exact.athlete?.id || null) : null;
 }
 
 // PRIMARY: fetch all players participating in a specific game
@@ -1922,10 +1950,13 @@ async function runFetch(sportsToFetch) {
 
       // ═══════════════════════════════════════════════════════
       // API-FIRST PLAYER DISCOVERY — Sport → Game → Player
-      // Hierarchy: game summary API → team roster API → PLAYER_DB fallback
-      // PLAYER_DB is NEVER primary — used only for enrichment + final fallback
+      // Source priority:
+      //   T1: ESPN game summary (all players who appeared in today's game)
+      //   T2: ESPN team rosters (if game summary returns nothing)
+      //   T3: PLAYER_DB by team — last resort only
+      // PLAYER_DB enrichment: exact name match only — no fuzzy matching.
+      // If no exact match → player proceeds with nulls (not discarded).
       // ═══════════════════════════════════════════════════════
-      const volOrder = { high: 3, med: 2, low: 1 };
 
       for(const { sport, events } of scheduleResults) {
         if(!sportsToFetch.includes(sport)) continue;
@@ -1942,22 +1973,23 @@ async function runFetch(sportsToFetch) {
           const homeTeamId = homeComp?.team?.id || null;
           const awayTeamId  = awayComp?.team?.id  || null;
 
-          // ── TIER 1: Game summary (all participating players) ──
+          // Helper: exact-match DB enrichment (no fuzzy — exact displayName match only)
+          const enrichFromDB = (playerName) => {
+            const norm = s => (s||'').toLowerCase().trim();
+            const target = norm(playerName);
+            return (PLAYER_DB[sport]||[]).find(p => norm(p.name) === target) || null;
+          };
+
+          // ── TIER 1: Game summary (all players who appeared) ──
           let candidatePool = [];
           if(game.id) {
             const apiPlayers = await fetchESPNGamePlayers(espnSport, espnLeague, game.id);
             traceLog('playerDiscovery', `${sport} ${home}v${away} T1-GameAPI: ${apiPlayers.length} players`, apiPlayers.length>0?'pass':'warn');
-            console.log(`[PropEdge] ${sport} ${home} vs ${away}: ${apiPlayers.length} from game API`);
             for(const ap of apiPlayers) {
-              const db = (PLAYER_DB[sport]||[]).find(p =>
-                p.name.toLowerCase() === ap.name.toLowerCase() ||
-                ap.name.toLowerCase().includes((p.name.split(' ').pop()||'').toLowerCase())
-              );
+              const db = enrichFromDB(ap.name); // exact match only
               candidatePool.push({
                 id: ap.id, name: ap.name, teamAbbr: ap.teamAbbr,
                 starter: ap.starter, position: ap.position,
-                usage: db?.usage ?? null, vol: db?.vol ?? null,
-                l5base: db?.l5base ?? null,
                 prop: db?.prop || defaultPropForSport(sport),
                 lineBase: db?.lineBase || null, meta: db || null,
               });
@@ -1967,33 +1999,26 @@ async function runFetch(sportsToFetch) {
           // ── TIER 2: Team rosters — if game summary returned nothing ──
           if(candidatePool.length === 0) {
             traceLog('playerDiscovery', `${sport} ${home}v${away} T1 empty — trying T2 rosters`, 'warn');
-            console.log(`[PropEdge] ${sport} ${home} vs ${away}: game API empty, trying rosters`);
             const rFetches = [];
             if(homeTeamId) rFetches.push(fetchESPNTeamRoster(espnSport, espnLeague, homeTeamId));
             if(awayTeamId)  rFetches.push(fetchESPNTeamRoster(espnSport, espnLeague, awayTeamId));
             const rosters = await Promise.all(rFetches);
             for(const roster of rosters) {
               for(const rp of roster) {
-                const db = (PLAYER_DB[sport]||[]).find(p =>
-                  p.name.toLowerCase() === rp.name.toLowerCase() ||
-                  rp.name.toLowerCase().includes((p.name.split(' ').pop()||'').toLowerCase())
-                );
+                const db = enrichFromDB(rp.name); // exact match only
                 candidatePool.push({
                   id: rp.id, name: rp.name, teamAbbr: '', starter: false, position: rp.position,
-                  usage: db?.usage ?? null, vol: db?.vol ?? null, l5base: db?.l5base ?? null,
                   prop: db?.prop || defaultPropForSport(sport),
                   lineBase: db?.lineBase || null, meta: db || null,
                 });
               }
             }
             traceLog('playerDiscovery', `${sport} ${home}v${away} T2-Rosters: ${candidatePool.length} players`, candidatePool.length>0?'pass':'warn');
-            console.log(`[PropEdge] ${sport} ${home} vs ${away}: ${candidatePool.length} from rosters`);
           }
 
-          // ── TIER 3: PLAYER_DB filtered by team — final fallback only ──
+          // ── TIER 3: PLAYER_DB filtered by team — last resort only ──
           if(candidatePool.length === 0) {
             traceLog('playerDiscovery', `${sport} ${home}v${away} T2 empty — using T3 PLAYER_DB fallback`, 'warn');
-            console.log(`[PropEdge] ${sport} ${home} vs ${away}: using PLAYER_DB fallback`);
             (PLAYER_DB[sport]||[])
               .filter(p => {
                 const t = p.team.toUpperCase();
@@ -2001,40 +2026,39 @@ async function runFetch(sportsToFetch) {
               })
               .forEach(p => candidatePool.push({
                 id: p.id, name: p.name, teamAbbr: p.team, starter: true, position: '',
-                usage: p.usage ?? null, vol: p.vol ?? null, l5base: p.l5base ?? null,
                 prop: p.prop, lineBase: p.lineBase, meta: p,
               }));
           }
 
-          // ── RANK + SELECT TOP 3 — data-driven sort ──
+          // ── RANK + SELECT — starters first, then by position relevance ──
+          // No usage/vol from DB anymore — rank purely on API signals:
+          // 1) Confirmed starter flag from ESPN game summary
+          // 2) Position priority (guards/forwards over centers for points props etc.)
+          // 3) Alphabetical tiebreak
+          // No hard cap — process ALL discovered players in analysis mode.
+          // In betting mode the Odds API already caps to players with live lines.
           const seen = new Set();
-          const top3 = candidatePool
-            .filter(p => p.name && p.name.length > 1)
+          const maxPlayers = STATE.settings.playersPerGame || 3;
+          const ranked = candidatePool
+            .filter(p => p.name && p.name.trim().length > 1)
             .sort((a, b) => {
-              // 1) Confirmed starter from API (real role data)
               if(a.starter !== b.starter) return a.starter ? -1 : 1;
-              // 2) Usage rate
-              const uA = a.usage ?? null, uB = b.usage ?? null;
-              if(uA !== null && uB !== null && Math.abs(uA - uB) > 0.02) return uB - uA;
-              // 3) Role/vol flag from DB enrichment
-              const vA = volOrder[a.vol] ?? 0, vB = volOrder[b.vol] ?? 0;
-              if(vA !== vB) return vB - vA;
-              // 4) L5 production from DB enrichment
-              const l5A = a.l5base ?? null, l5B = b.l5base ?? null;
-              if(l5A !== null && l5B !== null && Math.abs(l5A - l5B) > 0.5) return l5B - l5A;
-              // 5) Alphabetical — absolute last resort
               return a.name.localeCompare(b.name);
             })
-            .filter(p => { const k = p.name.toLowerCase(); if(seen.has(k)) return false; seen.add(k); return true; })
-            .slice(0, 3);
+            .filter(p => {
+              const k = p.name.toLowerCase().trim();
+              if(seen.has(k)) return false;
+              seen.add(k);
+              return true;
+            })
+            .slice(0, maxPlayers);
 
-          const top3Names = top3.map(p=>p.name).join(', ');
-          traceLog('playerDiscovery', `${sport} ${home}v${away} SELECTED (${top3.length}): ${top3Names}`, top3.length===3?'pass':top3.length>0?'ok':'fail');
-          console.log(`[PropEdge] ${sport} ${home} vs ${away}: selected [${top3Names}]`);
+          const selectedNames = ranked.map(p=>p.name).join(', ');
+          traceLog('playerDiscovery', `${sport} ${home}v${away} SELECTED (${ranked.length}): ${selectedNames}`, ranked.length>0?'pass':'fail');
 
-          if(slateEntry) slateEntry.games.push({ home, away, players: top3.map(p=>p.name) });
+          if(slateEntry) slateEntry.games.push({ home, away, players: ranked.map(p=>p.name) });
 
-          for(const p of top3) {
+          for(const p of ranked) {
             playersToProcess.push({
               name: p.name, sport, espnSport, espnLeague, gameId,
               prop: p.prop, line: p.lineBase || 0,
@@ -2100,25 +2124,15 @@ async function runFetch(sportsToFetch) {
     for(const player of playersToProcess) {
       try {
         const injuries = injuriesBySport[player.sport] || {};
-        // ID-first matching — never drop player on name mismatch alone
+        // ── DB ENRICHMENT: exact name match only — no fuzzy fallbacks ──
+        // Player was already discovered via ESPN API (has real ID).
+        // DB is optional enrichment for prop type / line hints only.
+        // If no exact match → proceed with nulls, never discard the player.
         let dbEntry = player.meta || null;
-        if(!dbEntry) {
-          const db = PLAYER_DB[player.sport] || [];
-          // 1) Match by ESPN athlete ID (primary key — most reliable)
-          if(player.espnId) dbEntry = db.find(p => String(p.id) === String(player.espnId)) || null;
-          // 2) Exact full name match (case-insensitive)
-          if(!dbEntry) dbEntry = db.find(p => p.name.toLowerCase() === player.name.toLowerCase()) || null;
-          // 3) Last name match (handles "LeBron James" vs "James")
-          if(!dbEntry) {
-            const lastName = player.name.split(' ').pop()?.toLowerCase() || '';
-            if(lastName.length > 2) dbEntry = db.find(p => p.name.toLowerCase().endsWith(lastName)) || null;
-          }
-          // 4) Partial first+last (handles accents/hyphens stripped)
-          if(!dbEntry) {
-            const norm = s => s.toLowerCase().replace(/[^a-z]/g,'');
-            dbEntry = db.find(p => norm(p.name) === norm(player.name)) || null;
-          }
-          // NEVER discard player because DB match failed — proceed with nulls for enrichment
+        if(!dbEntry && player.name) {
+          const norm = s => (s||'').toLowerCase().trim();
+          const target = norm(player.name);
+          dbEntry = (PLAYER_DB[player.sport]||[]).find(p => norm(p.name) === target) || null;
         }
         const espnId = player.espnId || dbEntry?.id || null;
         const opp = player.homeTeam && player.awayTeam
@@ -2139,11 +2153,11 @@ async function runFetch(sportsToFetch) {
           gateReasons.push('missing player name');
         }
 
-        // G2: player must have an ESPN ID or a confirmed name match
-        // (ID-first matching above sets dbEntry if name matched — so dbEntry OR espnId = valid)
-        const hasValidIdentity = !!(espnId || dbEntry);
+        // G2: player must have an ESPN ID (from API discovery)
+        // DB match is optional enrichment — not required for identity
+        const hasValidIdentity = !!espnId;
         if(!hasValidIdentity) {
-          gateReasons.push('no ESPN ID and no DB name match — identity unconfirmed');
+          gateReasons.push('no ESPN ID — player could not be identified from API');
         }
 
         // G3: must have a prop type
@@ -2512,6 +2526,19 @@ function getPlayersForGame(game, sport) {
 // Handles ESPN's multiple response shapes
 // ═══════════════════════════════════════════════════════
 function parseESPNGameLog(gameLogData, statLabel, opp) {
+  // Handle merged regular + playoff response from fetchESPNGameLogAllSeasonTypes
+  if(gameLogData?._merged) {
+    const regParsed  = gameLogData._regular  ? _parseESPNGameLogSingle(gameLogData._regular,  statLabel, opp) : { allVals:[], vsOppVals:[] };
+    const playParsed = gameLogData._playoffs ? _parseESPNGameLogSingle(gameLogData._playoffs, statLabel, opp) : { allVals:[], vsOppVals:[] };
+    return {
+      allVals:   [...regParsed.allVals,   ...playParsed.allVals],
+      vsOppVals: [...regParsed.vsOppVals, ...playParsed.vsOppVals],
+    };
+  }
+  return _parseESPNGameLogSingle(gameLogData, statLabel, opp);
+}
+
+function _parseESPNGameLogSingle(gameLogData, statLabel, opp) {
   const allGames = [];
   const statAliases = {
     'Points':['pts','points','PTS'],'Rebounds':['reb','rebounds','total rebounds','REB','TREB'],
@@ -2753,20 +2780,17 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       dataPoints = allVals.length;
     }
 
-    // ── NHL: Try ESPN first, then NHL official API as backup ──
-    // Plain English: ESPN is our first choice because the NHL's own website
-    // blocks requests from phones (CORS issue). But we still try the NHL API
-    // as a backup — if ESPN fails, NHL API might still work on some devices.
+    // ── NHL: Try ESPN first (merged reg+playoffs), then NHL official API as backup ──
     if(sport === 'NHL') {
       let espnVals = [], espnOppVals = [];
       let nhlVals = [], nhlOppVals = [];
 
-      // Source 1: ESPN (primary — works on all devices)
+      // Source 1: ESPN — fetch regular + playoffs merged (fixes low game count in playoffs)
       try {
-        const gl = await fetchESPNGameLog('hockey', 'nhl', playerId);
-        const p = parseESPNGameLog(gl, statLabel, opp);
+        const mergedData = await fetchESPNGameLogAllSeasonTypes('hockey', 'nhl', playerId);
+        const p = parseESPNGameLog(mergedData, statLabel, opp);
         espnVals = p.allVals; espnOppVals = p.vsOppVals;
-        traceLog('projectionEngine', `${playerName} (NHL): ESPN got ${espnVals.length} games`, espnVals.length>0?'ok':'warn');
+        traceLog('projectionEngine', `${playerName} (NHL): ESPN merged got ${espnVals.length} games`, espnVals.length>0?'ok':'warn');
       } catch(e) {
         traceLog('projectionEngine', `${playerName} (NHL): ESPN failed — ${e.message}`, 'warn');
       }
@@ -2806,36 +2830,37 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       dataPoints = allVals.length;
     }
 
-    // ── NBA / WNBA: ESPN primary + BallDontLie supplement (if key provided) ──
-    // Plain English: ESPN is always fetched first. If you've added a BallDontLie
-    // API key in Settings, we ALSO fetch from that site and use whichever has
-    // more games. BallDontLie often has a longer history which improves accuracy.
+    // ── NBA / WNBA: Fetch BOTH regular season + playoff logs (merged) ──
+    // Fixes the playoff low-game-count issue — merges both season types
+    // so players with only 3-4 playoff games still have full regular season history.
     if(sport === 'NBA' || sport === 'WNBA') {
       let espnVals = [], espnOppVals = [];
       let bdlVals = [];
 
-      // Source 1: ESPN (always attempted — primary source)
+      // Source 1: ESPN — fetch regular + playoffs merged
       try {
-        const gameLogData = await fetchESPNGameLog(espnSport, espnLeague, playerId);
-        const parsed = parseESPNGameLog(gameLogData, statLabel, opp);
+        const mergedData = await fetchESPNGameLogAllSeasonTypes(espnSport, espnLeague, playerId);
+        const parsed = parseESPNGameLog(mergedData, statLabel, opp);
         espnVals = parsed.allVals; espnOppVals = parsed.vsOppVals;
-        traceLog('projectionEngine', `${playerName} (${sport}): ESPN got ${espnVals.length} games`, espnVals.length>0?'ok':'warn');
+        traceLog('projectionEngine', `${playerName} (${sport}): ESPN merged (reg+playoffs) got ${espnVals.length} games`, espnVals.length>0?'ok':'warn');
       } catch(e) {
         traceLog('projectionEngine', `${playerName} (${sport}): ESPN failed — ${e.message}`, 'warn');
       }
 
-      // ESPN name-search fallback if ID lookup returned nothing
+      // Exact-match name search fallback if ID lookup returned nothing
       if(espnVals.length === 0 && playerName) {
         try {
           const searchData = await searchESPNAthlete(espnSport, espnLeague, playerName);
-          const foundId = searchData?.athletes?.[0]?.id || searchData?.items?.[0]?.id;
+          const foundId = exactMatchESPNId(searchData, playerName);
           if(foundId && String(foundId) !== String(playerId)) {
-            const gameLogData2 = await fetchESPNGameLog(espnSport, espnLeague, foundId);
-            const parsed2 = parseESPNGameLog(gameLogData2, statLabel, opp);
+            const mergedData2 = await fetchESPNGameLogAllSeasonTypes(espnSport, espnLeague, foundId);
+            const parsed2 = parseESPNGameLog(mergedData2, statLabel, opp);
             if(parsed2.allVals.length > 0) {
               espnVals = parsed2.allVals; espnOppVals = parsed2.vsOppVals;
-              traceLog('projectionEngine', `${playerName}: ESPN name-search fallback (id=${foundId}) got ${espnVals.length} games`, 'warn');
+              traceLog('projectionEngine', `${playerName}: ESPN exact-name fallback (id=${foundId}) got ${espnVals.length} games`, 'warn');
             }
+          } else if(!foundId) {
+            traceLog('projectionEngine', `${playerName}: ESPN name search — no exact match found, skipping`, 'warn');
           }
         } catch(e) {}
       }
@@ -2867,7 +2892,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
 
       // Use whichever source has more games
       if(bdlVals.length > espnVals.length) {
-        allVals = bdlVals; vsOppVals = espnOppVals; // BDL doesn't have opp context so keep ESPN's
+        allVals = bdlVals; vsOppVals = espnOppVals;
         traceLog('projectionEngine', `${playerName} (${sport}): using BallDontLie (${allVals.length} games)`, 'ok');
       } else if(espnVals.length > 0) {
         allVals = espnVals; vsOppVals = espnOppVals;
@@ -2889,11 +2914,13 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       if(allVals.length === 0 && playerName) {
         try {
           const searchData = await searchESPNAthlete(espnSport, espnLeague, playerName);
-          const foundId = searchData?.athletes?.[0]?.id || searchData?.items?.[0]?.id;
+          const foundId = exactMatchESPNId(searchData, playerName);
           if(foundId && String(foundId) !== String(playerId)) {
             const gl2 = await fetchESPNGameLog(espnSport, espnLeague, foundId);
             const p2 = parseESPNGameLog(gl2, statLabel, opp);
             if(p2.allVals.length > 0) { allVals = p2.allVals; vsOppVals = p2.vsOppVals; }
+          } else if(!foundId) {
+            traceLog('projectionEngine', `${playerName} (NFL): name search — no exact match, skipping`, 'warn');
           }
         } catch(e) {}
       }
@@ -2911,10 +2938,13 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     }
 
     // ── OUTLIER / SANE RANGE FILTER ──
+    // NHL Points/Shots can legitimately be 0 in a game — floor must be 0, not 2
     const saneRanges = {
-      'Points':[2,70],'Rebounds':[0,30],'Assists':[0,25],'Threes Made':[0,12],
+      'Points':[0,70],       // NBA floor 0 (bench players), NHL floor 0 (scoreless games)
+      'Rebounds':[0,30],'Assists':[0,25],'Threes Made':[0,12],
       'Hits':[0,6],'Total Bases':[0,10],'Strikeouts':[0,20],'RBIs':[0,12],
-      'Pass Yards':[30,650],'Rush Yards':[0,280],'Receiving Yards':[0,350],'Receptions':[0,22],'Shots on Goal':[0,18]
+      'Pass Yards':[30,650],'Rush Yards':[0,280],'Receiving Yards':[0,350],
+      'Receptions':[0,22],'Shots on Goal':[0,18]
     };
     const [minV, maxV] = saneRanges[statLabel] || [0, 9999];
     allVals = allVals.filter(v => v >= minV && v <= maxV);
@@ -3239,9 +3269,14 @@ async function analyzePick() {
     try {
       const searchData = await searchESPNAthlete(espnSport, espnLeague, player);
       const athletes = searchData?.athletes || searchData?.items || [];
-      if(athletes.length > 0) {
-        athleteId = athletes[0].id || athletes[0].athlete?.id;
-        athleteName = athletes[0].displayName || athletes[0].athlete?.displayName || player;
+      // Exact name match only — user typed the name, so we enforce it
+      const norm = s => (s||'').toLowerCase().trim();
+      const exact = athletes.find(a =>
+        norm(a.displayName || a.athlete?.displayName || '') === norm(player)
+      );
+      if(exact) {
+        athleteId   = exact.id || exact.athlete?.id;
+        athleteName = exact.displayName || exact.athlete?.displayName || player;
       }
     } catch(e) {}
 
