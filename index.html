@@ -120,10 +120,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .decision-badge.under{background:rgba(255,77,106,.1);color:var(--red);border:1px solid rgba(255,77,106,.25)}
 .decision-badge.pass{background:rgba(255,181,71,.1);color:var(--amber);border:1px solid rgba(255,181,71,.25)}
 .conf-block{display:flex;align-items:center;gap:6px}
-.conf-dots{display:inline-flex;flex-wrap:nowrap;gap:3px;align-items:center;line-height:1}
-.conf-dot{display:inline-block;width:6px;height:6px;min-width:6px;min-height:6px;max-width:6px;max-height:6px;border-radius:50%;flex-shrink:0;flex-grow:0;align-self:center;box-sizing:border-box;vertical-align:middle}
-.conf-dot.filled{background:var(--accent)}
-.conf-dot.empty{background:transparent;border:1px solid rgba(255,255,255,0.13)}
+.conf-dots{display:flex;gap:3px;align-items:center}
+/* conf dots now rendered as inline SVG — see propCardHTML */
 .conf-text{font-family:var(--mono);font-size:9px;color:var(--muted)}
 .expand-btn{font-family:var(--mono);font-size:10px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;margin-top:10px;width:100%;text-align:center;transition:all .15s}
 .expand-btn:active{background:var(--bg3)}
@@ -299,7 +297,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v5.1</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v5.4</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <button class="settings-btn" onclick="openSettings()">⚙</button>
@@ -382,9 +380,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         <button onclick="testApi('espn_nba_sched')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">ESPN NBA Schedule</button>
         <button onclick="testApi('mlb_gamelog_raw')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">MLB Gamelog Raw</button>
         <button onclick="testApi('nba_gamelog_raw')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">NBA Gamelog Raw</button>
-        <button onclick="debugNBAGamelog('6583','Joel Embiid')" style="font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.3);border-radius:8px;padding:8px;color:var(--amber);cursor:pointer">🔍 Embiid Raw Dump</button>
-        <button onclick="debugNBAGamelog('3975','Stephen Curry')" style="font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.3);border-radius:8px;padding:8px;color:var(--amber);cursor:pointer">🔍 Curry Raw Dump</button>
-        <button onclick="debugNBAGamelog('4395725','Paolo Banchero')" style="font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.3);border-radius:8px;padding:8px;color:var(--amber);cursor:pointer">🔍 Banchero Raw Dump</button>
       </div>
 
       <div class="section-title">Slate</div>
@@ -624,81 +619,6 @@ function traceLog(section, msg, level='ok') {
   STATE.trace[section].push({ msg, level });
 }
 function clearTrace() { STATE.trace = null; renderTrace(); }
-
-async function debugNBAGamelog(athleteId, name) {
-  const el = document.getElementById('api-test-results');
-  el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:var(--bg2);border-radius:8px">🔍 Fetching ${name} — trying multiple URLs...</div>`;
-
-  // Try several URL variants to find which one returns the most games
-  const urlsToTry = [
-    `https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/${athleteId}/gamelog?limit=200`,
-    `https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/${athleteId}/gamelog?limit=200&region=us&lang=en`,
-    `https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/${athleteId}/gamelog`,
-    `https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba/athletes/${athleteId}/statisticslog?limit=200`,
-  ];
-
-  const summarise = (d, url) => {
-    const labels = d?.labels || d?.names || [];
-    const ptsIdx = labels.findIndex(l => (l||'').toString().toLowerCase() === 'pts' || (l||'').toString().toLowerCase() === 'points');
-    const stypes = d?.seasonTypes || [];
-    const filters = d?.filters ? JSON.stringify(d.filters).slice(0, 200) : 'none';
-
-    let totalRegGames = 0;
-    let monthBreakdown = [];
-    let allSamplePts = [];
-
-    stypes.forEach((st) => {
-      const stName = (st?.displayName || '').toLowerCase();
-      const isPreseason = stName.includes('preseason') || stName.includes('pre-season');
-      (st?.categories || []).forEach(cat => {
-        const evObj = cat.events || {};
-        const evArr = Array.isArray(evObj) ? evObj : Object.values(evObj);
-        const catName = cat.displayName || cat.name || '?';
-        if(!isPreseason) {
-          totalRegGames += evArr.length;
-          monthBreakdown.push(`${catName}:${evArr.length}`);
-          evArr.forEach(ev => {
-            const s = ev.stats || [];
-            if(ptsIdx >= 0 && s[ptsIdx] !== undefined) allSamplePts.push(parseFloat(s[ptsIdx]));
-          });
-        }
-      });
-    });
-
-    const rootEvObj = d?.events || {};
-    const rootEvArr = Array.isArray(rootEvObj) ? rootEvObj : Object.values(rootEvObj);
-
-    return { labels: labels.length, ptsIdx, totalRegGames, monthBreakdown, filters,
-             rootEvents: rootEvArr.length, topKeys: Object.keys(d||{}).join(','),
-             samplePts: allSamplePts.slice(0,8).join(', ') || 'none' };
-  };
-
-  let html = `<div style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px">`;
-  html += `<div style="color:var(--amber);font-weight:700;margin-bottom:8px">🔍 ${name} (id=${athleteId}) — URL Comparison</div>`;
-
-  for(const url of urlsToTry) {
-    try {
-      const d = await fetchJSON(url);
-      const s = summarise(d, url);
-      const color = s.totalRegGames >= 30 ? 'var(--accent)' : s.totalRegGames >= 15 ? 'var(--amber)' : 'var(--red)';
-      html += `<div style="margin-bottom:8px;padding:6px;background:var(--bg3);border-radius:6px">`;
-      html += `<div style="color:var(--muted);font-size:9px;word-break:break-all;margin-bottom:3px">${url}</div>`;
-      html += `<div>Top keys: ${s.topKeys}</div>`;
-      html += `<div>Labels: ${s.labels} · PTS idx: ${s.ptsIdx}</div>`;
-      html += `<div>Root events: ${s.rootEvents}</div>`;
-      html += `<div style="color:${color}"><b>Reg season games: ${s.totalRegGames}</b></div>`;
-      html += `<div>Months: ${s.monthBreakdown.join(' | ') || 'none'}</div>`;
-      html += `<div>Sample pts: ${s.samplePts}</div>`;
-      html += `<div style="font-size:9px;color:var(--muted)">Filters: ${s.filters}</div>`;
-      html += `</div>`;
-    } catch(e) {
-      html += `<div style="margin-bottom:6px;padding:6px;background:var(--bg3);border-radius:6px;color:var(--red)">FAILED: ${e.message}<br/><span style="font-size:9px;word-break:break-all">${url}</span></div>`;
-    }
-  }
-
-  html += `</div>`;
-  el.innerHTML = html;
-}
 
 async function testApi(which) {
   const el = document.getElementById('api-test-results');
@@ -1152,18 +1072,13 @@ async function fetchESPNPlayerStats(sport, league, athleteId) {
 }
 async function fetchESPNGameLog(sport, league, athleteId, seasontype) {
   // seasontype: 2 = regular season, 3 = playoffs (NBA/NHL)
-  // No season year param — ESPN defaults to current season and that is more reliable
-  // than trying to guess ESPN's internal season numbering convention.
-  // limit=200 prevents ESPN's default ~25-game page cap from truncating long seasons.
+  // limit=200 prevents ESPN's default ~25-game page cap truncating long seasons
   const base = `https://site.web.api.espn.com/apis/common/v3/sports/${sport}/${league}/athletes/${athleteId}/gamelog`;
   const params = ['limit=200'];
   if(seasontype) params.push(`seasontype=${seasontype}`);
-  const url = `${base}?${params.join('&')}`;
-  return await fetchWithFallback(url);
+  return await fetchWithFallback(`${base}?${params.join('&')}`);
 }
 
-// Fetch regular season + playoff logs for current season only.
-// No season year param — ESPN defaults correctly to current season.
 async function fetchESPNGameLogAllSeasonTypes(sport, league, athleteId) {
   const [regular, playoffs] = await Promise.allSettled([
     fetchESPNGameLog(sport, league, athleteId, 2),
@@ -2265,12 +2180,12 @@ async function runFetch(sportsToFetch) {
           continue; // skip this player entirely — do not enter projection engine
         }
 
-        // realLine = verified sportsbook line from Odds API (betting mode only).
-        // In analysis mode player.eventId is undefined — pass null so hasRealLine stays false.
-        const realLine = (player.eventId && player.line > 0) ? player.line : null;
         const prop = await buildPlayerProp(
           espnId, player.name, player.sport, player.espnSport, player.espnLeague,
           dbEntry?.team||player.homeTeam, opp, 'today',
+          // realLine = verified sportsbook line from Odds API (betting mode only).
+          // In analysis mode player.eventId is undefined — pass null so hasRealLine stays false.
+          const realLine = (player.eventId && player.line > 0) ? player.line : null;
           injuries, propId++, player.prop, player.line, realLine, dbEntry||{}
         );
         if(prop && newPropsBySport[player.sport] !== undefined) {
@@ -2615,28 +2530,25 @@ function parseESPNGameLog(gameLogData, statLabel, opp) {
   if(gameLogData?._merged) {
     const regParsed  = gameLogData._regular  ? _parseESPNGameLogSingle(gameLogData._regular,  statLabel, opp) : { allVals:[], vsOppVals:[] };
     const playParsed = gameLogData._playoffs ? _parseESPNGameLogSingle(gameLogData._playoffs, statLabel, opp) : { allVals:[], vsOppVals:[] };
-
     const regCount  = regParsed.allVals.length;
     const playCount = playParsed.allVals.length;
-
-    // Only merge playoff games when sample is substantial (>=10 games played).
-    // Day 1-2 of playoffs = 1-2 games — do not contaminate a full regular season.
+    // Only merge playoffs when sample is substantial — early playoffs (1-2 games) skew reg season
     const includePlays = playCount >= 10;
-
-    const allVals   = [...regParsed.allVals,   ...(includePlays ? playParsed.allVals   : [])];
-    const vsOppVals = [...regParsed.vsOppVals, ...(includePlays ? playParsed.vsOppVals : [])];
-
-    return { allVals, vsOppVals, _meta: { regCount, playCount, includePlays } };
+    return {
+      allVals:   [...regParsed.allVals,   ...(includePlays ? playParsed.allVals   : [])],
+      vsOppVals: [...regParsed.vsOppVals, ...(includePlays ? playParsed.vsOppVals : [])],
+      _meta: { regCount, playCount, includePlays }
+    };
   }
   return _parseESPNGameLogSingle(gameLogData, statLabel, opp);
 }
+
 function _parseESPNGameLogSingle(gameLogData, statLabel, opp) {
   // ── CONFIRMED ESPN STRUCTURE (from live debug dump Apr 2026) ──
-  // Stats are in: seasonTypes[n].categories[n].events[n].stats (array indexed by position)
-  // Labels are at: top-level gameLogData.labels (NOT inside categories — categories have empty labels)
-  // seasonTypes[0] = Regular Season, seasonTypes[1] = Preseason — skip preseason
-  // Root gameLogData.events contains metadata only (opponent, date, score) — stats.length always 0 there
-  // opp info is in root events keyed by eventId, not inside seasonType events
+  // Stats live in: seasonTypes[n].categories[n].events[n].stats (array, indexed by position)
+  // Labels live at: top-level gameLogData.labels (categories have empty labels)
+  // seasonTypes[1] = Preseason — skip it
+  // Root gameLogData.events = metadata only (opponent, date) — stats.length always 0
 
   const statAliases = {
     'Points':['pts','points','PTS'],'Rebounds':['reb','rebounds','total rebounds','REB','TREB'],
@@ -2648,25 +2560,20 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp) {
     'Receptions':['rec','receptions','REC'],'Shots on Goal':['sog','shots','shotsOnGoal','shots on goal','SOG']
   };
   const getAliases = (s) => statAliases[s] || [s.toLowerCase(), s];
-
-  // Top-level labels — confirmed working (pts at index 13 for NBA)
   const topLabels = (gameLogData?.labels || gameLogData?.names || []).map(l => (l||'').toString().toLowerCase());
 
-  // Build eventId → opponent map from root events (metadata lives here)
+  // Build eventId → opponent map from root events
   const rootEvObj = gameLogData?.events || {};
   const rootEvArr = Array.isArray(rootEvObj) ? rootEvObj : Object.values(rootEvObj);
   const oppByEventId = {};
   for(const ev of rootEvArr) {
     if(ev?.id) {
-      const abbr = (ev?.opponent?.abbreviation || ev?.opponent?.shortDisplayName || '').toUpperCase();
-      oppByEventId[String(ev.id)] = abbr;
+      oppByEventId[String(ev.id)] = (ev?.opponent?.abbreviation || ev?.opponent?.shortDisplayName || '').toUpperCase();
     }
   }
 
-  // Find stat index using top-level labels
   const findIdx = (stat) => {
-    const aliases = getAliases(stat);
-    for(const alias of aliases) {
+    for(const alias of getAliases(stat)) {
       const al = alias.toLowerCase();
       const idx = topLabels.findIndex(l => l === al || l.includes(al) || al.includes(l));
       if(idx !== -1) return idx;
@@ -2674,30 +2581,23 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp) {
     return -1;
   };
   const statIdx = findIdx(statLabel);
-
   const allGames = [];
 
   if(topLabels.length > 0 && gameLogData?.seasonTypes?.length > 0) {
-    // ── PRIMARY PATH: seasonTypes → categories → events ──
     for(const st of (gameLogData.seasonTypes || [])) {
-      // Skip preseason — displayName contains "Preseason"
       const stName = (st?.displayName || '').toLowerCase();
       if(stName.includes('preseason') || stName.includes('pre-season')) continue;
-
       for(const cat of (st?.categories || [])) {
         const eventsRaw = cat?.events || {};
         const events = Array.isArray(eventsRaw) ? eventsRaw : Object.values(eventsRaw);
         for(const ev of events) {
           const stats = ev?.stats || ev?.statistics || [];
           if(!stats.length) continue;
-          // Look up opponent from root events map using eventId
           const evId = String(ev?.eventId || ev?.id || '');
-          const oppAbbr = oppByEventId[evId] || '';
-          allGames.push({ stats, opp: oppAbbr });
+          allGames.push({ stats, opp: oppByEventId[evId] || '' });
         }
       }
     }
-
     if(allGames.length > 0) {
       const oppNorm = opp?.toUpperCase() || '';
       const allVals = allGames
@@ -2711,36 +2611,25 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp) {
     }
   }
 
-  // ── FALLBACK: legacy format (older ESPN response shape) ──
-  // Some endpoints still return stats inside root events directly
+  // Fallback: legacy format where stats are in root events directly
   const legacyGames = [];
   for(const ev of rootEvArr) {
     const stats = ev?.stats || ev?.statistics || [];
     if(!stats.length) continue;
     const oppAbbr = (ev?.opponent?.abbreviation || ev?.opponent?.shortDisplayName || '').toUpperCase();
-    legacyGames.push({ stats, labels: topLabels, opp: oppAbbr });
+    legacyGames.push({ stats, opp: oppAbbr });
   }
-
-  const extractVal = (game, stat) => {
-    const aliases = getAliases(stat);
-    for(const alias of aliases) {
-      const al = alias.toLowerCase();
-      const idx = (game.labels||topLabels).findIndex(l => l === al || l.includes(al) || al.includes(l));
-      if(idx !== -1 && game.stats[idx] !== undefined && game.stats[idx] !== '') {
-        const v = parseFloat(game.stats[idx]);
-        if(!isNaN(v) && v >= 0) return v;
-      }
-    }
-    return null;
-  };
-
   const oppNorm = opp?.toUpperCase() || '';
-  const allVals = legacyGames.map(g => extractVal(g, statLabel)).filter(v => v !== null);
+  const allVals = legacyGames
+    .map(g => statIdx >= 0 ? parseFloat(g.stats[statIdx]) : null)
+    .filter(v => v !== null && !isNaN(v) && v >= 0);
   const vsOppVals = legacyGames
     .filter(g => oppNorm && g.opp && (g.opp.includes(oppNorm.slice(0,3)) || oppNorm.includes(g.opp.slice(0,3))))
-    .map(g => extractVal(g, statLabel)).filter(v => v !== null);
+    .map(g => statIdx >= 0 ? parseFloat(g.stats[statIdx]) : null)
+    .filter(v => v !== null && !isNaN(v) && v >= 0);
   return { allVals, vsOppVals };
 }
+
 
 // ═══════════════════════════════════════════════════════
 // BUILD SINGLE PLAYER PROP — DETERMINISTIC DATA MODEL
@@ -2874,16 +2763,12 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       let espnVals = [], espnOppVals = [];
       let nhlVals = [], nhlOppVals = [];
 
-      // Source 1: ESPN — current reg + playoffs + prev season (same logic as NBA)
+      // Source 1: ESPN — fetch regular + playoffs merged (fixes low game count in playoffs)
       try {
         const mergedData = await fetchESPNGameLogAllSeasonTypes('hockey', 'nhl', playerId);
         const p = parseESPNGameLog(mergedData, statLabel, opp);
         espnVals = p.allVals; espnOppVals = p.vsOppVals;
-        const m = p._meta || {};
-        const parts = [`reg: ${m.regCount ?? '?'}`];
-        if(m.includePlays)       parts.push(`playoffs: ${m.playCount}`);
-        else if(m.playCount > 0) parts.push(`playoffs: ${m.playCount} excluded (only ${m.playCount} games — too early)`);
-        traceLog('projectionEngine', `${playerName} (NHL): ESPN ${parts.join(' · ')} = ${espnVals.length} games`, espnVals.length>0?'ok':'warn');
+        traceLog('projectionEngine', `${playerName} (NHL): ESPN merged got ${espnVals.length} games`, espnVals.length>0?'ok':'warn');
       } catch(e) {
         traceLog('projectionEngine', `${playerName} (NHL): ESPN failed — ${e.message}`, 'warn');
       }
@@ -2930,19 +2815,12 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       let espnVals = [], espnOppVals = [];
       let bdlVals = [];
 
-      // Source 1: ESPN — fetch current reg season + playoffs + prev season.
-      // parseESPNGameLog decides what to merge:
-      //   - playoffs included only if >=10 games (avoids early-round contamination)
-      //   - prev season included if current reg season has <15 games (injury fallback)
+      // Source 1: ESPN — fetch regular + playoffs merged
       try {
         const mergedData = await fetchESPNGameLogAllSeasonTypes(espnSport, espnLeague, playerId);
         const parsed = parseESPNGameLog(mergedData, statLabel, opp);
         espnVals = parsed.allVals; espnOppVals = parsed.vsOppVals;
-        const m = parsed._meta || {};
-        const parts = [`reg: ${m.regCount ?? '?'}`];
-        if(m.includePlays)       parts.push(`playoffs: ${m.playCount}`);
-        else if(m.playCount > 0) parts.push(`playoffs: ${m.playCount} excluded (only ${m.playCount} games — too early)`);
-        traceLog('projectionEngine', `${playerName} (${sport}): ESPN ${parts.join(' · ')} = ${espnVals.length} games`, espnVals.length>0?'ok':'warn');
+        traceLog('projectionEngine', `${playerName} (${sport}): ESPN merged (reg+playoffs) got ${espnVals.length} games`, espnVals.length>0?'ok':'warn');
       } catch(e) {
         traceLog('projectionEngine', `${playerName} (${sport}): ESPN failed — ${e.message}`, 'warn');
       }
@@ -3622,7 +3500,6 @@ function propCardHTML(p) {
   const decBadgeClass = isAnalysis ? 'pass' : decLow; // amber styling for analysis
   const inSlip = STATE.slip.some(s => s.id === p.id);
   const isExpanded = expandedCards.has(p.id);
-  // SVG dots — immune to Safari flex-stretch issues that plague CSS circles
   const dotSVG = Array.from({length:10}, (_,i) => {
     const filled = i < p.conf;
     return filled
