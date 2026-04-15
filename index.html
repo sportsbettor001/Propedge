@@ -120,8 +120,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .decision-badge.under{background:rgba(255,77,106,.1);color:var(--red);border:1px solid rgba(255,77,106,.25)}
 .decision-badge.pass{background:rgba(255,181,71,.1);color:var(--amber);border:1px solid rgba(255,181,71,.25)}
 .conf-block{display:flex;align-items:center;gap:6px}
-.conf-dots{display:flex;gap:3px;align-items:center}
-.conf-dot{display:block;width:6px;height:6px;min-width:6px;min-height:6px;border-radius:50%;flex-shrink:0;align-self:center;box-sizing:border-box}
+.conf-dots{display:inline-flex;flex-wrap:nowrap;gap:3px;align-items:center;line-height:1}
+.conf-dot{display:inline-block;width:6px;height:6px;min-width:6px;min-height:6px;max-width:6px;max-height:6px;border-radius:50%;flex-shrink:0;flex-grow:0;align-self:center;box-sizing:border-box;vertical-align:middle}
 .conf-dot.filled{background:var(--accent)}
 .conf-dot.empty{background:transparent;border:1px solid rgba(255,255,255,0.13)}
 .conf-text{font-family:var(--mono);font-size:9px;color:var(--muted)}
@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v4.6</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v4.7</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <button class="settings-btn" onclick="openSettings()">⚙</button>
@@ -1072,52 +1072,28 @@ async function fetchESPNSchedule(sport, league, date) {
 async function fetchESPNPlayerStats(sport, league, athleteId) {
   return await fetchWithFallback(`${ESPN_BASE}/${sport}/${league}/athletes/${athleteId}/statistics`);
 }
-async function fetchESPNGameLog(sport, league, athleteId, seasontype, season) {
+async function fetchESPNGameLog(sport, league, athleteId, seasontype) {
   // seasontype: 2 = regular season, 3 = playoffs (NBA/NHL)
-  // season: 4-digit year — ESPN uses the year the season STARTS
-  //   e.g. 2025-26 season = season=2025, 2024-25 season = season=2024
-  // Always request limit=200 to avoid ESPN's default page cap (usually ~25 games)
+  // No season year param — ESPN defaults to current season and that is more reliable
+  // than trying to guess ESPN's internal season numbering convention.
+  // limit=200 prevents ESPN's default ~25-game page cap from truncating long seasons.
   const base = `https://site.web.api.espn.com/apis/common/v3/sports/${sport}/${league}/athletes/${athleteId}/gamelog`;
   const params = ['limit=200'];
   if(seasontype) params.push(`seasontype=${seasontype}`);
-  if(season)     params.push(`season=${season}`);
   const url = `${base}?${params.join('&')}`;
   return await fetchWithFallback(url);
 }
 
-// ESPN season year convention: the year the season STARTS.
-// 2025-26 NBA/NHL season → season=2025
-// 2024-25 NBA/NHL season → season=2024
-// Today is April 2026 — we are in the 2025-26 season (started Oct 2025).
-// NBA/NHL regular seasons end in April/June; playoffs run Apr-Jun.
-// Heuristic: if current month <= 9 (Jan-Sep), current season started last year.
-//            if current month >= 10 (Oct-Dec), current season started this year.
-function espnCurrentSeasonYear() {
-  const now = new Date();
-  const month = now.getMonth() + 1; // 1-12
-  const year  = now.getFullYear();
-  // ESPN NBA/NHL season year = the year the season ENDS
-  // Oct-Dec: season ends next calendar year (e.g. Oct 2025 → season=2026)
-  // Jan-Sep: season ends this calendar year (e.g. Apr 2026 → season=2026)
-  return month >= 10 ? year + 1 : year;
-}
-
-// Fetch regular season + playoff logs for current AND previous season, merge all.
-// This handles injury-shortened seasons (e.g. Embiid 2025-26: ~38 games played)
-// by supplementing with prior season history so the model has a real sample.
+// Fetch regular season + playoff logs for current season only.
+// No season year param — ESPN defaults correctly to current season.
 async function fetchESPNGameLogAllSeasonTypes(sport, league, athleteId) {
-  const currentSeason = espnCurrentSeasonYear();  // e.g. 2025 for 2025-26 season
-  const prevSeason    = currentSeason - 1;        // e.g. 2024 for 2024-25 season
-
-  const [regular, playoffs, prevRegular] = await Promise.allSettled([
-    fetchESPNGameLog(sport, league, athleteId, 2, currentSeason),
-    fetchESPNGameLog(sport, league, athleteId, 3, currentSeason),
-    fetchESPNGameLog(sport, league, athleteId, 2, prevSeason),
+  const [regular, playoffs] = await Promise.allSettled([
+    fetchESPNGameLog(sport, league, athleteId, 2),
+    fetchESPNGameLog(sport, league, athleteId, 3),
   ]);
-  const regData      = regular.status     === 'fulfilled' ? regular.value     : null;
-  const playData     = playoffs.status    === 'fulfilled' ? playoffs.value    : null;
-  const prevRegData  = prevRegular.status === 'fulfilled' ? prevRegular.value : null;
-  return { _regular: regData, _playoffs: playData, _prevRegular: prevRegData, _merged: true };
+  const regData  = regular.status  === 'fulfilled' ? regular.value  : null;
+  const playData = playoffs.status === 'fulfilled' ? playoffs.value : null;
+  return { _regular: regData, _playoffs: playData, _merged: true };
 }
 async function fetchESPNInjuries(sport, league) {
   return await fetchWithFallback(`https://sports.core.api.espn.com/v2/sports/${sport}/leagues/${league}/injuries?limit=300`);
@@ -2558,35 +2534,24 @@ function getPlayersForGame(game, sport) {
 // Handles ESPN's multiple response shapes
 // ═══════════════════════════════════════════════════════
 function parseESPNGameLog(gameLogData, statLabel, opp) {
-  // Handle merged regular + playoff + prev-season response
   if(gameLogData?._merged) {
-    const regParsed      = gameLogData._regular     ? _parseESPNGameLogSingle(gameLogData._regular,     statLabel, opp) : { allVals:[], vsOppVals:[] };
-    const playParsed     = gameLogData._playoffs    ? _parseESPNGameLogSingle(gameLogData._playoffs,    statLabel, opp) : { allVals:[], vsOppVals:[] };
-    const prevRegParsed  = gameLogData._prevRegular ? _parseESPNGameLogSingle(gameLogData._prevRegular, statLabel, opp) : { allVals:[], vsOppVals:[] };
+    const regParsed  = gameLogData._regular  ? _parseESPNGameLogSingle(gameLogData._regular,  statLabel, opp) : { allVals:[], vsOppVals:[] };
+    const playParsed = gameLogData._playoffs ? _parseESPNGameLogSingle(gameLogData._playoffs, statLabel, opp) : { allVals:[], vsOppVals:[] };
 
-    const regCount      = regParsed.allVals.length;
-    const playCount     = playParsed.allVals.length;
-    const prevRegCount  = prevRegParsed.allVals.length;
+    const regCount  = regParsed.allVals.length;
+    const playCount = playParsed.allVals.length;
 
-    // Decide which seasons to include:
-    // 1. Playoffs: only merge when sample is substantial (>=10 games).
-    //    Early in playoffs (days 1-7), 1-5 games would skew a full reg-season history.
+    // Only merge playoff games when sample is substantial (>=10 games played).
+    // Day 1-2 of playoffs = 1-2 games — do not contaminate a full regular season.
     const includePlays = playCount >= 10;
 
-    // 2. Previous season: supplement when current reg season is thin (<15 games).
-    //    Handles injury-shortened seasons (e.g. Embiid 2024-25: ~8 games played).
-    //    Prev season games are appended AFTER current — EWMA weights current higher.
-    const includePrev  = regCount < 15 && prevRegCount > 0;
+    const allVals   = [...regParsed.allVals,   ...(includePlays ? playParsed.allVals   : [])];
+    const vsOppVals = [...regParsed.vsOppVals, ...(includePlays ? playParsed.vsOppVals : [])];
 
-    const allVals   = [...regParsed.allVals,   ...(includePlays ? playParsed.allVals   : []), ...(includePrev ? prevRegParsed.allVals   : [])];
-    const vsOppVals = [...regParsed.vsOppVals, ...(includePlays ? playParsed.vsOppVals : []), ...(includePrev ? prevRegParsed.vsOppVals : [])];
-
-    return { allVals, vsOppVals,
-      _meta: { regCount, playCount, prevRegCount, includePlays, includePrev } };
+    return { allVals, vsOppVals, _meta: { regCount, playCount, includePlays } };
   }
   return _parseESPNGameLogSingle(gameLogData, statLabel, opp);
 }
-
 function _parseESPNGameLogSingle(gameLogData, statLabel, opp) {
   const allGames = [];
   const statAliases = {
@@ -2840,11 +2805,10 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         const p = parseESPNGameLog(mergedData, statLabel, opp);
         espnVals = p.allVals; espnOppVals = p.vsOppVals;
         const m = p._meta || {};
-        const parts = [`cur reg: ${m.regCount ?? '?'}`];
-        if(m.includePlays)  parts.push(`playoffs: ${m.playCount}`);
-        else if(m.playCount > 0) parts.push(`playoffs: ${m.playCount} excluded (sparse)`);
-        if(m.includePrev)   parts.push(`prev season: ${m.prevRegCount}`);
-        traceLog('projectionEngine', `${playerName} (NHL): ESPN ${parts.join(' · ')} = ${espnVals.length} total games`, espnVals.length>0?'ok':'warn');
+        const parts = [`reg: ${m.regCount ?? '?'}`];
+        if(m.includePlays)       parts.push(`playoffs: ${m.playCount}`);
+        else if(m.playCount > 0) parts.push(`playoffs: ${m.playCount} excluded (only ${m.playCount} games — too early)`);
+        traceLog('projectionEngine', `${playerName} (NHL): ESPN ${parts.join(' · ')} = ${espnVals.length} games`, espnVals.length>0?'ok':'warn');
       } catch(e) {
         traceLog('projectionEngine', `${playerName} (NHL): ESPN failed — ${e.message}`, 'warn');
       }
@@ -2900,12 +2864,10 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         const parsed = parseESPNGameLog(mergedData, statLabel, opp);
         espnVals = parsed.allVals; espnOppVals = parsed.vsOppVals;
         const m = parsed._meta || {};
-        const parts = [`cur reg: ${m.regCount ?? '?'}`];
-        if(m.includePlays)  parts.push(`playoffs: ${m.playCount}`);
-        else if(m.playCount > 0) parts.push(`playoffs: ${m.playCount} excluded (sparse)`);
-        if(m.includePrev)   parts.push(`prev season: ${m.prevRegCount}`);
-        else if(m.prevRegCount > 0 && !m.includePrev) parts.push(`prev season: available but not needed`);
-        traceLog('projectionEngine', `${playerName} (${sport}): ESPN ${parts.join(' · ')} = ${espnVals.length} total games`, espnVals.length>0?'ok':'warn');
+        const parts = [`reg: ${m.regCount ?? '?'}`];
+        if(m.includePlays)       parts.push(`playoffs: ${m.playCount}`);
+        else if(m.playCount > 0) parts.push(`playoffs: ${m.playCount} excluded (only ${m.playCount} games — too early)`);
+        traceLog('projectionEngine', `${playerName} (${sport}): ESPN ${parts.join(' · ')} = ${espnVals.length} games`, espnVals.length>0?'ok':'warn');
       } catch(e) {
         traceLog('projectionEngine', `${playerName} (${sport}): ESPN failed — ${e.message}`, 'warn');
       }
