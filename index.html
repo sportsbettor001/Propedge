@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v4.9</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v5.1</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <button class="settings-btn" onclick="openSettings()">⚙</button>
@@ -627,66 +627,77 @@ function clearTrace() { STATE.trace = null; renderTrace(); }
 
 async function debugNBAGamelog(athleteId, name) {
   const el = document.getElementById('api-test-results');
-  el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:var(--bg2);border-radius:8px">🔍 Fetching ${name}...</div>`;
-  try {
-    const url = `https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/${athleteId}/gamelog?limit=200`;
-    const d = await fetchJSON(url);
+  el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:var(--bg2);border-radius:8px">🔍 Fetching ${name} — trying multiple URLs...</div>`;
+
+  // Try several URL variants to find which one returns the most games
+  const urlsToTry = [
+    `https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/${athleteId}/gamelog?limit=200`,
+    `https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/${athleteId}/gamelog?limit=200&region=us&lang=en`,
+    `https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/${athleteId}/gamelog`,
+    `https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba/athletes/${athleteId}/statisticslog?limit=200`,
+  ];
+
+  const summarise = (d, url) => {
     const labels = d?.labels || d?.names || [];
     const ptsIdx = labels.findIndex(l => (l||'').toString().toLowerCase() === 'pts' || (l||'').toString().toLowerCase() === 'points');
-
-    let html = `<div style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px">`;
-    html += `<div style="color:var(--amber);font-weight:700;margin-bottom:6px">🔍 ${name} (id=${athleteId})</div>`;
-    html += `<div style="margin-bottom:4px">Labels (${labels.length}): ${labels.slice(0,8).join(' | ')}</div>`;
-    html += `<div style="margin-bottom:4px">PTS label index: <b style="color:${ptsIdx>=0?'var(--accent)':'var(--red)'}">${ptsIdx}</b></div>`;
-
-    // Dig into seasonTypes — this is where stats actually live
     const stypes = d?.seasonTypes || [];
-    html += `<div style="margin-bottom:4px">seasonTypes count: ${stypes.length}</div>`;
-    stypes.forEach((st, si) => {
-      const stKeys = Object.keys(st);
-      const stType = st.type || st.id || st.seasonType || JSON.stringify(st).slice(0,60);
-      const cats = st.categories || [];
-      html += `<div style="margin:4px 0;padding:4px;background:var(--bg3);border-radius:4px">`;
-      html += `<div style="color:var(--blue)">seasonType[${si}] keys: ${stKeys.join(',')} → type=${stType}</div>`;
-      cats.forEach((cat, ci) => {
-        const catKeys = Object.keys(cat);
-        const catName = cat.name || cat.displayName || cat.type || JSON.stringify(cat).slice(0,40);
+    const filters = d?.filters ? JSON.stringify(d.filters).slice(0, 200) : 'none';
+
+    let totalRegGames = 0;
+    let monthBreakdown = [];
+    let allSamplePts = [];
+
+    stypes.forEach((st) => {
+      const stName = (st?.displayName || '').toLowerCase();
+      const isPreseason = stName.includes('preseason') || stName.includes('pre-season');
+      (st?.categories || []).forEach(cat => {
         const evObj = cat.events || {};
         const evArr = Array.isArray(evObj) ? evObj : Object.values(evObj);
-        const catLabels = cat.labels || cat.names || [];
-        html += `<div style="margin-left:8px;color:var(--text)">cat[${ci}] keys:${catKeys.join(',')} name="${catName}" events:${evArr.length} labels:${catLabels.slice(0,4).join('|')}</div>`;
-        if(evArr.length > 0) {
-          const ev0 = evArr[0];
-          const ev0Keys = Object.keys(ev0);
-          const stats0 = ev0.stats || ev0.statistics || [];
-          const effectiveLabels = catLabels.length ? catLabels : labels;
-          const ptsI = effectiveLabels.findIndex(l => (l||'').toString().toLowerCase().includes('pts') || (l||'').toString().toLowerCase() === 'points');
-          html += `<div style="margin-left:16px;color:var(--muted)">ev[0] keys:${ev0Keys.join(',')} stats.length:${stats0.length} pts@idx${ptsI}:${stats0[ptsI]??'N/A'}</div>`;
-          // Show first 3 events with pts value
-          const sample = evArr.slice(0,5).map(ev => {
-            const s = ev.stats || ev.statistics || [];
-            return `${ev.gameDate||ev.id||'?'}→pts:${s[ptsI]??'?'}`;
-          }).join(', ');
-          html += `<div style="margin-left:16px;color:var(--accent)">Sample: ${sample}</div>`;
+        const catName = cat.displayName || cat.name || '?';
+        if(!isPreseason) {
+          totalRegGames += evArr.length;
+          monthBreakdown.push(`${catName}:${evArr.length}`);
+          evArr.forEach(ev => {
+            const s = ev.stats || [];
+            if(ptsIdx >= 0 && s[ptsIdx] !== undefined) allSamplePts.push(parseFloat(s[ptsIdx]));
+          });
         }
       });
-      html += `</div>`;
     });
 
-    // Also show root events structure for comparison
     const rootEvObj = d?.events || {};
     const rootEvArr = Array.isArray(rootEvObj) ? rootEvObj : Object.values(rootEvObj);
-    if(rootEvArr.length > 0) {
-      const ev0 = rootEvArr[0];
-      html += `<div style="margin-top:6px;color:var(--purple)">Root events[${rootEvArr.length}] ev[0] keys: ${Object.keys(ev0).join(', ')}</div>`;
-      html += `<div style="color:var(--purple)">Root ev[0] stats.length: ${(ev0.stats||[]).length}</div>`;
-    }
 
-    html += `</div>`;
-    el.innerHTML = html;
-  } catch(e) {
-    el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:var(--bg2);border-radius:8px">❌ ${name}: ${e.message}</div>`;
+    return { labels: labels.length, ptsIdx, totalRegGames, monthBreakdown, filters,
+             rootEvents: rootEvArr.length, topKeys: Object.keys(d||{}).join(','),
+             samplePts: allSamplePts.slice(0,8).join(', ') || 'none' };
+  };
+
+  let html = `<div style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px">`;
+  html += `<div style="color:var(--amber);font-weight:700;margin-bottom:8px">🔍 ${name} (id=${athleteId}) — URL Comparison</div>`;
+
+  for(const url of urlsToTry) {
+    try {
+      const d = await fetchJSON(url);
+      const s = summarise(d, url);
+      const color = s.totalRegGames >= 30 ? 'var(--accent)' : s.totalRegGames >= 15 ? 'var(--amber)' : 'var(--red)';
+      html += `<div style="margin-bottom:8px;padding:6px;background:var(--bg3);border-radius:6px">`;
+      html += `<div style="color:var(--muted);font-size:9px;word-break:break-all;margin-bottom:3px">${url}</div>`;
+      html += `<div>Top keys: ${s.topKeys}</div>`;
+      html += `<div>Labels: ${s.labels} · PTS idx: ${s.ptsIdx}</div>`;
+      html += `<div>Root events: ${s.rootEvents}</div>`;
+      html += `<div style="color:${color}"><b>Reg season games: ${s.totalRegGames}</b></div>`;
+      html += `<div>Months: ${s.monthBreakdown.join(' | ') || 'none'}</div>`;
+      html += `<div>Sample pts: ${s.samplePts}</div>`;
+      html += `<div style="font-size:9px;color:var(--muted)">Filters: ${s.filters}</div>`;
+      html += `</div>`;
+    } catch(e) {
+      html += `<div style="margin-bottom:6px;padding:6px;background:var(--bg3);border-radius:6px;color:var(--red)">FAILED: ${e.message}<br/><span style="font-size:9px;word-break:break-all">${url}</span></div>`;
+    }
   }
+
+  html += `</div>`;
+  el.innerHTML = html;
 }
 
 async function testApi(which) {
@@ -2620,7 +2631,13 @@ function parseESPNGameLog(gameLogData, statLabel, opp) {
   return _parseESPNGameLogSingle(gameLogData, statLabel, opp);
 }
 function _parseESPNGameLogSingle(gameLogData, statLabel, opp) {
-  const allGames = [];
+  // ── CONFIRMED ESPN STRUCTURE (from live debug dump Apr 2026) ──
+  // Stats are in: seasonTypes[n].categories[n].events[n].stats (array indexed by position)
+  // Labels are at: top-level gameLogData.labels (NOT inside categories — categories have empty labels)
+  // seasonTypes[0] = Regular Season, seasonTypes[1] = Preseason — skip preseason
+  // Root gameLogData.events contains metadata only (opponent, date, score) — stats.length always 0 there
+  // opp info is in root events keyed by eventId, not inside seasonType events
+
   const statAliases = {
     'Points':['pts','points','PTS'],'Rebounds':['reb','rebounds','total rebounds','REB','TREB'],
     'Assists':['ast','assists','AST'],'Threes Made':['3pm','threesMade','3-pt made','3pt made','3PTM'],
@@ -2632,105 +2649,96 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp) {
   };
   const getAliases = (s) => statAliases[s] || [s.toLowerCase(), s];
 
-  // ── FLAT STRUCTURE (current ESPN format) ──
-  // Response has top-level labels/names array, events object at root
-  // e.g. { labels:[...], names:[...], events:{ '401234':{ stats:[...], opponent:{...} } } }
-  if(gameLogData?.labels?.length > 0 || gameLogData?.names?.length > 0) {
-    const labels = (gameLogData.labels || gameLogData.names || []).map(l => (l||'').toString().toLowerCase());
-    const eventsObj = gameLogData?.events || {};
-    const eventArr = Array.isArray(eventsObj) ? eventsObj : Object.values(eventsObj);
-    const flatGames = [];
-    for(const ev of eventArr) {
-      const stats = ev?.stats || ev?.statistics || [];
-      if(stats.length > 0) {
-        const oppAbbr = (ev?.opponent?.abbreviation || ev?.opponent?.shortDisplayName || '').toUpperCase();
-        flatGames.push({ stats, labels, opp: oppAbbr, raw: ev });
-      }
+  // Top-level labels — confirmed working (pts at index 13 for NBA)
+  const topLabels = (gameLogData?.labels || gameLogData?.names || []).map(l => (l||'').toString().toLowerCase());
+
+  // Build eventId → opponent map from root events (metadata lives here)
+  const rootEvObj = gameLogData?.events || {};
+  const rootEvArr = Array.isArray(rootEvObj) ? rootEvObj : Object.values(rootEvObj);
+  const oppByEventId = {};
+  for(const ev of rootEvArr) {
+    if(ev?.id) {
+      const abbr = (ev?.opponent?.abbreviation || ev?.opponent?.shortDisplayName || '').toUpperCase();
+      oppByEventId[String(ev.id)] = abbr;
     }
-    if(flatGames.length > 0) {
-      const extractFlat = (game, stat) => {
-        const aliases = getAliases(stat);
-        for(const alias of aliases) {
-          const al = alias.toLowerCase();
-          const idx = game.labels.findIndex(l => l === al || l.includes(al) || al.includes(l));
-          if(idx !== -1 && game.stats[idx] !== undefined && game.stats[idx] !== '') {
-            const v = parseFloat(game.stats[idx]);
-            if(!isNaN(v) && v >= 0) return v;
-          }
-        }
-        return null;
-      };
-      const oppNorm = opp?.toUpperCase() || '';
-      const allVals = flatGames.map(g=>extractFlat(g,statLabel)).filter(v=>v!==null);
-      const vsOppVals = flatGames
-        .filter(g => oppNorm && g.opp && (g.opp.includes(oppNorm.slice(0,3)) || oppNorm.includes(g.opp.slice(0,3))))
-        .map(g=>extractFlat(g,statLabel)).filter(v=>v!==null);
-      if(allVals.length > 0) return { allVals, vsOppVals };
-    }
-    // No values from flat path — fall through to seasonTypes parser
   }
 
-  const tryParse1 = () => {
-    const topLabels = (gameLogData?.labels || gameLogData?.names || []).map(l=>(l||'').toString().toLowerCase());
-    for(const st of (gameLogData?.seasonTypes || [])) {
+  // Find stat index using top-level labels
+  const findIdx = (stat) => {
+    const aliases = getAliases(stat);
+    for(const alias of aliases) {
+      const al = alias.toLowerCase();
+      const idx = topLabels.findIndex(l => l === al || l.includes(al) || al.includes(l));
+      if(idx !== -1) return idx;
+    }
+    return -1;
+  };
+  const statIdx = findIdx(statLabel);
+
+  const allGames = [];
+
+  if(topLabels.length > 0 && gameLogData?.seasonTypes?.length > 0) {
+    // ── PRIMARY PATH: seasonTypes → categories → events ──
+    for(const st of (gameLogData.seasonTypes || [])) {
+      // Skip preseason — displayName contains "Preseason"
+      const stName = (st?.displayName || '').toLowerCase();
+      if(stName.includes('preseason') || stName.includes('pre-season')) continue;
+
       for(const cat of (st?.categories || [])) {
-        const labels = (cat?.labels || cat?.names || topLabels).map(l=>(l||'').toString().toLowerCase());
-        if(!labels.length) continue;
         const eventsRaw = cat?.events || {};
         const events = Array.isArray(eventsRaw) ? eventsRaw : Object.values(eventsRaw);
-        if(!events.length) continue;
         for(const ev of events) {
           const stats = ev?.stats || ev?.statistics || [];
           if(!stats.length) continue;
-          const oppData = ev?.opponent || ev?.team || {};
-          const oppAbbr = (oppData?.abbreviation || oppData?.shortDisplayName || '').toUpperCase();
-          allGames.push({ stats, labels, opp: oppAbbr, raw: ev });
+          // Look up opponent from root events map using eventId
+          const evId = String(ev?.eventId || ev?.id || '');
+          const oppAbbr = oppByEventId[evId] || '';
+          allGames.push({ stats, opp: oppAbbr });
         }
-        if(allGames.length > 0) return true;
       }
     }
-    return false;
-  };
-  const tryParse2 = () => {
-    const eventsObj = gameLogData?.events || {};
-    const eventArr = Array.isArray(eventsObj) ? eventsObj : Object.values(eventsObj);
-    if(!eventArr.length) return false;
-    const topLabels = (gameLogData?.labels || gameLogData?.names || []).map(l=>(l||'').toLowerCase());
-    for(const ev of eventArr) {
-      const stats = ev?.stats || ev?.statistics || [];
-      if(!stats.length) continue;
-      const labels = topLabels.length ? topLabels : (ev?.labels || []).map(l=>(l||'').toLowerCase());
-      const oppAbbr = (ev?.opponent?.abbreviation || '').toUpperCase();
-      allGames.push({ stats, labels, opp: oppAbbr, raw: ev });
+
+    if(allGames.length > 0) {
+      const oppNorm = opp?.toUpperCase() || '';
+      const allVals = allGames
+        .map(g => statIdx >= 0 ? parseFloat(g.stats[statIdx]) : null)
+        .filter(v => v !== null && !isNaN(v) && v >= 0);
+      const vsOppVals = allGames
+        .filter(g => oppNorm && g.opp && (g.opp.includes(oppNorm.slice(0,3)) || oppNorm.includes(g.opp.slice(0,3))))
+        .map(g => statIdx >= 0 ? parseFloat(g.stats[statIdx]) : null)
+        .filter(v => v !== null && !isNaN(v) && v >= 0);
+      return { allVals, vsOppVals };
     }
-    return allGames.length > 0;
-  };
-  tryParse1() || tryParse2();
+  }
+
+  // ── FALLBACK: legacy format (older ESPN response shape) ──
+  // Some endpoints still return stats inside root events directly
+  const legacyGames = [];
+  for(const ev of rootEvArr) {
+    const stats = ev?.stats || ev?.statistics || [];
+    if(!stats.length) continue;
+    const oppAbbr = (ev?.opponent?.abbreviation || ev?.opponent?.shortDisplayName || '').toUpperCase();
+    legacyGames.push({ stats, labels: topLabels, opp: oppAbbr });
+  }
 
   const extractVal = (game, stat) => {
     const aliases = getAliases(stat);
     for(const alias of aliases) {
       const al = alias.toLowerCase();
-      const idx = game.labels.findIndex(l => l === al || l.includes(al) || al.includes(l));
+      const idx = (game.labels||topLabels).findIndex(l => l === al || l.includes(al) || al.includes(l));
       if(idx !== -1 && game.stats[idx] !== undefined && game.stats[idx] !== '') {
         const v = parseFloat(game.stats[idx]);
         if(!isNaN(v) && v >= 0) return v;
-      }
-    }
-    if(game.raw) {
-      for(const alias of aliases) {
-        const v = game.raw[alias] ?? game.raw[alias.toLowerCase()];
-        if(v !== undefined && v !== null) { const n = parseFloat(v); if(!isNaN(n) && n >= 0) return n; }
       }
     }
     return null;
   };
 
   const oppNorm = opp?.toUpperCase() || '';
-  const allVals = allGames.map(g=>extractVal(g,statLabel)).filter(v=>v!==null);
-  const vsOppVals = allGames
+  const allVals = legacyGames.map(g => extractVal(g, statLabel)).filter(v => v !== null);
+  const vsOppVals = legacyGames
     .filter(g => oppNorm && g.opp && (g.opp.includes(oppNorm.slice(0,3)) || oppNorm.includes(g.opp.slice(0,3))))
-    .map(g=>extractVal(g,statLabel)).filter(v=>v!==null);
+    .map(g => extractVal(g, statLabel)).filter(v => v !== null);
   return { allVals, vsOppVals };
 }
 
