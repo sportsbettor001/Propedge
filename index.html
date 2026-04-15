@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v4.7</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v4.8</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <button class="settings-btn" onclick="openSettings()">⚙</button>
@@ -382,6 +382,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         <button onclick="testApi('espn_nba_sched')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">ESPN NBA Schedule</button>
         <button onclick="testApi('mlb_gamelog_raw')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">MLB Gamelog Raw</button>
         <button onclick="testApi('nba_gamelog_raw')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">NBA Gamelog Raw</button>
+        <button onclick="debugNBAGamelog('6583','Joel Embiid')" style="font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.3);border-radius:8px;padding:8px;color:var(--amber);cursor:pointer">🔍 Embiid Raw Dump</button>
+        <button onclick="debugNBAGamelog('3975','Stephen Curry')" style="font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.3);border-radius:8px;padding:8px;color:var(--amber);cursor:pointer">🔍 Curry Raw Dump</button>
+        <button onclick="debugNBAGamelog('4395725','Paolo Banchero')" style="font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.3);border-radius:8px;padding:8px;color:var(--amber);cursor:pointer">🔍 Banchero Raw Dump</button>
       </div>
 
       <div class="section-title">Slate</div>
@@ -621,6 +624,52 @@ function traceLog(section, msg, level='ok') {
   STATE.trace[section].push({ msg, level });
 }
 function clearTrace() { STATE.trace = null; renderTrace(); }
+
+async function debugNBAGamelog(athleteId, name) {
+  const el = document.getElementById('api-test-results');
+  const base = `https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/${athleteId}/gamelog`;
+  const urls = [
+    { label: 'No params (default)', url: `${base}?limit=200` },
+    { label: 'seasontype=2 (reg)', url: `${base}?limit=200&seasontype=2` },
+    { label: 'seasontype=3 (playoffs)', url: `${base}?limit=200&seasontype=3` },
+  ];
+  el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:var(--bg2);border-radius:8px">🔍 Fetching ${name} (id=${athleteId})...</div>`;
+  let html = `<div style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px">`;
+  html += `<div style="color:var(--amber);font-weight:700;margin-bottom:8px">🔍 ${name} ESPN Raw Dump</div>`;
+  for(const {label, url} of urls) {
+    try {
+      const d = await fetchJSON(url);
+      const topKeys = Object.keys(d||{});
+      const evObj = d?.events || {};
+      const evArr = Array.isArray(evObj) ? evObj : Object.values(evObj);
+      const labels = d?.labels || d?.names || [];
+      const stypes = (d?.seasonTypes||[]).map(s => {
+        const cats = s?.categories||[];
+        return cats.map(c => {
+          const evs = Array.isArray(c?.events) ? c.events : Object.values(c?.events||{});
+          return `type=${s.type||'?'} cat=${c.name||'?'} events=${evs.length}`;
+        }).join(', ');
+      }).join(' | ');
+      html += `<div style="margin-bottom:8px;padding:6px;background:var(--bg3);border-radius:6px">`;
+      html += `<div style="color:var(--text);margin-bottom:3px"><b>${label}</b></div>`;
+      html += `<div style="color:var(--muted);font-size:9px;word-break:break-all;margin-bottom:3px">${url}</div>`;
+      html += `<div style="color:var(--accent)">Top keys: ${topKeys.join(', ')}</div>`;
+      html += `<div>Root events count: <b style="color:var(--accent)">${evArr.length}</b></div>`;
+      html += `<div>Labels[0-3]: ${labels.slice(0,4).join(' | ')}</div>`;
+      if(stypes) html += `<div>SeasonTypes: ${stypes}</div>`;
+      if(evArr.length > 0) {
+        const ev0 = evArr[0];
+        html += `<div>First event keys: ${Object.keys(ev0||{}).join(', ')}</div>`;
+        html += `<div>First event stats length: ${(ev0?.stats||[]).length}</div>`;
+      }
+      html += `</div>`;
+    } catch(e) {
+      html += `<div style="color:var(--red);margin-bottom:8px;padding:6px;background:var(--bg3);border-radius:6px"><b>${label}</b>: FAILED — ${e.message}<br/><span style="font-size:9px">${url}</span></div>`;
+    }
+  }
+  html += `</div>`;
+  el.innerHTML = html;
+}
 
 async function testApi(which) {
   const el = document.getElementById('api-test-results');
@@ -3547,7 +3596,14 @@ function propCardHTML(p) {
   const decBadgeClass = isAnalysis ? 'pass' : decLow; // amber styling for analysis
   const inSlip = STATE.slip.some(s => s.id === p.id);
   const isExpanded = expandedCards.has(p.id);
-  const dots = Array.from({length:10}, (_,i) => `<span class="conf-dot ${i < p.conf ? 'filled' : 'empty'}"></span>`).join('');
+  // SVG dots — immune to Safari flex-stretch issues that plague CSS circles
+  const dotSVG = Array.from({length:10}, (_,i) => {
+    const filled = i < p.conf;
+    return filled
+      ? `<circle cx="${6 + i*9}" cy="6" r="3" fill="var(--accent)"/>`
+      : `<circle cx="${6 + i*9}" cy="6" r="2.5" fill="none" stroke="rgba(255,255,255,0.13)" stroke-width="1"/>`;
+  }).join('');
+  const dots = `<svg width="96" height="12" viewBox="0 0 96 12" style="display:block;flex-shrink:0">${dotSVG}</svg>`;
   const reasoningHTML = (p.reasoning || []).map(r => `<div class="reasoning-line">${r}</div>`).join('');
   const dataLabel = p.dataSource?.gamelog > 0 ? `${p.dataSource.gamelog} game logs` : 'no game logs';
   const completenessScore = p.completeness ?? null;
