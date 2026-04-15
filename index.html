@@ -297,7 +297,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v5.4</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v5.5</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <button class="settings-btn" onclick="openSettings()">⚙</button>
@@ -507,6 +507,18 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       <div class="setting-hint">Optional. Free key at <a href="https://www.balldontlie.io" onclick="openLink('https://www.balldontlie.io')">balldontlie.io</a> — no credit card. Adds pts/reb/ast/min per game for NBA. Without key, ESPN game logs are used instead.</div>
     </div>
 
+    <div class="modal-section">Cloudflare Proxy (NBA full season data)</div>
+    <div class="setting-group">
+      <label class="setting-label">Cloudflare Worker URL</label>
+      <input class="setting-input" id="s-cors-proxy" placeholder="https://your-worker.your-name.workers.dev" autocorrect="off" autocapitalize="none"/>
+      <div class="setting-hint">Your personal Cloudflare Worker URL. Enables full NBA season game logs via stats.nba.com. Free to set up — see instructions in the app.</div>
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">Proxy Secret Token</label>
+      <input class="setting-input" id="s-proxy-token" placeholder="The secret you set in your Worker code" autocorrect="off" autocapitalize="none"/>
+      <div class="setting-hint">The token you put in your Worker code (ALLOWED_TOKEN). Keeps your proxy private.</div>
+    </div>
+
     <div class="modal-section">Engine Settings</div>
     <div class="setting-group">
       <label class="setting-label">Games per sport per generate (free tier: 2 · paid: 4-6)</label>
@@ -577,6 +589,7 @@ let STATE = loadState() || {
     oddsApiKey: '',
     balldontlieKey: '',
     corsProxy: '',
+    proxyToken: '',
     minEdge: 5,
     minConf: 6,
     gamesPerSport: 2,
@@ -601,7 +614,7 @@ if(STATE.props && Array.isArray(STATE.props) && STATE.props.length > 0 && !STATE
 }
 
 // Ensure settings object has all keys
-STATE.settings = Object.assign({ oddsApiKey:'', balldontlieKey:'', corsProxy:'', minEdge:5, minConf:6, gamesPerSport:2, playersPerGame:3 }, STATE.settings || {});
+STATE.settings = Object.assign({ oddsApiKey:'', balldontlieKey:'', corsProxy:'', proxyToken:'', minEdge:5, minConf:6, gamesPerSport:2, playersPerGame:3 }, STATE.settings || {});
 if(!STATE.sportCache) STATE.sportCache = {};
 
 // ═══════════════════════════════════════════════════════
@@ -947,6 +960,8 @@ function loadSettingsIntoForm() {
   const s = STATE.settings;
   document.getElementById('s-odds-key').value = s.oddsApiKey || '';
   document.getElementById('s-bdl-key').value = s.balldontlieKey || '';
+  document.getElementById('s-cors-proxy').value = s.corsProxy || '';
+  document.getElementById('s-proxy-token').value = s.proxyToken || '';
   document.getElementById('s-min-edge').value = s.minEdge ?? 5;
   document.getElementById('s-min-conf').value = s.minConf ?? 6;
   document.getElementById('s-games-per-sport').value = s.gamesPerSport || 2;
@@ -960,6 +975,8 @@ function saveSettings() {
 
   STATE.settings.oddsApiKey = document.getElementById('s-odds-key').value.trim();
   STATE.settings.balldontlieKey = document.getElementById('s-bdl-key').value.trim();
+  STATE.settings.corsProxy   = document.getElementById('s-cors-proxy').value.trim();
+  STATE.settings.proxyToken  = document.getElementById('s-proxy-token').value.trim();
   STATE.settings.minEdge = parseFloat(document.getElementById('s-min-edge').value) || 3;
   STATE.settings.minConf = parseInt(document.getElementById('s-min-conf').value) || 6;
   STATE.settings.gamesPerSport = Math.min(8, Math.max(1, parseInt(document.getElementById('s-games-per-sport').value) || 2));
@@ -1049,7 +1066,10 @@ async function fetchWithFallback(url) {
   try { return await fetchJSON(url); } catch(e) {
     const proxy = STATE.settings.corsProxy;
     if(proxy && proxy.trim()) {
-      try { return await fetchJSON(proxy + encodeURIComponent(url)); } catch(e2) {}
+      const token = STATE.settings.proxyToken || '';
+      const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+      const proxyUrl = `${proxy}?url=${encodeURIComponent(url)}${tokenParam}`;
+      try { return await fetchJSON(proxyUrl); } catch(e2) {}
     }
     throw new Error('Fetch failed: ' + e.message);
   }
@@ -1335,6 +1355,69 @@ async function fetchBDLPlayerStats(playerName, sport, dateFrom, dateTo) {
     const statsData = await fetchJSON(statsUrl, { headers: { 'Authorization': key } });
     return { playerId: player.id, games: statsData?.data || [] };
   } catch(e) { return null; }
+}
+
+// ═══════════════════════════════════════════════════════
+// NBA STATS API — stats.nba.com
+// Full season game logs. CORS-blocked — requires Cloudflare proxy in Settings.
+// If no proxy configured, falls back to ESPN automatically.
+// ═══════════════════════════════════════════════════════
+const NBA_STATS_IDS = {
+  'Joel Embiid':2203954,'Stephen Curry':201939,'Paolo Banchero':1631094,
+  'Franz Wagner':1630532,'Nikola Jokic':203999,'Luka Doncic':1629029,
+  'Shai Gilgeous-Alexander':1628983,'Giannis Antetokounmpo':203507,
+  'LeBron James':2544,'Kevin Durant':201142,'Jayson Tatum':1628369,
+  'Jaylen Brown':1627759,'Anthony Davis':203076,'Devin Booker':1626164,
+  'Donovan Mitchell':1628378,'Damian Lillard':203081,'Trae Young':1629029,
+  'Zion Williamson':1629627,'Ja Morant':1629630,'Anthony Edwards':1630162,
+  'Tyrese Haliburton':1630169,'Bam Adebayo':1628389,'Kawhi Leonard':202695,
+  'Jimmy Butler':202710,'Draymond Green':203110,'Klay Thompson':202691,
+  'Karl-Anthony Towns':1626157,'Julius Randle':203944,'Jalen Brunson':1628384,
+  'Rudy Gobert':203497,"De'Aaron Fox":1628368,'Zach LaVine':203897,
+  'Bradley Beal':203078,'Kristaps Porzingis':204001,'Pascal Siakam':1626169,
+  'OG Anunoby':1628384,'Mikal Bridges':1628969,'Brandon Ingram':1627742,
+  'Cade Cunningham':1630595,'Evan Mobley':1630596,'Scottie Barnes':1630567,
+  'Josh Giddey':1630581,'Alperen Sengun':1631167,'Victor Wembanyama':1641705,
+  'Chet Holmgren':1630533,'Jabari Smith Jr.':1630538,
+};
+
+async function fetchNBAStatsGameLog(playerName) {
+  const nbaId = NBA_STATS_IDS[playerName];
+  if(!nbaId) return null;
+  if(!STATE.settings.corsProxy) return null; // no proxy = skip, fall back to ESPN
+  const y = new Date().getFullYear();
+  const m = new Date().getMonth() + 1;
+  const startYear = m >= 10 ? y : y - 1;
+  const season = `${startYear}-${String(startYear+1).slice(2)}`;
+  try {
+    const url = `https://stats.nba.com/stats/playergamelogs?PlayerID=${nbaId}&Season=${season}&SeasonType=Regular+Season&LeagueID=00`;
+    const data = await fetchWithFallback(url); // proxy handles CORS
+    const headers = data?.resultSets?.[0]?.headers || [];
+    const rows    = data?.resultSets?.[0]?.rowSet    || [];
+    if(!headers.length || !rows.length) return null;
+    return { headers, rows, playerName };
+  } catch(e) { return null; }
+}
+
+function parseNBAStatsGameLog(nbaStatsData, statLabel, opp) {
+  if(!nbaStatsData?.rows?.length) return { allVals:[], vsOppVals:[] };
+  const { headers, rows } = nbaStatsData;
+  const idx = col => headers.findIndex(h => h === col);
+  const colMap = { 'Points':'PTS','Rebounds':'REB','Assists':'AST','Threes Made':'FG3M','Steals':'STL','Blocks':'BLK','Turnovers':'TOV' };
+  const col = colMap[statLabel];
+  if(!col) return { allVals:[], vsOppVals:[] };
+  const colIdx = idx(col);
+  const oppIdx = idx('MATCHUP');
+  if(colIdx < 0) return { allVals:[], vsOppVals:[] };
+  const oppNorm = (opp||'').toUpperCase().slice(0,3);
+  const allVals = [], vsOppVals = [];
+  for(const row of rows) {
+    const val = parseFloat(row[colIdx]);
+    if(isNaN(val) || val < 0) continue;
+    allVals.push(val);
+    if(oppNorm && (row[oppIdx]||'').toUpperCase().includes(oppNorm)) vsOppVals.push(val);
+  }
+  return { allVals, vsOppVals };
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2868,8 +2951,11 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         } catch(e) {}
       }
 
-      // Use whichever source has more games
-      if(bdlVals.length > espnVals.length) {
+      // Use whichever source has most games
+      if(nbaStatsVals.length > 0) {
+        allVals = nbaStatsVals; vsOppVals = nbaStatsOppVals;
+        traceLog('projectionEngine', `${playerName} (${sport}): using NBA Stats API (${allVals.length} games)`, 'ok');
+      } else if(bdlVals.length > espnVals.length) {
         allVals = bdlVals; vsOppVals = espnOppVals;
         traceLog('projectionEngine', `${playerName} (${sport}): using BallDontLie (${allVals.length} games)`, 'ok');
       } else if(espnVals.length > 0) {
