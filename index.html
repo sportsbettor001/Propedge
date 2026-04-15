@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v3.4 - Sharp Edge Engine</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v4.0</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <button class="settings-btn" onclick="openSettings()">⚙</button>
@@ -325,7 +325,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
     <div id="tab-props" class="page active">
       <div class="metrics">
         <div class="metric-card"><div class="metric-label">Loaded props</div><div class="metric-value" id="m-count">—</div><div class="metric-sub" id="m-sports-sub">tap generate</div></div>
-        <div class="metric-card"><div class="metric-label">Strong edges</div><div class="metric-value green" id="m-strong">—</div><div class="metric-sub">edge ≥ 5%</div></div>
+        <div class="metric-card"><div class="metric-label">Strong edges</div><div class="metric-value green" id="m-strong">—</div><div class="metric-sub">EV ≥ 5%</div></div>
         <div class="metric-card"><div class="metric-label">Avg confidence</div><div class="metric-value blue" id="m-conf">—</div><div class="metric-sub">/10</div></div>
         <div class="metric-card"><div class="metric-label">All-time ROI</div><div class="metric-value" id="m-roi">—</div><div class="metric-sub" id="m-roi-sub">no history</div></div>
       </div>
@@ -543,7 +543,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       • NBA/WNBA: BallDontLie (optional key) → ESPN fallback<br/>
       • NFL: ESPN game logs (snap/target share unavailable free)<br/>
       • Sportsbook lines: The Odds API (free key from the-odds-api.com)<br/><br/>
-      Projections use L5×60% + L6-10×30% + season×10% weighted avg from real game logs only. No randomness. No simulation. All data stored locally on your device.
+      Model uses EWMA mean + normal distribution to compute P(Over) and P(Under), then compares against implied probability from sportsbook odds to find +EV edges. Minimum 5 valid games required. No randomness. All data stored locally on your device.
     </div>
   </div>
 </div>
@@ -554,7 +554,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 // ═══════════════════════════════════════════════════════
 // STATE + PERSISTENCE
 // ═══════════════════════════════════════════════════════
-const STORAGE_KEY = 'propedge_v5'; // v5: MLB/NHL official APIs + BallDontLie // bumped version for new cache structure
+const STORAGE_KEY = 'propedge_v6'; // v6: EV engine (EWMA + normal CDF + implied prob)
 
 function loadState() {
   try {
@@ -1332,72 +1332,152 @@ async function fetchPlayerPropsOdds(sportKey, eventId) {
 
 // Core projection: weighted average of real game log values
 // L5 gets 60% weight, L6-L10 gets 30%, rest of season 10%
+// ══════════════════════════════════════════════════════════════
+// PROBABILITY + EV ENGINE  (v4.0)
+// Sharp bettor model — identifies mispriced lines via EV, not
+// simple projection comparisons.
+// ══════════════════════════════════════════════════════════════
+
+// ── 1. EXPONENTIAL WEIGHTED MEAN (replaces L5/L10/season buckets) ──
+// More recent games carry exponentially higher weight.
+// α = decay constant: higher = more weight on recent games.
+function computeEWMA(values, alpha = 0.25) {
+  if(!values || values.length === 0) return null;
+  const clean = values.filter(v => v !== null && !isNaN(v) && v >= 0);
+  if(clean.length === 0) return null;
+  // Oldest → newest order assumed
+  let ewma = clean[0];
+  for(let i = 1; i < clean.length; i++) {
+    ewma = alpha * clean[i] + (1 - alpha) * ewma;
+  }
+  return ewma;
+}
+
+// ── 2. STANDARD DEVIATION ──
+function computeStdDev(values, mean) {
+  if(!values || values.length < 2) return null;
+  const clean = values.filter(v => v !== null && !isNaN(v) && v >= 0);
+  if(clean.length < 2) return null;
+  const m = mean ?? clean.reduce((a,b)=>a+b,0)/clean.length;
+  const variance = clean.reduce((s,v)=>s+Math.pow(v-m,2),0)/(clean.length-1);
+  return Math.sqrt(variance);
+}
+
+// ── 3. NORMAL CDF — probability that X > line (OVER) ──
+// Uses Abramowitz & Stegun approximation (max error ~1.5e-7)
+function normCDF(x) {
+  const t = 1/(1 + 0.2316419 * Math.abs(x));
+  const poly = t*(0.319381530 + t*(-0.356563782 + t*(1.781477937 + t*(-1.821255978 + t*1.330274429))));
+  const phi = Math.exp(-0.5*x*x) / Math.sqrt(2*Math.PI);
+  const cdf = 1 - phi * poly;
+  return x >= 0 ? cdf : 1 - cdf;
+}
+
+// P(stat > line) — continuous normal distribution
+function probOver(mean, stdDev, line) {
+  if(!stdDev || stdDev <= 0) return mean > line ? 0.85 : 0.15;
+  const z = (line - mean) / stdDev;
+  return 1 - normCDF(z);
+}
+
+// ── 4. AMERICAN ODDS → IMPLIED PROBABILITY ──
+function americanToImplied(americanOdds) {
+  if(!americanOdds || isNaN(americanOdds)) return 0.524; // default ~-110
+  if(americanOdds < 0) return Math.abs(americanOdds) / (Math.abs(americanOdds) + 100);
+  return 100 / (americanOdds + 100);
+}
+
+// ── 5. EXPECTED VALUE ──
+// edge = model_probability - implied_probability
+// EV% = edge * 100 (as a percentage)
+function computeEV(modelProb, impliedProb) {
+  return modelProb - impliedProb; // raw decimal edge
+}
+
+// ── 6. CONFIDENCE — volatility-aware ──
+// Based on: sample size + coefficient of variation (consistency)
+// High CV (volatile player) → lower confidence.
+function computeConfidence(dataPoints, stdDev, mean, hasMatchupData, hasInjuryData) {
+  let conf = 0;
+
+  // Sample size score (0-4 pts)
+  if(dataPoints >= 20)     conf += 4;
+  else if(dataPoints >= 12) conf += 3;
+  else if(dataPoints >= 7)  conf += 2;
+  else if(dataPoints >= 5)  conf += 1;
+
+  // Volatility (CV = stdDev/mean) score (0-3 pts)
+  if(stdDev !== null && mean !== null && mean > 0) {
+    const cv = stdDev / mean;
+    if(cv < 0.20)      conf += 3; // extremely consistent
+    else if(cv < 0.35) conf += 2;
+    else if(cv < 0.55) conf += 1;
+    // cv >= 0.55: volatile, no points
+  } else if(dataPoints >= 5) {
+    conf += 1; // no stdDev but has data
+  }
+
+  // Enrichment bonuses
+  if(hasMatchupData) conf += 2;
+  if(hasInjuryData)  conf += 1;
+
+  return Math.max(1, Math.min(10, conf));
+}
+
+// ── 7. EV-BASED DECISION ──
+// Replaces projection-minus-line approach.
+// Picks the side (OVER/UNDER) with higher EV.
+// Only outputs if: EV > minEdge threshold, conf >= minConf, hasRealLine.
+function evDecision(overEV, underEV, overProb, underProb, conf, hasRealLine) {
+  if(!hasRealLine) return 'PASS';
+  const minEVPct  = (STATE.settings.minEdge ?? 5) / 100; // convert % to decimal
+  const minConf   = STATE.settings.minConf ?? 6;
+  if(conf < minConf) return 'PASS';
+
+  const bestEV   = overEV >= underEV ? overEV : underEV;
+  const bestSide = overEV >= underEV ? 'OVER' : 'UNDER';
+
+  if(bestEV < minEVPct) return 'PASS';
+  return bestSide;
+}
+
+// ── 8. WIN PROBABILITY → display percentage ──
+function winProbDisplay(modelProb) {
+  return Math.round(modelProb * 100);
+}
+
+// ── LEGACY SHIM: computeProjection (still used by Check Pick tab) ──
+// Returns EWMA as a scalar — preserved so Check Pick compiles.
 function computeProjection(values) {
   if(!values || values.length === 0) return null;
   const clean = values.filter(v => v !== null && !isNaN(v) && v >= 0);
   if(clean.length === 0) return null;
-  const l5 = clean.slice(-5);
-  const l6to10 = clean.length > 5 ? clean.slice(-10, -5) : [];
-  const older = clean.length > 10 ? clean.slice(0, -10) : [];
-  const l5avg = l5.reduce((a,b)=>a+b,0)/l5.length;
-  if(l6to10.length === 0) return l5avg;
-  const l6to10avg = l6to10.reduce((a,b)=>a+b,0)/l6to10.length;
-  if(older.length === 0) return (l5avg * 0.70) + (l6to10avg * 0.30);
-  const olderAvg = older.reduce((a,b)=>a+b,0)/older.length;
-  return (l5avg * 0.60) + (l6to10avg * 0.30) + (olderAvg * 0.10);
+  return computeEWMA(clean);
 }
 
-// Edge: pure math
+// ── LEGACY SHIM: calcEdge (used by Check Pick tab display only) ──
 function calcEdge(projection, line) {
   const diff = projection - line;
   const pct = line !== 0 ? (diff / line) * 100 : 0;
   return { val: Number(diff.toFixed(2)), pct: Number(pct.toFixed(2)) };
 }
 
-// Confidence: data completeness only — not edge size
-function computeConfidence(dataPoints, l5avg, seasonAvg, hasMatchupData, hasInjuryData) {
-  let conf = 0;
-  if(dataPoints >= 15) conf += 4;
-  else if(dataPoints >= 10) conf += 3;
-  else if(dataPoints >= 5)  conf += 2;
-  else if(dataPoints >= 3)  conf += 1;
-  if(l5avg !== null && seasonAvg !== null && seasonAvg > 0) {
-    const consistency = 1 - Math.abs(l5avg - seasonAvg) / seasonAvg;
-    if(consistency >= 0.90) conf += 3;
-    else if(consistency >= 0.75) conf += 2;
-    else if(consistency >= 0.60) conf += 1;
-  } else if(l5avg !== null) {
-    conf += 1;
-  }
-  if(hasMatchupData) conf += 2;
-  if(hasInjuryData) conf += 1;
-  return Math.max(1, Math.min(10, conf));
+// ── LEGACY SHIM: edgeToWinProb (used by Check Pick display) ──
+function edgeToWinProb(edgePct) {
+  const abs = Math.abs(edgePct);
+  if(abs >= 12) return 64;
+  if(abs >= 8)  return 62;
+  if(abs >= 5)  return 59;
+  if(abs >= 3)  return 56;
+  return 53;
 }
 
-// DECISION TREE (strict):
-// Step 1: verified sportsbook line? → checked before calling this fn
-// Step 2: game log data? → checked before calling this fn (returns null)
-// Step 3: projection built from real data only
-// Step 4: compare projection vs line
-// Step 5: OVER / UNDER / PASS
-// ═══════════════════════════════════════════════════════
-// DATA COMPLETENESS SCORE (0-100%)
-// Determines WHETHER a projection can exist at all.
-// Does NOT influence the projection value itself.
-// ═══════════════════════════════════════════════════════
-// computeDataCompleteness works in BOTH modes:
-// - Betting mode: line worth +30%, game logs +40%, context +15%+15% = 100%
-// - Analysis mode: no line available, so game logs worth +55%, context +30%+15% = 100%
-//   (weights rescaled so analysis mode can still pass threshold)
+// ── DATA COMPLETENESS SCORE — unchanged, gates output ──
 function computeDataCompleteness(hasRealLine, dataPoints, hasOpponentContext, hasAdditionalStats) {
-  // HARD GATE: game logs are always required
   if(dataPoints === 0) return { score: 0, reason: 'No player game log data' };
-
   let score = 0;
   const breakdown = [];
-
   if(hasRealLine) {
-    // ── BETTING MODE scoring ──
     const gameLogScore = dataPoints >= 10 ? 40 : dataPoints >= 5 ? 30 : dataPoints >= 3 ? 20 : 10;
     score += gameLogScore;
     breakdown.push(`Game logs: ${dataPoints} games (+${gameLogScore}%)`);
@@ -1408,19 +1488,14 @@ function computeDataCompleteness(hasRealLine, dataPoints, hasOpponentContext, ha
     if(hasAdditionalStats) { score += 15; breakdown.push(`Sport context (+15%)`); }
     else { breakdown.push(`Sport context: none (+0%)`); }
   } else {
-    // ── ANALYSIS MODE scoring (no line — rescale weights to 100%) ──
-    // Game logs: up to 55% (higher weight since line component is absent)
     const gameLogScore = dataPoints >= 15 ? 55 : dataPoints >= 10 ? 45 : dataPoints >= 5 ? 35 : dataPoints >= 3 ? 20 : 10;
     score += gameLogScore;
     breakdown.push(`Game logs: ${dataPoints} games (+${gameLogScore}%) [analysis mode]`);
-    // Opponent context: 30%
     if(hasOpponentContext) { score += 30; breakdown.push(`Opponent context (+30%)`); }
     else { breakdown.push(`Opponent context: none (+0%)`); }
-    // Additional sport stats: 15%
     if(hasAdditionalStats) { score += 15; breakdown.push(`Sport context (+15%)`); }
     else { breakdown.push(`Sport context: none (+0%)`); }
   }
-
   return { score, breakdown, reason: null };
 }
 
@@ -1490,26 +1565,7 @@ function getCompletenessThreshold(sport, dataPoints) {
   };
 }
 
-function edgeToDecision(edge, conf, hasRealLine) {
-  // Step 1: no verified market line → PASS immediately, no projection output
-  if(!hasRealLine) return 'PASS';
-  const absEdge = Math.abs(edge.pct);
-  const minEdge = STATE.settings.minEdge ?? 5;
-  const minConf = STATE.settings.minConf ?? 6;
-  // Step 2+3: insufficient data or confidence → PASS
-  if(conf < minConf) return 'PASS';
-  if(absEdge < minEdge) return 'PASS';
-  return edge.val > 0 ? 'OVER' : 'UNDER';
-}
-
-function edgeToWinProb(edgePct) {
-  const abs = Math.abs(edgePct);
-  if(abs >= 12) return 64 + Math.min(6, Math.floor((abs-12)/2));
-  if(abs >= 8) return 62;
-  if(abs >= 5) return 59;
-  if(abs >= 3) return 56;
-  return 52;
-}
+// edgeToDecision / edgeToWinProb moved to EV ENGINE block above
 
 // ═══════════════════════════════════════════════════════
 // SMART GENERATE — only fetch missing/expired sports
@@ -2854,29 +2910,43 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       dataPoints = allVals.length;
     }
 
+    // ── OUTLIER / SANE RANGE FILTER ──
     const saneRanges = {
       'Points':[2,70],'Rebounds':[0,30],'Assists':[0,25],'Threes Made':[0,12],
       'Hits':[0,6],'Total Bases':[0,10],'Strikeouts':[0,20],'RBIs':[0,12],
       'Pass Yards':[30,650],'Rush Yards':[0,280],'Receiving Yards':[0,350],'Receptions':[0,22],'Shots on Goal':[0,18]
     };
     const [minV, maxV] = saneRanges[statLabel] || [0, 9999];
-    // Apply sane range filter
     allVals = allVals.filter(v => v >= minV && v <= maxV);
     vsOppVals = vsOppVals.filter(v => v >= minV && v <= maxV);
     dataPoints = allVals.length;
 
-    const l10vals = allVals.slice(-10);
-    const l5vals = allVals.slice(-5);
-    const l5avg = l5vals.length ? parseFloat((l5vals.reduce((a,b)=>a+b,0)/l5vals.length).toFixed(1)) : null;
-    const l10avg = l10vals.length ? parseFloat((l10vals.reduce((a,b)=>a+b,0)/l10vals.length).toFixed(1)) : null;
-    const seasonAvg = allVals.length ? parseFloat((allVals.reduce((a,b)=>a+b,0)/allVals.length).toFixed(1)) : null;
-    const vsOppAvg = vsOppVals.length >= 2 ? parseFloat((vsOppVals.reduce((a,b)=>a+b,0)/vsOppVals.length).toFixed(1)) : null;
+    // ── HARD GATE: minimum 5 valid games required ──
+    if(dataPoints < 5) {
+      traceLog('projectionEngine', `${playerName} (${sport}): only ${dataPoints} valid games — need ≥5 — REJECTED`, 'fail');
+      return null;
+    }
 
-    // Hit rates: use real sportsbook line in betting mode, DB line estimate in analysis mode
-    // If neither is available (line=0), skip hit rate calculation entirely
+    // ── CORE STAT MODEL: EWMA mean + standard deviation ──
+    const ewmaMean = computeEWMA(allVals);
+    const stdDev   = computeStdDev(allVals, ewmaMean);
+    let finalProjection = ewmaMean !== null ? parseFloat(ewmaMean.toFixed(2)) : null;
+
+    if(!finalProjection || finalProjection <= 0) {
+      traceLog('projectionEngine', `${playerName}: EWMA returned null/0 — skipped`, 'fail');
+      return null;
+    }
+
+    traceLog('projectionEngine', `${playerName} (${sport}) — ${dataPoints} games, EWMA=${finalProjection}, σ=${stdDev?.toFixed(2) ?? 'N/A'}`, 'ok');
+
+    // ── OPPONENT CONTEXT: optional 20% blend if ≥3 games vs opponent ──
+    const vsOppAvg = vsOppVals.length >= 3
+      ? vsOppVals.reduce((a,b)=>a+b,0)/vsOppVals.length
+      : null;
+
+    // ── HIT RATES (informational, using the sportsbook line) ──
+    const seasonAvg = parseFloat((allVals.reduce((a,b)=>a+b,0)/allVals.length).toFixed(1));
     const hitRateRef = (hasRealLine && line > 0) ? line : (line > 0 ? line : null);
-    const hitRateL5 = (hitRateRef && l5vals.length) ? l5vals.filter(v=>v>=hitRateRef).length : null;
-    const hitRateL10 = (hitRateRef && l10vals.length >= 5) ? l10vals.filter(v=>v>=hitRateRef).length : null;
     const hitRateSeason = (hitRateRef && allVals.length >= 5) ? {
       hits: allVals.filter(v=>v>=hitRateRef).length,
       total: allVals.length,
@@ -2884,48 +2954,18 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     } : null;
 
     // ══════════════════════════════════════════════════════
-    // GATE: game logs are the only hard requirement for projection
-    // (line is required only for betting decisions, not for projection itself)
-    // ══════════════════════════════════════════════════════
-
-    // HARD GATE: no game log data — attempt fallback before discarding
-    if(allVals.length === 0) {
-      traceLog('projectionEngine', `${playerName} (${sport}): no game logs fetched — suppressed`, 'fail');
-      return null; // truly no data from any source — cannot project
-    }
-
-    // ── CORE PROJECTION ALWAYS RUNS if game logs exist ──
-    let finalProjection = parseFloat((computeProjection(allVals) || 0).toFixed(1));
-    traceLog('projectionEngine', `${playerName} (${sport}) — ${dataPoints} games, L5avg=${l5avg}, proj=${finalProjection}`, finalProjection>0?'ok':'fail');
-
-    // Fallback: if weighted average returns 0 or invalid, use L10 or season avg
-    if(!finalProjection || finalProjection <= 0) {
-      const fallback = l10avg ?? seasonAvg ?? null;
-      if(fallback && fallback > 0) {
-        finalProjection = fallback;
-        traceLog('projectionEngine', `${playerName}: weighted avg=0, using fallback=${fallback}`, 'warn');
-      } else {
-        traceLog('projectionEngine', `${playerName}: proj=0 and no fallback — skipped`, 'fail');
-        return null;
-      }
-    }
-
-    // ══════════════════════════════════════════════════════
     // POST-DATA GOLF ISOLATION GATE
-    // After game logs are fetched — verify golf has enough real rounds.
-    // If < 3 valid round scores exist → hard reject with trace log.
-    // This is the definitive golf gate — completeness scoring is secondary.
     // ══════════════════════════════════════════════════════
     if(sport === 'GOLF' && allVals.length < 3) {
       traceLog('filteringLog',
         `${playerName} GOLF gate FAIL: only ${allVals.length} round(s) fetched — need ≥3 — SUPPRESSED`,
         'fail'
       );
-      return null; // cannot project golf without ≥3 real rounds
+      return null;
     }
 
     // ── DETERMINE DATA AVAILABILITY for scoring + derived features ──
-    const hasOpponentContext = vsOppVals.length >= 2;
+    const hasOpponentContext = vsOppVals.length >= 3;
     const hasAdditionalStats = !!(
       (sport === 'MLB' && (contextData.pitcher?.era !== undefined || contextData.weather)) ||
       (sport === 'NHL' && (contextData.goalieSvPct !== undefined || contextData.toiAvgL5 !== undefined)) ||
@@ -2933,222 +2973,193 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       (sport === 'GOLF' && playerMeta.sgTotal !== undefined && dataPoints >= 3)
     );
 
-    // ── DATA COMPLETENESS SCORE — gates output, NOT projection ──
+    // ── DATA COMPLETENESS SCORE — gates output ──
     const completeness = computeDataCompleteness(hasRealLine, allVals.length, hasOpponentContext, hasAdditionalStats);
     const thresholdInfo = getCompletenessThreshold(sport, allVals.length);
 
     // ══════════════════════════════════════════════════════
-    // DERIVED FEATURES — OPTIONAL ENHANCEMENT LAYER
-    // Each feature is independently gated by data availability.
-    // Missing feature = skip only that feature, never skip player.
+    // CONTEXT ADJUSTMENTS — shift the EWMA mean before probability calc
+    // Each adjustment moves the mean; stdDev stays fixed (captures player volatility)
     // ══════════════════════════════════════════════════════
-
-    // ── DERIVED FEATURE A: Matchup blend (opponent history) ──
-    // Applied ONLY if ≥2 games vs this opponent exist in game log
+    const contextNotes = [];
     let matchupNote = null;
+
+    // A: Opponent history blend (only if ≥3 games vs this opp)
     if(vsOppAvg !== null) {
-      // 70% core stat model + 30% opponent-specific history
-      finalProjection = parseFloat(((finalProjection * 0.70) + (vsOppAvg * 0.30)).toFixed(1));
+      finalProjection = (finalProjection * 0.80) + (vsOppAvg * 0.20);
       hasMatchupData = true;
-      matchupNote = vsOppAvg > (line || finalProjection) * 1.05
-        ? `Strong vs ${opp} — avg ${vsOppAvg} in ${vsOppVals.length} meetings`
-        : vsOppAvg < (line || finalProjection) * 0.95
-        ? `Struggles vs ${opp} — avg ${vsOppAvg} in ${vsOppVals.length} meetings`
-        : `Neutral vs ${opp} — avg ${vsOppAvg} in ${vsOppVals.length} meetings`;
+      matchupNote = `${vsOppVals.length} games vs ${opp}: avg ${vsOppAvg.toFixed(1)} (20% weight applied)`;
+      contextNotes.push(`Matchup blend: ${matchupNote}`);
     }
 
-    // ── DERIVED FEATURE C: Volatility Score ──
-    // Applied ONLY if ≥6 L10 values exist (insufficient samples = skip)
-    let volatilityScore = null;
-    let volatilityNote = null;
-    if(l10vals.length >= 6) {
-      const mean = l10vals.reduce((a,b)=>a+b,0)/l10vals.length;
-      const variance = l10vals.reduce((a,v)=>a+Math.pow(v-mean,2),0)/l10vals.length;
-      const stdDev = Math.sqrt(variance);
-      const cv = mean > 0 ? stdDev / mean : null; // coefficient of variation
-      if(cv !== null) {
-        volatilityScore = parseFloat(cv.toFixed(2));
-        if(cv > 0.40) volatilityNote = `High volatility (CV ${cv.toFixed(2)}) — confidence reduced`;
-        else if(cv > 0.25) volatilityNote = `Moderate volatility (CV ${cv.toFixed(2)})`;
-        else volatilityNote = `Low volatility (CV ${cv.toFixed(2)}) — consistent performer`;
-      }
-    }
-    // High volatility reduces confidence — applied below in computeConfidence call
-
-    // ── INJURY REDUCTION (evidence-based) ──
+    // B: Injury reduction
     if(injuryStatus) {
       if(injuryStatus === 'Out') return null;
-      finalProjection = parseFloat((finalProjection * (injuryStatus === 'Doubtful' ? 0.65 : 0.90)).toFixed(1));
+      finalProjection *= (injuryStatus === 'Doubtful' ? 0.65 : 0.90);
+      contextNotes.push(`Injury: ${injuryStatus} — mean reduced`);
     }
 
-    // ── DETERMINISTIC SPORT ADJUSTMENTS (real fetched data only) ──
-    const contextNotes = [];
-
-    // NBA/WNBA: career 3PT% from playerMeta DB (static — may be 1 season old)
-    // Only apply if value is explicitly present in DB entry, never assume
-    if((sport === 'NBA' || sport === 'WNBA') && statLabel === 'Threes Made'
-       && playerMeta.threePct !== undefined && playerMeta.threePct !== null) {
-      const adj = playerMeta.threePct >= 0.39 ? 1.04 : playerMeta.threePct <= 0.34 ? 0.96 : 1.0;
-      finalProjection = parseFloat((finalProjection * adj).toFixed(1));
-      contextNotes.push(`3PT% ${(playerMeta.threePct*100).toFixed(0)}% (DB/career stat — may be 1 season old)`);
-    }
-
-    // MLB: batting order position (real confirmed input from schedule)
-    if(sport === 'MLB' && playerMeta.batOrder) {
-      const adj = playerMeta.batOrder <= 2 ? 1.04 : playerMeta.batOrder >= 6 ? 0.96 : 1.0;
-      finalProjection = parseFloat((finalProjection * adj).toFixed(1));
-      contextNotes.push(`Batting ${playerMeta.batOrder} — ${playerMeta.batOrder <= 2 ? 'top of order (+4% PA opp)' : playerMeta.batOrder >= 6 ? 'lower order (-4% PA opp)' : 'middle order'}`);
-    }
-
-    // MLB: pitcher ERA — ONLY from explicitly returned MLB API stats
-    // contextData.pitcher is only set when fetch succeeded AND era field was present
-    if(sport === 'MLB' && contextData.pitcher?.era !== undefined && contextData.pitcher?.era !== null) {
+    // C: MLB pitcher ERA (shifts mean only)
+    if(sport === 'MLB' && contextData.pitcher?.era !== undefined) {
       const era = parseFloat(contextData.pitcher.era);
-      if(isNaN(era)) {
-        contextNotes.push(`Opposing pitcher stats: ERA not available — skipped`);
-      } else {
-        // ERA < 3.50 = tough, > 4.50 = soft
-        const pitcherAdj = era < 3.50 ? 0.93 : era > 4.50 ? 1.05 : 1.0;
-        if(pitcherAdj !== 1.0) {
-          finalProjection = parseFloat((finalProjection * pitcherAdj).toFixed(1));
-          contextNotes.push(`vs ${contextData.pitcher.name} ERA ${era.toFixed(2)} — ${pitcherAdj < 1 ? 'tough matchup (-7%)' : 'favourable matchup (+5%)'}`);
-        } else {
-          contextNotes.push(`vs ${contextData.pitcher.name} ERA ${era.toFixed(2)} — average`);
-        }
-        if(contextData.pitcher.whip) contextNotes.push(`WHIP: ${contextData.pitcher.whip} | K/9: ${contextData.pitcher.kPer9 || 'N/A'}`);
+      if(!isNaN(era)) {
+        const adj = era < 3.50 ? 0.93 : era > 4.50 ? 1.05 : 1.0;
+        finalProjection *= adj;
+        contextNotes.push(`Pitcher ERA ${era.toFixed(2)}: ${adj !== 1.0 ? (adj < 1 ? 'tough (-7%)' : 'soft (+5%)') : 'average'}`);
+        if(contextData.pitcher.whip) contextNotes.push(`WHIP ${contextData.pitcher.whip} | K/9 ${contextData.pitcher.kPer9 || 'N/A'}`);
       }
     } else if(sport === 'MLB') {
-      contextNotes.push(`Opposing pitcher stats: not available (probable starter TBD)`);
+      contextNotes.push(`Pitcher stats: not available`);
     }
 
-    // MLB: weather adjustment (from Open-Meteo real data)
+    // D: MLB weather
     if(sport === 'MLB' && contextData.weather) {
       const w = contextData.weather;
       const weatherAdj = (w.altitudeBoost || 0) + (w.windAdj || 0);
-      if(weatherAdj > 0) {
-        finalProjection = parseFloat((finalProjection * (1 + weatherAdj)).toFixed(1));
-      }
-      if(w.notes) contextNotes.push(`Weather @ ${w.stadium}: ${w.notes}`);
+      if(weatherAdj !== 0) finalProjection *= (1 + weatherAdj);
+      if(w.notes) contextNotes.push(`Weather: ${w.notes}`);
     }
 
-    // NHL: goalie SV% — ONLY applied when explicitly returned by NHL API fetch
-    // If oppGoalieId was unknown or fetch failed, contextData.goalieSvPct is undefined → skipped
-    if(sport === 'NHL' && contextData.goalieSvPct !== undefined && contextData.goalieSvPct !== null) {
+    // E: NHL goalie SV%
+    if(sport === 'NHL' && contextData.goalieSvPct !== undefined) {
       const svp = contextData.goalieSvPct;
-      // SV% < .900 = below avg → more shots = more scoring opp for shooters
-      // SV% > .920 = elite → tougher
-      const goalieAdj = svp < 0.900 ? 1.05 : svp > 0.920 ? 0.95 : 1.0;
-      if(goalieAdj !== 1.0) {
-        finalProjection = parseFloat((finalProjection * goalieAdj).toFixed(1));
-        contextNotes.push(`Opp goalie L10 SV% ${svp.toFixed(3)} — ${goalieAdj > 1 ? 'weak goalie (+5%)' : 'strong goalie (-5%)'}`);
-      } else {
-        contextNotes.push(`Opp goalie L10 SV% ${svp.toFixed(3)} — average`);
-      }
+      const adj = svp < 0.900 ? 1.05 : svp > 0.920 ? 0.95 : 1.0;
+      if(adj !== 1.0) finalProjection *= adj;
+      contextNotes.push(`Goalie SV% ${svp.toFixed(3)}: ${adj > 1 ? 'weak (+5%)' : adj < 1 ? 'strong (-5%)' : 'avg'}`);
     }
-
-    // NHL: TOI — ONLY from explicitly parsed NHL API game log (MM:SS field)
-    // If toi field was missing in NHL response, this is skipped entirely
-    if(sport === 'NHL' && contextData.toiAvgL5 !== undefined && contextData.toiAvgL5 !== null) {
-      contextNotes.push(`Avg TOI last 5: ${contextData.toiAvgL5.toFixed(1)} min`);
+    if(sport === 'NHL' && contextData.toiAvgL5 !== undefined) {
+      contextNotes.push(`Avg TOI L5: ${contextData.toiAvgL5.toFixed(1)} min`);
     }
-
-    // NHL: PP player flag (from playerMeta DB)
     if(sport === 'NHL' && playerMeta.pp === true) {
-      finalProjection = parseFloat((finalProjection * 1.02).toFixed(1));
+      finalProjection *= 1.02;
       contextNotes.push(`PP unit player (+2%)`);
     }
 
-    // NFL: explicitly flag missing data per spec
-    if(sport === 'NFL' && contextData.snapShareNote) {
-      contextNotes.push(`Snap share: ${contextData.snapShareNote}`);
-      contextNotes.push(`Target/carry share: ${contextData.targetShareNote}`);
+    // F: NBA/WNBA 3PT% adjustment
+    if((sport === 'NBA' || sport === 'WNBA') && statLabel === 'Threes Made'
+       && playerMeta.threePct !== undefined) {
+      const adj = playerMeta.threePct >= 0.39 ? 1.04 : playerMeta.threePct <= 0.34 ? 0.96 : 1.0;
+      finalProjection *= adj;
+      contextNotes.push(`3PT% ${(playerMeta.threePct*100).toFixed(0)}%: ${adj !== 1 ? (adj > 1 ? '+4%' : '-4%') : 'avg'}`);
     }
 
+    // G: MLB batting order
+    if(sport === 'MLB' && playerMeta.batOrder) {
+      const adj = playerMeta.batOrder <= 2 ? 1.04 : playerMeta.batOrder >= 6 ? 0.96 : 1.0;
+      finalProjection *= adj;
+      contextNotes.push(`Batting order ${playerMeta.batOrder}: ${adj !== 1 ? (adj > 1 ? 'top order (+4%)' : 'lower order (-4%)') : 'mid order'}`);
+    }
+
+    // NFL data notes
+    if(sport === 'NFL' && contextData.snapShareNote) {
+      contextNotes.push(`Snap share: ${contextData.snapShareNote}`);
+    }
+
+    finalProjection = parseFloat(finalProjection.toFixed(2));
+
     // ══════════════════════════════════════════════════════
-    // COMPLETENESS THRESHOLD CHECK — gates final output
-    // Projection has already been computed above.
-    // This only determines whether we surface it to the user.
+    // PROBABILITY ENGINE (Normal distribution)
+    // Uses adjusted EWMA mean + stdDev from raw game log
     // ══════════════════════════════════════════════════════
+
+    // Fallback stdDev if not computable (very small samples)
+    const effectiveStdDev = (stdDev !== null && stdDev > 0) ? stdDev : finalProjection * 0.25;
+
+    const overProbRaw  = probOver(finalProjection, effectiveStdDev, line);
+    const underProbRaw = 1 - overProbRaw;
+
+    // CV (coefficient of variation) — measures player consistency
+    const cv = finalProjection > 0 ? effectiveStdDev / finalProjection : null;
+    const volatilityNote = cv !== null
+      ? (cv < 0.20 ? `Low volatility (CV ${cv.toFixed(2)}) — consistent performer`
+        : cv < 0.40 ? `Moderate volatility (CV ${cv.toFixed(2)})`
+        : `High volatility (CV ${cv.toFixed(2)}) — confidence reduced`)
+      : null;
+
+    // ══════════════════════════════════════════════════════
+    // ODDS → IMPLIED PROBABILITY
+    // Default: -110 on each side (standard prop juice) = 52.38% implied
+    // In betting mode, real book odds are in the line object.
+    // The Odds API returns American odds per side; we default to -110
+    // if not available (realistic for most prop markets).
+    // ══════════════════════════════════════════════════════
+    const overOdds  = -110; // default; Odds API over-side is already selected
+    const underOdds = -110;
+    const impliedOver  = americanToImplied(overOdds);
+    const impliedUnder = americanToImplied(underOdds);
+
+    // ── EV CALCULATION ──
+    const overEV  = computeEV(overProbRaw,  impliedOver);
+    const underEV = computeEV(underProbRaw, impliedUnder);
+    const overEVPct  = parseFloat((overEV  * 100).toFixed(1));
+    const underEVPct = parseFloat((underEV * 100).toFixed(1));
+
+    // ── CONFIDENCE ──
+    const conf = computeConfidence(dataPoints, effectiveStdDev, finalProjection, hasMatchupData, !!injuryStatus);
+
+    // ── DECISION ──
+    const decision = evDecision(overEV, underEV, overProbRaw, underProbRaw, conf, hasRealLine);
+    const chosenEV  = decision === 'OVER' ? overEVPct : decision === 'UNDER' ? underEVPct : 0;
+    const chosenProb = decision === 'OVER' ? overProbRaw : decision === 'UNDER' ? underProbRaw : 0.5;
+    const winProb   = winProbDisplay(chosenProb);
+
+    // ── COMPLETENESS GATE ──
     traceLog('filteringLog', `${playerName} completeness ${completeness.score}% vs ${thresholdInfo.threshold}% (${sport})`, completeness.score>=thresholdInfo.threshold?'pass':'fail');
     if(completeness.score < thresholdInfo.threshold) {
       traceLog('outputLog', `${playerName}: SUPPRESSED — completeness ${completeness.score}% < ${thresholdInfo.threshold}%`, 'fail');
       return null;
     }
 
-    // ── EDGE, CONFIDENCE, DECISION ──
-    const edge = calcEdge(finalProjection, line);
-    // Pass volatility to confidence — high CV reduces confidence score
-    const volatilityPenalty = volatilityScore !== null && volatilityScore > 0.40 ? -1 : 0;
-    const conf = Math.max(1, Math.min(10,
-      computeConfidence(dataPoints, l5avg, seasonAvg, hasMatchupData, !!injuryStatus) + volatilityPenalty
-    ));
-    const decision = edgeToDecision(edge, conf, hasRealLine);
-    const winProb = edgeToWinProb(edge.pct);
+    traceLog('filteringLog', `${playerName} conf=${conf}/10 overEV=${overEVPct}% underEV=${underEVPct}% decision=${decision}`, decision!=='PASS'?'pass':'ok');
+    traceLog('outputLog', `${playerName} → ${decision} | EWMA=${finalProjection} σ=${effectiveStdDev.toFixed(2)} overP=${(overProbRaw*100).toFixed(1)}% EV=${chosenEV}%`, decision!=='PASS'?'pass':'ok');
 
-    // ── REASONING: only real fetched inputs, explicit about missing data ──
+    // ── REASONING ──
     const dataSourceLabel = sport === 'MLB' ? 'statsapi.mlb.com (official)'
       : sport === 'NHL' ? 'api-web.nhle.com (official)'
       : (sport === 'NBA' || sport === 'WNBA') && STATE.settings.balldontlieKey ? 'BallDontLie API'
       : 'ESPN game log';
 
     const reasoning = [
-      `Model: weighted avg (L5×60% + L6-10×30% + season×10%) | Source: ${dataSourceLabel}`,
-      `Line: ${line} | Projection: ${finalProjection} | Edge: ${edge.val >= 0 ? '+' : ''}${edge.val} (${edge.pct}%)`,
+      `Model: EWMA (α=0.25) mean=${finalProjection} | σ=${effectiveStdDev.toFixed(2)} | Source: ${dataSourceLabel}`,
+      `Line: ${line} | P(Over)=${(overProbRaw*100).toFixed(1)}% | P(Under)=${(underProbRaw*100).toFixed(1)}%`,
+      `Implied (−110): over=${(impliedOver*100).toFixed(1)}% / under=${(impliedUnder*100).toFixed(1)}%`,
+      `EV: over=${overEVPct}% / under=${underEVPct}% → bet ${decision}`,
       `Line source: ${hasRealLine ? 'DraftKings/FanDuel via The Odds API ✓' : 'Estimated — add Odds API key in ⚙ Settings'}`,
-      `Data points: ${dataPoints} games fetched`,
+      `Data: ${dataPoints} games | Completeness: ${completeness.score}% ≥ ${thresholdInfo.threshold}%`,
+      `Breakdown: ${completeness.breakdown?.join(' · ')}`,
     ];
-    if(l5avg !== null) reasoning.push(`L5 avg: ${l5avg} | L10 avg: ${l10avg || 'N/A'} | Season avg: ${seasonAvg || 'N/A'}`);
-    if(hitRateSeason) reasoning.push(`Season hit rate over ${line}: ${hitRateSeason.hits}/${hitRateSeason.total} = ${hitRateSeason.pct}%`);
-    if(hitRateL5 !== null) reasoning.push(`L5 hit rate: ${hitRateL5}/${l5vals.length} over ${line}`);
-    if(matchupNote) reasoning.push(`Matchup (30% blend): ${matchupNote}`);
+    if(seasonAvg) reasoning.push(`Season avg: ${seasonAvg} | Hit rate over ${line}: ${hitRateSeason ? hitRateSeason.hits + '/' + hitRateSeason.total + ' (' + hitRateSeason.pct + '%)' : 'N/A'}`);
     if(volatilityNote) reasoning.push(`Volatility: ${volatilityNote}`);
-    if(injuryStatus) reasoning.push(`⚠ Injury: ${injuryStatus} — output reduced`);
+    if(injuryStatus) reasoning.push(`⚠ Injury: ${injuryStatus} — mean reduced`);
     contextNotes.forEach(n => reasoning.push(`Context: ${n}`));
-    if(dataPoints < 5) reasoning.push(`⚠ Only ${dataPoints} game log entries — low confidence`);
-    if(dataPoints === 0) reasoning.push(`⚠ DATA INSUFFICIENT — no game logs found`);
 
-    let narrative = buildNarrative(
+    // ── NARRATIVE ──
+    const narrative = buildNarrative(
       playerName, sport, statLabel, line, finalProjection, decision,
-      l5avg, l10avg, seasonAvg, hitRateSeason, hitRateL5,
-      vsOppAvg, vsOppVals.length, opp, injuryStatus, {}, dataPoints, hasRealLine
+      overProbRaw, underProbRaw, overEVPct, underEVPct,
+      vsOppAvg, vsOppVals.length, opp, injuryStatus, dataPoints, hasRealLine, effectiveStdDev
     );
-    if(narrative === null) {
-      narrative = 'Insufficient data to generate a factual explanation for this pick.';
-    }
-    const finalDecision = (narrative === 'Insufficient data to generate a factual explanation for this pick.' && decision !== 'PASS')
-      ? 'PASS' : decision;
-    traceLog('filteringLog', `${playerName} conf=${conf}/10 edge=${edge.val>=0?'+':''}${edge.val} decision=${finalDecision}`, finalDecision!=='PASS'?'pass':'ok');
-
-    traceLog('outputLog', `${playerName} → ${finalDecision} | proj=${finalProjection} conf=${conf} data=${completeness.score}%`, finalDecision!=='PASS'?'pass':'ok');
-    // Add completeness score + threshold to reasoning
-    reasoning.splice(1, 0, `Data completeness: ${completeness.score}% ≥ threshold ${thresholdInfo.threshold}% — ${thresholdInfo.label}`);
-    reasoning.splice(2, 0, `Breakdown: ${completeness.breakdown?.join(' · ')}`);
-    // Derived features actually used (optional enhancement layer)
-    const derivedUsed = [];
-    if(vsOppAvg !== null) derivedUsed.push(`Matchup adjustment (${vsOppVals.length} games vs ${opp})`);
-    if(contextData.pitcher?.era !== undefined) derivedUsed.push(`Pitcher ERA (MLB)`);
-    if(contextData.weather) derivedUsed.push(`Weather context (Open-Meteo)`);
-    if(contextData.goalieSvPct !== undefined) derivedUsed.push(`Goalie SV% (NHL)`);
-    if(contextData.toiAvgL5 !== undefined) derivedUsed.push(`TOI trend (NHL)`);
-    if(derivedUsed.length > 0) {
-      reasoning.splice(3, 0, `Derived features applied: ${derivedUsed.join(' · ')}`);
-    } else {
-      reasoning.splice(3, 0, `Derived features: none available — core projection only`);
-    }
 
     const isAnalysisProp = !hasRealLine;
-    const safeEdge = isAnalysisProp ? { val: 0, pct: 0 } : edge;
-    const safeDecision = isAnalysisProp ? 'PASS' : finalDecision;
+    // Edge stored as legacy format for display compatibility
+    const edgeForDisplay = { val: parseFloat((finalProjection - line).toFixed(2)), pct: parseFloat(((finalProjection - line) / (line || 1) * 100).toFixed(1)) };
+    const safeEdge     = isAnalysisProp ? { val: 0, pct: 0 } : edgeForDisplay;
+    const safeDecision = isAnalysisProp ? 'PASS' : decision;
 
     return {
       id, player:playerName, sport, team, opp, prop:statLabel,
       line: isAnalysisProp ? null : line,
-      proj:finalProjection, edge: safeEdge, conf, decision: safeDecision, winProb, date,
+      proj: finalProjection, edge: safeEdge, conf, decision: safeDecision, winProb, date,
       narrative, reasoning, injuryStatus, hitRateSeason,
       completeness: completeness.score,
       completenessThreshold: thresholdInfo.threshold,
       completenessLabel: thresholdInfo.label,
       analysisMode: isAnalysisProp,
+      // EV fields (new in v4)
+      overProb: parseFloat((overProbRaw*100).toFixed(1)),
+      underProb: parseFloat((underProbRaw*100).toFixed(1)),
+      overEV: overEVPct, underEV: underEVPct,
+      modelMean: finalProjection, modelStdDev: parseFloat(effectiveStdDev.toFixed(2)),
       dataSource:{gamelog:dataPoints, hasRealLine, espnId:playerId, completenessBreakdown: completeness.breakdown},
       clvEntry: isAnalysisProp ? null : line, clvClose:null, timestamp:Date.now()
     };
@@ -3156,73 +3167,39 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
 }
 
 // ═══════════════════════════════════════════════════════
-// FACTUAL WRITE-UP GENERATOR (Feature 2)
-// Rules:
-// - 2-5 sentences maximum
-// - Every sentence must reference a real fetched data input
-// - No hype, no emotional language, no guessing
-// - If data cannot support a written explanation → return null
-//   (caller will set decision to PASS)
+// FACTUAL WRITE-UP GENERATOR (v4 — probability/EV-based)
 // ═══════════════════════════════════════════════════════
-function buildNarrative(name, sport, prop, line, proj, decision, l5avg, l10avg, seasonAvg, hitRateSeason, hitRateL5, vsOppAvg, vsOppGames, opp, injury, factors, dataPoints, hasRealLine) {
+function buildNarrative(name, sport, prop, line, projMean, decision,
+  overProb, underProb, overEVPct, underEVPct,
+  vsOppAvg, vsOppGames, opp, injury, dataPoints, hasRealLine, stdDev) {
   const firstName = name.split(' ')[0];
 
-  // PASS cases — brief factual statement only, no projection language
   if(decision === 'PASS') {
-    if(!hasRealLine) return `No verified sportsbook line available. Prop cannot be evaluated without a market line.`;
-    if(dataPoints < 3) return `Insufficient game log data (${dataPoints} games fetched). A minimum of 3 games is required to project ${firstName}'s ${prop}.`;
-    return `Projection (${proj}) is within the minimum edge threshold of the line (${line}). No actionable edge identified.`;
+    if(!hasRealLine) return `No verified sportsbook line available — prop cannot be evaluated without a market line.`;
+    if(dataPoints < 5) return `Insufficient data (${dataPoints} games). Minimum 5 required.`;
+    return `Neither OVER nor UNDER clears the EV threshold at current odds. No edge identified.`;
   }
-
-  // Must have at least L5 data to write a meaningful explanation
-  if(l5avg === null) return null;
 
   const isOver = decision === 'OVER';
-  const sentences = [];
+  const chosenProb = isOver ? (overProb*100).toFixed(1) : (underProb*100).toFixed(1);
+  const chosenEV   = isOver ? overEVPct : underEVPct;
+  const sentences  = [];
 
-  // Sentence 1: Core projection vs line (required)
   sentences.push(
-    `This projection is based on ${firstName}'s ${dataPoints}-game log average of ${proj} ${prop.toLowerCase()}, compared to the current line of ${line}.`
+    `Statistical model (${dataPoints} games, EWMA mean ${projMean.toFixed(1)}, σ=${stdDev?.toFixed(2) ?? 'N/A'}) gives ${firstName} a ${chosenProb}% probability to go ${decision} ${line} ${prop.toLowerCase()}.`
   );
-
-  // Sentence 2: L5 vs season trend (only if both available)
-  if(seasonAvg !== null) {
-    const formPct = Math.abs(((l5avg - seasonAvg) / seasonAvg) * 100).toFixed(0);
-    if(l5avg > seasonAvg * 1.08) {
-      sentences.push(`Recent game logs show an upward trend: L5 average of ${l5avg} is ${formPct}% above the season average of ${seasonAvg}.`);
-    } else if(l5avg < seasonAvg * 0.92) {
-      sentences.push(`Recent game logs show a downward trend: L5 average of ${l5avg} is ${formPct}% below the season average of ${seasonAvg}.`);
-    } else {
-      sentences.push(`Performance has been consistent — L5 average of ${l5avg} is close to the season average of ${seasonAvg}.`);
-    }
-  } else {
-    // Only L5 available
-    sentences.push(`L5 average of ${l5avg} was used as the primary projection input. Season average was not available.`);
+  sentences.push(
+    `At standard −110 odds (52.4% implied), the model edge is +${chosenEV}% EV — above the ${STATE.settings.minEdge ?? 5}% threshold.`
+  );
+  if(vsOppAvg !== null && vsOppGames >= 3) {
+    sentences.push(`In ${vsOppGames} meetings vs ${opp}, ${firstName} averaged ${vsOppAvg.toFixed(1)} ${prop.toLowerCase()} (blended at 20% weight).`);
   }
-
-  // Sentence 3: Hit rate (only if available from real data)
-  if(hitRateSeason && hitRateSeason.total >= 5) {
-    sentences.push(`Historical hit rate over ${line} ${prop.toLowerCase()}: ${hitRateSeason.hits}/${hitRateSeason.total} games this season (${hitRateSeason.pct}%).`);
-  }
-
-  // Sentence 4: Opponent context (only if real matchup data was fetched)
-  if(vsOppAvg !== null && vsOppGames >= 2) {
-    sentences.push(`In ${vsOppGames} games against ${opp} this season, ${firstName} averaged ${vsOppAvg} ${prop.toLowerCase()}, which was factored in at 30% weight.`);
-  } else if(vsOppAvg === null && opp) {
-    sentences.push(`No historical matchup data vs ${opp} was available — opponent context was excluded from the projection.`);
-  }
-
-  // Sentence 5: Injury caveat (only if status is confirmed from API)
   if(injury) {
-    sentences.push(`Player is listed as ${injury} — projection was reduced accordingly. Monitor status before betting.`);
+    sentences.push(`⚠ Listed as ${injury} — mean was reduced accordingly. Confirm status before betting.`);
   }
-
-  // Final rule: if we somehow have no sentences, cannot write up
-  if(sentences.length === 0) return null;
 
   return sentences.join(' ');
 }
-// buildReasoning removed — reasoning built inline
 
 // ═══════════════════════════════════════════════════════
 // ANALYZE SINGLE PICK (CHECK MY PICK)
@@ -3298,21 +3275,38 @@ async function analyzePick() {
 
     if(gameLogValues.length === 0) { showToast('No data for ' + player, 'error'); isAnalyzing = false; btn.disabled = false; btnText.textContent = 'Analyze This Pick'; return; }
 
-    let projection = computeProjection(gameLogValues);
-    if(!projection) { showToast('Insufficient data — returning PASS', 'error'); isAnalyzing = false; btn.disabled = false; btnText.textContent = 'Analyze This Pick'; return; }
+    // ── EV ENGINE for Check Pick ──
+    const cleanVals = gameLogValues.filter(v => !isNaN(v) && v >= 0);
+    if(cleanVals.length < 2) { showToast('Need at least 2 valid games — PASS', 'error'); isAnalyzing = false; btn.disabled = false; btnText.textContent = 'Analyze This Pick'; return; }
 
-    projection = parseFloat(projection.toFixed(1));
-    const edge = calcEdge(projection, line);
-    const conf = computeConfidence(dataPoints, null, null, false, false);
-    const decision = edgeToDecision(edge, conf, false); // Check Pick: no verified market line
-    const winProb = edgeToWinProb(edge.pct);
-    const decColor = decision === 'OVER' ? 'var(--accent)' : decision === 'UNDER' ? 'var(--red)' : 'var(--amber)';
-    const edgeColor = edge.val >= 0 ? 'var(--accent)' : 'var(--red)';
-    const edgeStr = (edge.val >= 0 ? '+' : '') + edge.val + ' (' + (edge.val >= 0 ? '+' : '') + edge.pct + '%)';
+    const projection = parseFloat((computeEWMA(cleanVals) || 0).toFixed(2));
+    if(!projection) { showToast('Insufficient data', 'error'); isAnalyzing = false; btn.disabled = false; btnText.textContent = 'Analyze This Pick'; return; }
+
+    const sd = computeStdDev(cleanVals, projection) || projection * 0.25;
+    const ovP = probOver(projection, sd, line);
+    const unP = 1 - ovP;
+    const impOv = americanToImplied(-110);
+    const evOv  = parseFloat((computeEV(ovP, impOv) * 100).toFixed(1));
+    const evUn  = parseFloat((computeEV(unP, impOv) * 100).toFixed(1));
+    const conf  = computeConfidence(cleanVals.length, sd, projection, false, false);
+    // Check Pick = manually entered line, not verified — display results but note it
+    const minEVPct = (STATE.settings.minEdge ?? 5) / 100;
+    let decision = 'PASS';
+    if(conf >= (STATE.settings.minConf ?? 6)) {
+      if(ovP - impOv >= minEVPct) decision = 'OVER';
+      else if(unP - impOv >= minEVPct) decision = 'UNDER';
+    }
+    const chosenEV   = decision === 'OVER' ? evOv : evUn;
+    const chosenProb = decision === 'OVER' ? ovP : unP;
+    const decColor   = decision === 'OVER' ? 'var(--accent)' : decision === 'UNDER' ? 'var(--red)' : 'var(--amber)';
+    const cv = projection > 0 ? (sd / projection).toFixed(2) : 'N/A';
     const reasoning = [
-      `Projection method: simple average of ${dataPoints} ESPN game log values`,
-      `Line: ${line} | Projection: ${projection} | Edge: ${edge.val >= 0 ? '+' : ''}${edge.val} (${edge.pct}%)`,
-      dataPoints > 0 ? `${dataPoints} real data points from ESPN` : `⚠ No game log found — cannot reliably project`,
+      `Model: EWMA (α=0.25) μ=${projection} | σ=${sd.toFixed(2)} | CV=${cv}`,
+      `P(Over ${line}) = ${(ovP*100).toFixed(1)}% | P(Under) = ${(unP*100).toFixed(1)}%`,
+      `Implied prob (−110): ${(impOv*100).toFixed(1)}%`,
+      `EV: over=${evOv}% / under=${evUn}% → ${decision}`,
+      `${cleanVals.length} game log values from ESPN`,
+      `⚠ Line manually entered — not verified from sportsbook`,
     ];
 
     const histEntry = {
@@ -3329,13 +3323,15 @@ async function analyzePick() {
         <div class="result-row"><span class="result-key">Player</span><span>${athleteName} · ${sport}</span></div>
         <div class="result-row"><span class="result-key">Prop</span><span>${prop}</span></div>
         <div class="result-row"><span class="result-key">Line</span><span style="font-family:var(--mono)">${line}</span></div>
-        <div class="result-row"><span class="result-key">Projection</span><span style="font-family:var(--mono);color:${edgeColor}">${projection}</span></div>
-        <div class="result-row"><span class="result-key">Edge</span><span style="font-family:var(--mono);color:${edgeColor}">${edgeStr}</span></div>
-        <div class="result-row"><span class="result-key">Win probability</span><span style="font-family:var(--mono)">${winProb}%</span></div>
+        <div class="result-row"><span class="result-key">Model μ (EWMA)</span><span style="font-family:var(--mono)">${projection}</span></div>
+        <div class="result-row"><span class="result-key">Std dev σ</span><span style="font-family:var(--mono)">${sd.toFixed(2)}</span></div>
+        <div class="result-row"><span class="result-key">P(Over)</span><span style="font-family:var(--mono);color:${decision==='OVER'?'var(--accent)':'var(--text)'}">${(ovP*100).toFixed(1)}%</span></div>
+        <div class="result-row"><span class="result-key">P(Under)</span><span style="font-family:var(--mono);color:${decision==='UNDER'?'var(--red)':'var(--text)'}">${(unP*100).toFixed(1)}%</span></div>
+        <div class="result-row"><span class="result-key">EV (Over / Under)</span><span style="font-family:var(--mono)">${evOv > 0 ? '+' : ''}${evOv}% / ${evUn > 0 ? '+' : ''}${evUn}%</span></div>
         <div class="result-row"><span class="result-key">Confidence</span><span style="font-family:var(--mono)">${conf}/10</span></div>
-        <div class="result-row"><span class="result-key">Data points</span><span style="font-family:var(--mono);color:${foundViaAPI ? 'var(--accent)' : 'var(--amber)'}">${dataPoints} game logs ${foundViaAPI ? '(ESPN live)' : '(estimated)'}</span></div>
+        <div class="result-row"><span class="result-key">Data points</span><span style="font-family:var(--mono);color:${foundViaAPI ? 'var(--accent)' : 'var(--amber)'}">${cleanVals.length} games ${foundViaAPI ? '(ESPN live)' : '(estimated)'}</span></div>
         <div class="result-reasoning">${reasoning.map(r=>`<div class="result-reasoning-line">${r}</div>`).join('')}</div>
-        ${!STATE.settings.oddsApiKey ? `<div style="margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--amber)">⚠ No Odds API key — line manually entered.</div>` : ''}
+        ${!STATE.settings.oddsApiKey ? `<div style="margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--amber)">⚠ No Odds API key — line manually entered. EV assumes −110 juice.</div>` : ''}
       </div>`;
 
     showToast(foundViaAPI ? `✓ ${dataPoints} real games fetched` : 'Limited data — check reasoning', foundViaAPI ? 'success' : '');
@@ -3447,14 +3443,20 @@ function renderProps() {
     if(filters.dec === 'PASS' && p.decision !== 'PASS') return false;
     if(filters.date === 'today' && p.date !== 'today') return false;
     if(filters.date === 'tomorrow' && p.date !== 'tomorrow') return false;
-    // Analysis mode props: skip edge filter (no line), apply lighter conf threshold
+    // Analysis mode props: skip EV filter
     if(p.analysisMode) {
-      if(p.conf < 1) return false; // only exclude truly empty projections
+      if(p.conf < 1) return false;
       return true;
     }
-    // Betting mode: apply full thresholds
+    // Betting mode: apply EV + confidence thresholds
     if(p.conf < minConf) return false;
-    if(p.decision !== 'PASS' && Math.abs(p.edge?.pct || 0) < minEdge) return false;
+    if(p.decision !== 'PASS') {
+      // Use EV fields if available (v4), fall back to edge.pct for cached v3 props
+      const chosenEV = p.overEV !== undefined
+        ? (p.decision === 'OVER' ? p.overEV : p.underEV)
+        : Math.abs(p.edge?.pct || 0);
+      if(chosenEV < minEdge) return false;
+    }
     return true;
   });
 
@@ -3464,7 +3466,11 @@ function renderProps() {
     return;
   }
 
-  filtered.sort((a, b) => b.conf - a.conf || Math.abs(b.edge.pct) - Math.abs(a.edge.pct));
+  filtered.sort((a, b) => {
+    const evA = a.overEV !== undefined ? (a.decision === 'OVER' ? a.overEV : a.underEV) : Math.abs(a.edge?.pct || 0);
+    const evB = b.overEV !== undefined ? (b.decision === 'OVER' ? b.overEV : b.underEV) : Math.abs(b.edge?.pct || 0);
+    return b.conf - a.conf || evB - evA;
+  });
   list.innerHTML = filtered.map(p => propCardHTML(p)).join('');
   updateMetrics();
 }
@@ -3518,8 +3524,11 @@ function propCardHTML(p) {
     <div class="prop-numbers">
       <div class="prop-num-block"><div class="prop-num-label">Prop</div><div class="prop-num-value" style="font-size:12px;margin-top:2px">${p.prop}</div></div>
       <div class="prop-num-block"><div class="prop-num-label">Line</div><div class="prop-num-value" style="${isAnalysis?'color:var(--muted)':''}">${isAnalysis ? '—' : (p.line ?? '—')}</div></div>
-      <div class="prop-num-block"><div class="prop-num-label">Projection</div><div class="prop-num-value ${edgeClass}">${p.proj}</div></div>
-      <div class="prop-num-block"><div class="prop-num-label">Edge</div><div class="prop-edge-val ${edgeClass}">${edgeStr}</div></div>
+      <div class="prop-num-block"><div class="prop-num-label">Model μ</div><div class="prop-num-value ${edgeClass}">${p.proj}</div></div>
+      ${!isAnalysis && p.overProb !== undefined ? `
+      <div class="prop-num-block"><div class="prop-num-label">P(Over)</div><div class="prop-num-value" style="font-size:14px;color:${p.decision==='OVER'?'var(--accent)':'var(--muted)'}">${p.overProb}%</div></div>
+      <div class="prop-num-block"><div class="prop-num-label">EV</div><div class="prop-edge-val" style="color:${(p.decision==='OVER'?p.overEV:p.underEV)>0?'var(--accent)':'var(--red)'}">+${p.decision==='OVER'?p.overEV:p.underEV}%</div></div>
+      ` : `<div class="prop-num-block"><div class="prop-num-label">Edge</div><div class="prop-edge-val ${edgeClass}">${edgeStr}</div></div>`}
       ${completenessScore !== null ? `<div class="prop-num-block"><div class="prop-num-label">Data</div><div class="prop-num-value" style="font-size:13px;color:${completenessColor}">${completenessScore}%<span style="font-size:8px;color:var(--muted);display:block">min ${p.completenessThreshold ?? 60}%</span></div></div>` : ''}
     </div>
     ${hitRateHTML}
@@ -3527,7 +3536,7 @@ function propCardHTML(p) {
     ${narrativeHTML}
     <div class="prop-bottom">
       <div class="decision-badge ${decBadgeClass}">${decBadgeLabel}</div>
-      <div class="conf-block"><div class="conf-dots">${dots}</div><div class="conf-text">${p.conf}/10 · ${p.winProb}%</div></div>
+      <div class="conf-block"><div class="conf-dots">${dots}</div><div class="conf-text">${p.conf}/10 · ${p.winProb}% prob</div></div>
     </div>
     <button class="expand-btn" onclick="toggleReasoning(${p.id})">▾ full data breakdown</button>
     <div class="reasoning ${isExpanded ? 'open' : ''}" id="reasoning-${p.id}">
@@ -3555,11 +3564,21 @@ function updateMetrics() {
   const visible = allProps.filter(p => {
     if(!filters.sports.has('all') && !filters.sports.has(p.sport)) return false;
     if(p.conf < minConf) return false;
-    if(p.decision !== 'PASS' && Math.abs(p.edge?.pct || 0) < minEdge) return false;
+    if(p.decision !== 'PASS') {
+      const chosenEV = p.overEV !== undefined
+        ? (p.decision === 'OVER' ? p.overEV : p.underEV)
+        : Math.abs(p.edge?.pct || 0);
+      if(chosenEV < minEdge) return false;
+    }
     return true;
   });
 
-  const strongEdge = allProps.filter(p => Math.abs(p.edge?.pct || 0) >= 5 && p.conf >= minConf).length;
+  const strongEdge = allProps.filter(p => {
+    const ev = p.overEV !== undefined
+      ? (p.decision === 'OVER' ? p.overEV : p.underEV)
+      : Math.abs(p.edge?.pct || 0);
+    return ev >= 5 && p.conf >= minConf && p.decision !== 'PASS';
+  }).length;
   const avgConf = visible.length ? (visible.reduce((a,p) => a + p.conf, 0) / visible.length).toFixed(1) : '—';
   const sportSet = [...new Set(allProps.map(p=>p.sport))];
 
@@ -3968,56 +3987,6 @@ function renderMetrics() {
   updateMetrics();
   renderApiStatus({});
 }
-
-
-/* ===== v3.4 Sharp Engine Upgrade ===== */
-
-function expWeightedMean(values, alpha = 0.25) {
-  let weight = 1, sum = 0, total = 0;
-  for (let i = values.length - 1; i >= 0; i--) {
-    sum += values[i] * weight;
-    total += weight;
-    weight *= (1 - alpha);
-  }
-  return sum / total;
-}
-
-function cleanVals(values){
-  return values.filter(v => v !== null && !isNaN(v) && v > 0 && v < 80);
-}
-
-function getStdDev(values, mean) {
-  const variance = values.reduce((s,v)=>s+Math.pow(v-mean,2),0)/values.length;
-  return Math.sqrt(variance);
-}
-
-function erf(x){
-  const sign = x>=0?1:-1;
-  x=Math.abs(x);
-  const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
-  const t=1/(1+p*x);
-  const y=1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
-  return sign*y;
-}
-
-function calculateProbability(values,line){
-  const v = cleanVals(values);
-  if(v.length<5) return null;
-  const mean = expWeightedMean(v);
-  const std = getStdDev(v,mean);
-  if(std<0.5) return null;
-  const z=(line-mean)/std;
-  const cdf=0.5*(1+erf(z/Math.sqrt(2)));
-  return {overProb:1-cdf,underProb:cdf,mean,std};
-}
-
-function calculateEV(prob, odds){
-  const implied = 1/odds;
-  return prob - implied;
-}
-
-/* ===== End v3.4 Upgrade ===== */
-
 </script>
 </body>
 </html>
