@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v4.8</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v4.9</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <button class="settings-btn" onclick="openSettings()">⚙</button>
@@ -627,48 +627,66 @@ function clearTrace() { STATE.trace = null; renderTrace(); }
 
 async function debugNBAGamelog(athleteId, name) {
   const el = document.getElementById('api-test-results');
-  const base = `https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/${athleteId}/gamelog`;
-  const urls = [
-    { label: 'No params (default)', url: `${base}?limit=200` },
-    { label: 'seasontype=2 (reg)', url: `${base}?limit=200&seasontype=2` },
-    { label: 'seasontype=3 (playoffs)', url: `${base}?limit=200&seasontype=3` },
-  ];
-  el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:var(--bg2);border-radius:8px">🔍 Fetching ${name} (id=${athleteId})...</div>`;
-  let html = `<div style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px">`;
-  html += `<div style="color:var(--amber);font-weight:700;margin-bottom:8px">🔍 ${name} ESPN Raw Dump</div>`;
-  for(const {label, url} of urls) {
-    try {
-      const d = await fetchJSON(url);
-      const topKeys = Object.keys(d||{});
-      const evObj = d?.events || {};
-      const evArr = Array.isArray(evObj) ? evObj : Object.values(evObj);
-      const labels = d?.labels || d?.names || [];
-      const stypes = (d?.seasonTypes||[]).map(s => {
-        const cats = s?.categories||[];
-        return cats.map(c => {
-          const evs = Array.isArray(c?.events) ? c.events : Object.values(c?.events||{});
-          return `type=${s.type||'?'} cat=${c.name||'?'} events=${evs.length}`;
-        }).join(', ');
-      }).join(' | ');
-      html += `<div style="margin-bottom:8px;padding:6px;background:var(--bg3);border-radius:6px">`;
-      html += `<div style="color:var(--text);margin-bottom:3px"><b>${label}</b></div>`;
-      html += `<div style="color:var(--muted);font-size:9px;word-break:break-all;margin-bottom:3px">${url}</div>`;
-      html += `<div style="color:var(--accent)">Top keys: ${topKeys.join(', ')}</div>`;
-      html += `<div>Root events count: <b style="color:var(--accent)">${evArr.length}</b></div>`;
-      html += `<div>Labels[0-3]: ${labels.slice(0,4).join(' | ')}</div>`;
-      if(stypes) html += `<div>SeasonTypes: ${stypes}</div>`;
-      if(evArr.length > 0) {
-        const ev0 = evArr[0];
-        html += `<div>First event keys: ${Object.keys(ev0||{}).join(', ')}</div>`;
-        html += `<div>First event stats length: ${(ev0?.stats||[]).length}</div>`;
-      }
+  el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:var(--bg2);border-radius:8px">🔍 Fetching ${name}...</div>`;
+  try {
+    const url = `https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/${athleteId}/gamelog?limit=200`;
+    const d = await fetchJSON(url);
+    const labels = d?.labels || d?.names || [];
+    const ptsIdx = labels.findIndex(l => (l||'').toString().toLowerCase() === 'pts' || (l||'').toString().toLowerCase() === 'points');
+
+    let html = `<div style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px">`;
+    html += `<div style="color:var(--amber);font-weight:700;margin-bottom:6px">🔍 ${name} (id=${athleteId})</div>`;
+    html += `<div style="margin-bottom:4px">Labels (${labels.length}): ${labels.slice(0,8).join(' | ')}</div>`;
+    html += `<div style="margin-bottom:4px">PTS label index: <b style="color:${ptsIdx>=0?'var(--accent)':'var(--red)'}">${ptsIdx}</b></div>`;
+
+    // Dig into seasonTypes — this is where stats actually live
+    const stypes = d?.seasonTypes || [];
+    html += `<div style="margin-bottom:4px">seasonTypes count: ${stypes.length}</div>`;
+    stypes.forEach((st, si) => {
+      const stKeys = Object.keys(st);
+      const stType = st.type || st.id || st.seasonType || JSON.stringify(st).slice(0,60);
+      const cats = st.categories || [];
+      html += `<div style="margin:4px 0;padding:4px;background:var(--bg3);border-radius:4px">`;
+      html += `<div style="color:var(--blue)">seasonType[${si}] keys: ${stKeys.join(',')} → type=${stType}</div>`;
+      cats.forEach((cat, ci) => {
+        const catKeys = Object.keys(cat);
+        const catName = cat.name || cat.displayName || cat.type || JSON.stringify(cat).slice(0,40);
+        const evObj = cat.events || {};
+        const evArr = Array.isArray(evObj) ? evObj : Object.values(evObj);
+        const catLabels = cat.labels || cat.names || [];
+        html += `<div style="margin-left:8px;color:var(--text)">cat[${ci}] keys:${catKeys.join(',')} name="${catName}" events:${evArr.length} labels:${catLabels.slice(0,4).join('|')}</div>`;
+        if(evArr.length > 0) {
+          const ev0 = evArr[0];
+          const ev0Keys = Object.keys(ev0);
+          const stats0 = ev0.stats || ev0.statistics || [];
+          const effectiveLabels = catLabels.length ? catLabels : labels;
+          const ptsI = effectiveLabels.findIndex(l => (l||'').toString().toLowerCase().includes('pts') || (l||'').toString().toLowerCase() === 'points');
+          html += `<div style="margin-left:16px;color:var(--muted)">ev[0] keys:${ev0Keys.join(',')} stats.length:${stats0.length} pts@idx${ptsI}:${stats0[ptsI]??'N/A'}</div>`;
+          // Show first 3 events with pts value
+          const sample = evArr.slice(0,5).map(ev => {
+            const s = ev.stats || ev.statistics || [];
+            return `${ev.gameDate||ev.id||'?'}→pts:${s[ptsI]??'?'}`;
+          }).join(', ');
+          html += `<div style="margin-left:16px;color:var(--accent)">Sample: ${sample}</div>`;
+        }
+      });
       html += `</div>`;
-    } catch(e) {
-      html += `<div style="color:var(--red);margin-bottom:8px;padding:6px;background:var(--bg3);border-radius:6px"><b>${label}</b>: FAILED — ${e.message}<br/><span style="font-size:9px">${url}</span></div>`;
+    });
+
+    // Also show root events structure for comparison
+    const rootEvObj = d?.events || {};
+    const rootEvArr = Array.isArray(rootEvObj) ? rootEvObj : Object.values(rootEvObj);
+    if(rootEvArr.length > 0) {
+      const ev0 = rootEvArr[0];
+      html += `<div style="margin-top:6px;color:var(--purple)">Root events[${rootEvArr.length}] ev[0] keys: ${Object.keys(ev0).join(', ')}</div>`;
+      html += `<div style="color:var(--purple)">Root ev[0] stats.length: ${(ev0.stats||[]).length}</div>`;
     }
+
+    html += `</div>`;
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:var(--bg2);border-radius:8px">❌ ${name}: ${e.message}</div>`;
   }
-  html += `</div>`;
-  el.innerHTML = html;
 }
 
 async function testApi(which) {
