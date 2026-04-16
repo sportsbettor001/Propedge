@@ -297,7 +297,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v8.2</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v8.3</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1711,7 +1711,40 @@ async function loadNBAPlayerDirectory() {
   async function attemptLoad() {
     const season = getNBASeason();
     const url = `https://stats.nba.com/stats/commonallplayers?IsOnlyCurrentSeason=1&LeagueID=00&Season=${season}`;
-    const data = await fetchWithFallback(url);
+    // stats.nba.com is slow — use 15s timeout instead of the default 8s
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    let data;
+    try {
+      // Try direct first, then proxy
+      try {
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeout);
+        if(!res.ok) throw new Error('HTTP ' + res.status);
+        data = await res.json();
+      } catch(e) {
+        clearTimeout(timeout);
+        const proxy = STATE.settings.corsProxy;
+        if(!proxy) throw e;
+        const token = STATE.settings.proxyToken || '';
+        const proxyUrl = `${proxy}?url=${encodeURIComponent(url)}`;
+        const headers = token ? { 'x-proxy-auth': token } : {};
+        // Fresh controller for proxy attempt — previous one may be aborted
+        const c2 = new AbortController();
+        const t2 = setTimeout(() => c2.abort(), 15000);
+        try {
+          const res2 = await fetch(proxyUrl, { headers, signal: c2.signal });
+          clearTimeout(t2);
+          if(!res2.ok) throw new Error('HTTP ' + res2.status);
+          data = await res2.json();
+        } catch(e2) {
+          clearTimeout(t2);
+          throw new Error('Proxy also failed: ' + e2.message);
+        }
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
     const headers = data?.resultSets?.[0]?.headers || [];
     const rows    = data?.resultSets?.[0]?.rowSet    || [];
     const nameIdx = headers.findIndex(h => h === 'DISPLAY_FIRST_LAST');
