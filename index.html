@@ -297,9 +297,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v6.2</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v6.4</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
+        <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
         <button class="settings-btn" onclick="openSettings()">⚙</button>
       </div>
     </div>
@@ -779,7 +780,7 @@ function renderTrace() {
   const t = STATE.trace;
   if(!t) { panel.innerHTML = '<div class="trace-empty">No trace data. Run "Generate Props" to populate.</div>'; return; }
   const labels = { gameIngestion:'1 · Game Ingestion', playerDiscovery:'2 · Player Discovery',
-    projectionEngine:'3 · Projection Engine', filteringLog:'4 · Filtering', outputLog:'5 · Output' };
+    projectionEngine:'3 · Projection Engine', filteringLog:'4 · Filtering', outputLog:'5 · Output (log entries)' };
   const modeColor = t.mode==='betting' ? 'var(--accent)' : 'var(--amber)';
   let html = `<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:10px">Run: ${t.runAt} · Mode: <span style="color:${modeColor}">${(t.mode||'unknown').toUpperCase()}</span></div>`;
   for(const s of TRACE_SECTIONS) {
@@ -803,6 +804,17 @@ function getAppMode() {
   if(allProps.length === 0) return 'unknown'; // not yet fetched
   const hasRealLines = allProps.some(p => p.dataSource?.hasRealLine === true);
   return hasRealLines ? 'betting' : 'analysis';
+}
+
+function updateProxyBadge() {
+  const badge = document.getElementById('proxy-badge');
+  if(!badge) return;
+  if(STATE.settings.corsProxy && STATE.settings.proxyToken) {
+    badge.style.display = 'block';
+    badge.title = 'NBA Stats proxy active: ' + STATE.settings.corsProxy;
+  } else {
+    badge.style.display = 'none';
+  }
 }
 
 function updateModeBanner() {
@@ -867,6 +879,7 @@ document.addEventListener('DOMContentLoaded', function() {
   renderSlip();
   renderApiStatus({});
   updateSportChipStatus();
+  updateProxyBadge();
 
   // On open: check if cached data exists — ask user before restoring
   const hasCachedData = STATE.sportCache &&
@@ -880,6 +893,7 @@ document.addEventListener('DOMContentLoaded', function() {
     renderProps();
     updateMetrics();
     updateModeBanner();
+  updateProxyBadge();
     // Don't render slate log — nothing fetched yet
   }
 });
@@ -912,6 +926,7 @@ function restoreCachedData() {
   updateMetrics();
   updateCacheStatusBar(); // also shows the refetch button if props exist
   updateModeBanner();
+  updateProxyBadge();
   showToast('✓ Cached data restored', 'success');
 }
 
@@ -924,6 +939,7 @@ function discardCachedData() {
   updateMetrics();
   updateCacheStatusBar(); // hides refetch button since no props
   updateModeBanner();
+  updateProxyBadge();
   showToast('Cache cleared — tap Generate to fetch fresh data');
 }
 
@@ -1026,12 +1042,15 @@ function saveSettings() {
     renderProps();
     updateMetrics();
     updateModeBanner();
+  updateProxyBadge();
     showToast('⚡ Filters updated instantly', 'success');
   } else if(fetchSettingsChanged) {
     updateModeBanner();
+  updateProxyBadge();
     showToast('Settings saved — re-fetch to apply', 'success');
   } else {
     updateModeBanner();
+  updateProxyBadge();
     showToast('Settings saved', 'success');
   }
 }
@@ -1825,6 +1844,7 @@ async function generateProps() {
     updateSportChipStatus();
     updateCacheStatusBar();
     updateModeBanner();
+  updateProxyBadge();
     return;
   }
 
@@ -2495,6 +2515,7 @@ async function runFetch(sportsToFetch) {
     updateMetrics();
     updateDataSourceBar(apiStatusMap);
     updateModeBanner();
+  updateProxyBadge();
     renderSlateLog();
 
     const allCached = getAllCachedProps();
@@ -2729,8 +2750,10 @@ function getPlayersForGame(game, sport) {
 // ═══════════════════════════════════════════════════════
 function parseESPNGameLog(gameLogData, statLabel, opp) {
   if(gameLogData?._merged) {
-    const regParsed  = gameLogData._regular  ? _parseESPNGameLogSingle(gameLogData._regular,  statLabel, opp) : { allVals:[], vsOppVals:[] };
-    const playParsed = gameLogData._playoffs ? _parseESPNGameLogSingle(gameLogData._playoffs, statLabel, opp) : { allVals:[], vsOppVals:[] };
+    // Pass allowedSeasonType so each response only extracts its intended games
+    // This prevents double-counting when ESPN returns all season types in every response
+    const regParsed  = gameLogData._regular  ? _parseESPNGameLogSingle(gameLogData._regular,  statLabel, opp, 'regular') : { allVals:[], vsOppVals:[] };
+    const playParsed = gameLogData._playoffs ? _parseESPNGameLogSingle(gameLogData._playoffs, statLabel, opp, 'playoff') : { allVals:[], vsOppVals:[] };
     const regCount  = regParsed.allVals.length;
     const playCount = playParsed.allVals.length;
     // Only merge playoffs when sample is substantial — early playoffs (1-2 games) skew reg season
@@ -2744,12 +2767,15 @@ function parseESPNGameLog(gameLogData, statLabel, opp) {
   return _parseESPNGameLogSingle(gameLogData, statLabel, opp);
 }
 
-function _parseESPNGameLogSingle(gameLogData, statLabel, opp) {
+function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType) {
   // ── CONFIRMED ESPN STRUCTURE (from live debug dump Apr 2026) ──
   // Stats live in: seasonTypes[n].categories[n].events[n].stats (array, indexed by position)
   // Labels live at: top-level gameLogData.labels (categories have empty labels)
-  // seasonTypes[1] = Preseason — skip it
   // Root gameLogData.events = metadata only (opponent, date) — stats.length always 0
+  //
+  // allowedSeasonType: 'regular' | 'playoff' | null (null = accept all non-preseason)
+  // Each ESPN response contains ALL season types regardless of which seasontype was requested.
+  // We must filter to only the intended type to avoid double-counting.
 
   const statAliases = {
     'Points':['pts','points','PTS'],'Rebounds':['reb','rebounds','total rebounds','REB','TREB'],
@@ -2787,7 +2813,16 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp) {
   if(topLabels.length > 0 && gameLogData?.seasonTypes?.length > 0) {
     for(const st of (gameLogData.seasonTypes || [])) {
       const stName = (st?.displayName || '').toLowerCase();
+      // Always skip preseason
       if(stName.includes('preseason') || stName.includes('pre-season')) continue;
+      // Filter to allowed season type if specified
+      if(allowedSeasonType === 'regular') {
+        // Only accept regular season — skip playoff/postseason entries
+        if(stName.includes('playoff') || stName.includes('post') || stName.includes('play-in')) continue;
+      } else if(allowedSeasonType === 'playoff') {
+        // Only accept playoff/play-in — skip regular season entries
+        if(!stName.includes('playoff') && !stName.includes('post') && !stName.includes('play-in')) continue;
+      }
       for(const cat of (st?.categories || [])) {
         const eventsRaw = cat?.events || {};
         const events = Array.isArray(eventsRaw) ? eventsRaw : Object.values(eventsRaw);
@@ -3078,7 +3113,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         traceLog('projectionEngine', `${playerName} (${sport}): using BallDontLie (${allVals.length} games)`, 'ok');
       } else if(espnVals.length > 0) {
         allVals = espnVals; vsOppVals = espnOppVals;
-        traceLog('projectionEngine', `${playerName} (${sport}): using ESPN (${allVals.length} games)`, 'ok');
+        traceLog('projectionEngine', `${playerName} (${sport}): using ESPN game log (${allVals.length} games — capped, ~20 max)`, 'ok');
       }
 
       dataPoints = allVals.length;
@@ -3375,7 +3410,10 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       dataSource:{gamelog:dataPoints, hasRealLine, espnId:playerId, completenessBreakdown: completeness.breakdown},
       clvEntry: isAnalysisProp ? null : line, clvClose:null, timestamp:Date.now()
     };
-  } catch(e) { return null; }
+  } catch(e) {
+    traceLog('projectionEngine', `${playerName ?? '?'} (${sport ?? '?'}): EXCEPTION — ${e.message}`, 'fail');
+    return null;
+  }
 }
 
 // ═══════════════════════════════════════════════════════
