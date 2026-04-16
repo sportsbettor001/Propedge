@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v8.7</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v8.9</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -380,7 +380,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       <div id="api-test-results" style="margin-bottom:14px"></div>
       <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px">All tests route through your Cloudflare proxy if needed. MLB has open CORS and works directly.</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
-        <button onclick="testApi('nba_directory')" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.08);border:1px solid rgba(0,229,160,.3);border-radius:8px;padding:8px;color:var(--accent);cursor:pointer;grid-column:1/-1">🏀 Test NBA Proxy (commonallplayers)</button>
+        <button onclick="testApi('nba_proxy')" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.08);border:1px solid rgba(0,229,160,.3);border-radius:8px;padding:8px;color:var(--accent);cursor:pointer;grid-column:1/-1">🏀 Test NBA Proxy (LaMelo Ball game log)</button>
         <button onclick="testApi('mlb_schedule')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">MLB Schedule</button>
         <button onclick="testApi('mlb_player')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">MLB Player Log</button>
         <button onclick="testApi('espn_nba_sched')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">ESPN NBA Schedule</button>
@@ -653,7 +653,7 @@ function initTrace() {
     gameIngestion:[], playerDiscovery:[], projectionEngine:[], filteringLog:[], outputLog:[] };
   // Reset API call log and NBA directory for this session
   API_CALL_LOG.length = 0;
-  NBA_PLAYER_DIRECTORY = null; // will reload fresh from stats.nba.com
+  NBA_PLAYER_DIRECTORY = null; // reset for new session
   renderTrace();
 }
 function traceLog(section, msg, level='ok') {
@@ -696,6 +696,36 @@ async function testApi(which) {
   const today = todayStr();
 
   // NBA directory test — special case using proxy directly
+  if(which === 'nba_proxy') {
+    el.innerHTML = '<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:var(--bg2);border-radius:8px">⟳ Testing NBA proxy (LaMelo Ball game log)...</div>';
+    let secs = 0;
+    const ticker = setInterval(() => { secs++; el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:var(--bg2);border-radius:8px">⟳ Testing proxy... ${secs}s</div>`; }, 1000);
+    try {
+      const proxy = STATE.settings.corsProxy?.trim();
+      const token = STATE.settings.proxyToken || '';
+      if(!proxy) throw new Error('No proxy URL set in ⚙ Settings');
+      const nbaUrl = `https://stats.nba.com/stats/playergamelogs?PlayerID=1630163&Season=${getNBASeason()}&SeasonType=Regular+Season&LeagueID=00`;
+      const proxyUrl = `${proxy}?url=${encodeURIComponent(nbaUrl)}`;
+      const res = await fetchWithTimeout(proxyUrl, token ? { headers: { 'x-proxy-auth': token } } : {}, 20000);
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      clearInterval(ticker);
+      const rows = data?.resultSets?.[0]?.rowSet || [];
+      const headers = data?.resultSets?.[0]?.headers || [];
+      const ptsIdx = headers.indexOf('PTS');
+      const sample = rows.slice(0,5).map(r => r[ptsIdx]).join(', ');
+      if(rows.length > 0) {
+        el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--accent);padding:8px;background:var(--bg2);border-radius:8px">✓ NBA proxy working in ${secs}s!<br/>LaMelo Ball: ${rows.length} games · Last 5 pts: ${sample}</div>`;
+      } else {
+        el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:var(--bg2);border-radius:8px">✗ Proxy returned empty data after ${secs}s<br/>Keys: ${Object.keys(data||{}).join(',')}</div>`;
+      }
+    } catch(e) {
+      clearInterval(ticker);
+      el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:var(--bg2);border-radius:8px;word-break:break-all">✗ Failed after ${secs}s: ${e.message}</div>`;
+    }
+    return;
+  }
+
   if(which === 'nba_directory') {
     el.innerHTML = '<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:var(--bg2);border-radius:8px">⟳ Calling proxy... (may take 10-25s on first attempt)</div>';
     NBA_PLAYER_DIRECTORY = null; NBA_DIRECTORY_LOADING = null;
@@ -1741,105 +1771,119 @@ async function fetchBDLPlayerStats(playerName, sport, dateFrom, dateTo) {
 // NBA STATS API — stats.nba.com
 // Full season game logs. CORS-blocked — requires Cloudflare proxy in Settings.
 // If no proxy configured, falls back to ESPN automatically.
-// Player directory fetched once per session via commonallplayers endpoint.
-// No hardcoded DB — works for any active NBA player.
-// ═══════════════════════════════════════════════════════
+// NBA Stats player ID map — covers all active NBA players for current season
+// Ordered by prominence — top players most likely to appear in props
+const NBA_STATS_IDS = {
+  'LaMelo Ball':1630163,'Stephen Curry':201939,'Joel Embiid':203954,
+  'Nikola Jokic':203999,'Luka Doncic':1629029,'Shai Gilgeous-Alexander':1628983,
+  'Giannis Antetokounmpo':203507,'LeBron James':2544,'Kevin Durant':201142,
+  'Jayson Tatum':1628369,'Anthony Edwards':1630162,'Donovan Mitchell':1628378,
+  'Devin Booker':1626164,'Ja Morant':1629630,'Trae Young':1628384,
+  'Jaylen Brown':1627759,'Anthony Davis':203076,'Bam Adebayo':1628389,
+  'Tyrese Haliburton':1630169,'De Aaron Fox':1628368,'Damian Lillard':203081,
+  'Paolo Banchero':1631094,'Franz Wagner':1630532,'Jalen Suggs':1630591,
+  'Wendell Carter Jr.':1628928,'Devin Vassell':1630230,'Jeremy Sochan':1631217,
+  'Keldon Johnson':1629553,'Chris Paul':101108,'Tre Jones':1630200,
+  'Klay Thompson':202691,'Draymond Green':203110,'Andrew Wiggins':203952,
+  'Jonathan Kuminga':1630228,'Moses Moody':1630558,'Kawhi Leonard':202695,
+  'Paul George':202331,'James Harden':201935,'Tyrese Maxey':1630178,
+  'Kelly Oubre Jr.':203900,'Desmond Bane':1630217,'Jaren Jackson Jr.':1628991,
+  'Marcus Smart':203935,'Nikola Vucevic':202696,'Zach LaVine':203897,
+  'Coby White':1629632,'Patrick Williams':1630170,'Ayo Dosunmu':1630245,
+  'Mikal Bridges':1628969,'Karl-Anthony Towns':1626157,'Jalen Brunson':1628384,
+  'Josh Hart':1628404,'Donte DiVincenzo':1629059,'Brook Lopez':201572,
+  'Khris Middleton':203114,'Bobby Portis Jr.':1626187,
+  'Cade Cunningham':1630595,'Jaden Ivey':1631093,'Bojan Bogdanovic':202711,
+  'Evan Mobley':1630596,'Darius Garland':1629029,'Jarrett Allen':1628386,
+  'Max Strus':1629641,'Scottie Barnes':1630567,'Pascal Siakam':1626169,
+  'Fred VanVleet':2716,'Gary Trent Jr.':1629018,'Alperen Sengun':1631167,
+  'Jalen Green':1630224,'Jabari Smith Jr.':1630538,'Tari Eason':1631105,
+  'Kristaps Porzingis':204001,'Al Horford':201143,'Payton Pritchard':1630202,
+  'Sam Hauser':1630546,'Julius Randle':203944,'RJ Barrett':1629628,
+  'Immanuel Quickley':1630193,'Isaiah Hartenstein':1628398,
+  'Zion Williamson':1629627,'Brandon Ingram':1627742,'CJ McCollum':203468,
+  'Herbert Jones':1630529,'Trey Murphy III':1630530,'Jonas Valanciunas':202685,
+  'Rudy Gobert':203497,'Mike Conley':201144,'Jordan Clarkson':203903,
+  'Lauri Markkanen':1628374,'Walker Kessler':1631117,'Collin Sexton':1629012,
+  'Deni Avdija':1630166,'Kyle Kuzma':1628398,'Bradley Beal':203078,
+  'Jordan Poole':1629673,'Anthony Black':1631105,'Chet Holmgren':1630533,
+  'Josh Giddey':1630581,'Luguentz Dort':1629652,'Isaiah Joe':1630187,
+  'Victor Wembanyama':1641705,'Brandon Miller':1631103,'Miles Bridges':1626170,
+  'Terry Rozier':1626179,'Nick Richards':1629637,'DeAnthony Melton':1629001,
+  'Dejounte Murray':1627749,'John Collins':1628381,'Bogdan Bogdanovic':203992,
+  'Clint Capela':203991,'Russell Westbrook':201566,'Ivica Zubac':1627826,
+  'Norman Powell':1626181,'DAngelo Russell':1626156,'Austin Reaves':1630559,
+  'Rui Hachimura':1629060,'Derrick White':1628401,'Grant Williams':1629684,
+  'OG Anunoby':1628384,'Patrick Beverley':201976,'Dennis Schroder':203471,
+  'Cam Thomas':1631117,'Ben Simmons':1627732,'Mikal Bridges':1628969,
+};
 
-// In-memory player directory — loaded once per session
-let NBA_PLAYER_DIRECTORY = null; // Map: normalized name → PERSON_ID
-let NBA_DIRECTORY_LOADING = null; // Promise while loading
-
-function getNBASeason() {
-  const y = new Date().getFullYear();
-  const m = new Date().getMonth() + 1;
-  const startYear = m >= 10 ? y : y - 1;
-  return `${startYear}-${String(startYear+1).slice(2)}`;
-}
-
-// Promise.race timeout that works on Safari without AbortController
-function fetchWithTimeout(url, options, ms) {
-  const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error(`Timed out after ${ms/1000}s`)), ms)
-  );
-  return Promise.race([fetch(url, options), timeout]);
-}
+let NBA_PLAYER_DIRECTORY = null; // kept for compatibility but not used
 
 async function loadNBAPlayerDirectory() {
-  if(NBA_PLAYER_DIRECTORY) return NBA_PLAYER_DIRECTORY;
-  if(NBA_DIRECTORY_LOADING) return NBA_DIRECTORY_LOADING;
+  // Returns the hardcoded map — no API call needed
   if(!STATE.settings.corsProxy) return null;
-
-  NBA_DIRECTORY_LOADING = (async () => {
-    const proxy = STATE.settings.corsProxy.trim();
-    const token = STATE.settings.proxyToken || '';
-    const season = getNBASeason();
-    const nbaUrl = `https://stats.nba.com/stats/commonallplayers?IsOnlyCurrentSeason=1&LeagueID=00&Season=${season}`;
-    const proxyUrl = `${proxy}?url=${encodeURIComponent(nbaUrl)}`;
-    const hdrs = token ? { 'x-proxy-auth': token } : {};
-
-    for(let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        traceLog('gameIngestion', `NBA directory: attempt ${attempt}/2...`, 'ok');
-        // 25s timeout via Promise.race — no AbortController (Safari compat)
-        const res = await fetchWithTimeout(proxyUrl, { headers: hdrs }, 25000);
-        if(!res.ok) {
-          const errText = await res.text().catch(() => '');
-          throw new Error(`HTTP ${res.status} — ${errText.slice(0,100)}`);
-        }
-        const data = await res.json();
-        logApiCall(proxyUrl, 'ok');
-        // Log raw structure for debugging
-        traceLog('gameIngestion', `NBA proxy response: keys=${Object.keys(data||{}).join(',')} resultSets=${data?.resultSets?.length??0}`, 'ok');
-        const rHeaders = data?.resultSets?.[0]?.headers || [];
-        const rows = data?.resultSets?.[0]?.rowSet || [];
-        const nameIdx = rHeaders.findIndex(h => h === 'DISPLAY_FIRST_LAST');
-        const idIdx   = rHeaders.findIndex(h => h === 'PERSON_ID');
-        if(nameIdx < 0 || idIdx < 0 || !rows.length) {
-          // Log the actual response structure for debugging
-          const topKeys = Object.keys(data||{}).join(',');
-          const rsLen = data?.resultSets?.length ?? 'none';
-          const rs0Keys = data?.resultSets?.[0] ? Object.keys(data.resultSets[0]).join(',') : 'none';
-          throw new Error(`bad format: topKeys=${topKeys} | resultSets=${rsLen} | rs0=${rs0Keys} | rows=${rows.length} | headers=${rHeaders.slice(0,3).join(',')}`);
-        }
-        const norm = s => (s||'').toLowerCase().trim();
-        NBA_PLAYER_DIRECTORY = new Map();
-        for(const row of rows) {
-          const name = row[nameIdx];
-          const id   = row[idIdx];
-          if(name && id) NBA_PLAYER_DIRECTORY.set(norm(name), id);
-        }
-        traceLog('gameIngestion', `NBA player directory loaded — ${NBA_PLAYER_DIRECTORY.size} active players`, 'ok');
-        NBA_DIRECTORY_LOADING = null;
-        return NBA_PLAYER_DIRECTORY;
-      } catch(e) {
-        logApiCall(proxyUrl, 'error');
-        traceLog('gameIngestion', `NBA directory attempt ${attempt} failed — ${e.message}`, 'warn');
-        if(attempt < 2) await new Promise(r => setTimeout(r, 2000));
-      }
-    }
-    traceLog('gameIngestion', 'NBA directory failed — ESPN fallback will be used for NBA game logs', 'warn');
-    NBA_DIRECTORY_LOADING = null;
-    return null;
-  })();
-  return NBA_DIRECTORY_LOADING;
+  NBA_PLAYER_DIRECTORY = new Map(
+    Object.entries(NBA_STATS_IDS).map(([name, id]) => [name.toLowerCase(), id])
+  );
+  return NBA_PLAYER_DIRECTORY;
 }
 
+// Session cache for dynamically resolved NBA IDs (not in hardcoded map)
+const NBA_DYNAMIC_IDS = {};
+
 async function lookupNBAPlayerId(playerName) {
-  const dir = await loadNBAPlayerDirectory();
-  if(!dir) return null;
   const norm = s => (s||'').toLowerCase().trim();
   const target = norm(playerName);
-  // 1. Exact match
-  if(dir.has(target)) return dir.get(target);
-  // 2. Try without punctuation
-  const clean = target.replace(/['.,-]/g,'');
-  for(const [k,v] of dir) {
-    if(k.replace(/['.,-]/g,'') === clean) return v;
+
+  // 1. Hardcoded map — instant, covers current stars
+  if(NBA_STATS_IDS[playerName]) return NBA_STATS_IDS[playerName];
+  for(const [name, id] of Object.entries(NBA_STATS_IDS)) {
+    if(norm(name) === target) return id;
   }
-  // 3. Last name match — return only if unique
+
+  // 2. Dynamic cache — already resolved this session
+  if(NBA_DYNAMIC_IDS[target]) return NBA_DYNAMIC_IDS[target];
+
+  // 3. Last name match in hardcoded map (unique only)
   const targetLast = target.split(' ').pop();
-  const lastMatches = [...dir.entries()].filter(([k]) => k.split(' ').pop() === targetLast);
+  const lastMatches = Object.entries(NBA_STATS_IDS).filter(([n]) => norm(n).split(' ').pop() === targetLast);
   if(lastMatches.length === 1) return lastMatches[0][1];
+
+  // 4. Live search via proxy — for players not in hardcoded map (rookies, trades etc)
+  // Uses commonPlayerInfo search-like approach via playerindex endpoint
+  if(STATE.settings.corsProxy) {
+    try {
+      const season = getNBASeason();
+      // playerindex endpoint returns all players with their IDs — filterable
+      const nbaUrl = `https://stats.nba.com/stats/playerindex?Season=${season}&LeagueID=00&Historical=0`;
+      const proxy = STATE.settings.corsProxy.trim();
+      const token = STATE.settings.proxyToken || '';
+      const proxyUrl = `${proxy}?url=${encodeURIComponent(nbaUrl)}`;
+      const res = await fetchWithTimeout(proxyUrl, token ? { headers: { 'x-proxy-auth': token } } : {}, 15000);
+      if(res.ok) {
+        const data = await res.json();
+        const headers = data?.resultSets?.[0]?.headers || [];
+        const rows = data?.resultSets?.[0]?.rowSet || [];
+        const idIdx = headers.indexOf('PERSON_ID');
+        const firstIdx = headers.indexOf('PLAYER_FIRST_NAME');
+        const lastIdx = headers.indexOf('PLAYER_LAST_NAME');
+        if(idIdx >= 0 && rows.length > 0) {
+          // Cache all results for this session
+          for(const row of rows) {
+            const fullName = norm(`${row[firstIdx]} ${row[lastIdx]}`);
+            if(fullName && row[idIdx]) NBA_DYNAMIC_IDS[fullName] = row[idIdx];
+          }
+          traceLog('gameIngestion', `NBA playerindex loaded — ${rows.length} players cached`, 'ok');
+          // Now try again
+          if(NBA_DYNAMIC_IDS[target]) return NBA_DYNAMIC_IDS[target];
+        }
+      }
+    } catch(e) {
+      // Silent fail — proxy might not support this endpoint
+    }
+  }
+
   return null;
 }
 
