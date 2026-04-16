@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v9.5</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v9.7</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -3046,7 +3046,8 @@ async function runFetch(sportsToFetch) {
         // Merge mlbId into playerMeta so buildPlayerProp can use it for MLB API fetch
         const playerMetaMerged = { ...(dbEntry||{}), ...(player.meta||{}),
           mlbId: resolvedMlbId || null,
-          nbaPersonId: player.meta?.nbaPersonId || null };
+          nbaPersonId: player.meta?.nbaPersonId || null,
+          nbaId: dbEntry?.nbaId || player.meta?.nbaPersonId || null };
         const prop = await buildPlayerProp(
           effectiveId, player.name, player.sport, player.espnSport, player.espnLeague,
           dbEntry?.team||player.homeTeam, opp, player.dateTag || 'today',
@@ -3208,46 +3209,48 @@ async function runFetch(sportsToFetch) {
 // ═══════════════════════════════════════════════════════
 const PLAYER_DB = {
   NBA: [
-    {id:'3945274',name:'Shai Gilgeous-Alexander',team:'OKC',prop:'Points',lineBase:32,usage:0.34,vol:'high'},
-    {id:'3136193',name:'Luka Doncic',team:'LAL',prop:'Points',lineBase:33.5,usage:0.37,vol:'high'},
-    {id:'6450',name:'LeBron James',team:'LAL',prop:'Points',lineBase:22,usage:0.28,vol:'med'},
-    {id:'3059318',name:'Jayson Tatum',team:'BOS',prop:'Points',lineBase:25.5,usage:0.31,vol:'high'},
-    {id:'3032977',name:'Jaylen Brown',team:'BOS',prop:'Points',lineBase:21.5,usage:0.26,vol:'med'},
-    {id:'3064514',name:'Giannis Antetokounmpo',team:'MIL',prop:'Points',lineBase:30,usage:0.35,vol:'high'},
-    {id:'3112335',name:'Nikola Jokic',team:'DEN',prop:'Points',lineBase:26.5,usage:0.30,vol:'high'},
-    {id:'4432174',name:'Anthony Edwards',team:'MIN',prop:'Points',lineBase:25.5,usage:0.32,vol:'high'},
-    {id:'3155535',name:'Donovan Mitchell',team:'CLE',prop:'Points',lineBase:26,usage:0.31,vol:'high'},
-    {id:'4277851',name:'Paolo Banchero',team:'ORL',prop:'Points',lineBase:24,usage:0.29,vol:'high'},
-    {id:'4066328',name:'Tyrese Maxey',team:'PHI',prop:'Points',lineBase:25,usage:0.30,vol:'high'},
-    {id:'3934672',name:'Tyrese Haliburton',team:'IND',prop:'Points',lineBase:20,usage:0.24,vol:'med'},
-    {id:'4065648',name:'Trae Young',team:'ATL',prop:'Points',lineBase:24,usage:0.34,vol:'high'},
-    {id:'2489683',name:'Stephen Curry',team:'GSW',prop:'Points',lineBase:26,usage:0.28,vol:'high',threePct:0.42},
-    {id:'3032979',name:'Devin Booker',team:'PHX',prop:'Points',lineBase:26,usage:0.30,vol:'high'},
-    {id:'4277905',name:'Cade Cunningham',team:'DET',prop:'Points',lineBase:24,usage:0.29,vol:'high'},
-    {id:'4278073',name:'Jalen Green',team:'HOU',prop:'Points',lineBase:23,usage:0.28,vol:'high'},
-    {id:'4429634',name:'Alperen Sengun',team:'HOU',prop:'Points',lineBase:19,usage:0.24,vol:'med'},
-    {id:'4065684',name:'De\'Aaron Fox',team:'SAC',prop:'Points',lineBase:23,usage:0.28,vol:'high'},
-    {id:'3468778',name:'Zach LaVine',team:'SAC',prop:'Points',lineBase:22,usage:0.27,vol:'med'},
-    {id:'3934718',name:'Jalen Brunson',team:'NYK',prop:'Points',lineBase:27,usage:0.34,vol:'high'},
-    {id:'3934719',name:'OG Anunoby',team:'NYK',prop:'Threes Made',lineBase:1.5,usage:0.18,vol:'med',threePct:0.37},
-    {id:'3102531',name:'Karl-Anthony Towns',team:'NYK',prop:'Points',lineBase:24,usage:0.27,vol:'high'},
-    {id:'4397244',name:'Mikal Bridges',team:'NYK',prop:'Points',lineBase:16.5,usage:0.20,vol:'med'},
-    {id:'3134907',name:'Josh Hart',team:'NYK',prop:'Rebounds',lineBase:8.5,usage:0.13,vol:'low'},
-    {id:'6583',name:'Joel Embiid',team:'PHI',prop:'Points',lineBase:31,usage:0.36,vol:'high'},
-    {id:'2490149',name:'Kevin Durant',team:'PHX',prop:'Points',lineBase:26,usage:0.28,vol:'high'},
-    {id:'4277809',name:'Victor Wembanyama',team:'SAS',prop:'Points',lineBase:22,usage:0.27,vol:'high'},
-    {id:'3907387',name:'Bam Adebayo',team:'MIA',prop:'Points',lineBase:19.5,usage:0.22,vol:'med'},
-    {id:'4395725',name:'Evan Mobley',team:'CLE',prop:'Points',lineBase:18,usage:0.21,vol:'med'},
-    {id:'4432800',name:'Scottie Barnes',team:'TOR',prop:'Points',lineBase:20,usage:0.23,vol:'med'},
-    {id:'3978',name:'Klay Thompson',team:'DAL',prop:'Threes Made',lineBase:2.5,usage:0.18,vol:'med',threePct:0.40},
-    {id:'4432174',name:'Desmond Bane',team:'MEM',prop:'Points',lineBase:19,usage:0.22,vol:'med',threePct:0.39},
-    {id:'4277851',name:'Jalen Williams',team:'OKC',prop:'Points',lineBase:21,usage:0.24,vol:'med'},
-    {id:'4432800',name:'Chet Holmgren',team:'OKC',prop:'Points',lineBase:17.5,usage:0.19,vol:'med'},
-    {id:'4277905',name:'Brandon Ingram',team:'NO',prop:'Points',lineBase:22,usage:0.26,vol:'high'},
-    {id:'4066621',name:'Damian Lillard',team:'MIL',prop:'Points',lineBase:25,usage:0.31,vol:'high'},
-    {id:'4432174',name:'LaMelo Ball',team:'CHA',prop:'Points',lineBase:23,usage:0.30,vol:'high'},
-    {id:'4432174',name:'Franz Wagner',team:'ORL',prop:'Points',lineBase:22,usage:0.25,vol:'med'},
-    {id:'3149673',name:'Dejounte Murray',team:'ATL',prop:'Points',lineBase:19,usage:0.22,vol:'med'},
+    // id = ESPN athlete ID, nbaId = NBA Stats PERSON_ID
+    // Game log fetch: ESPN first (id), NBA Stats via proxy fallback (nbaId)
+    {id:'3945274',nbaId:1628983,name:'Shai Gilgeous-Alexander',team:'OKC',prop:'Points',lineBase:32,usage:0.34,vol:'high'},
+    {id:'3136193',nbaId:1629029,name:'Luka Doncic',team:'LAL',prop:'Points',lineBase:33.5,usage:0.37,vol:'high'},
+    {id:'6450',nbaId:2544,name:'LeBron James',team:'LAL',prop:'Points',lineBase:22,usage:0.28,vol:'med'},
+    {id:'3059318',nbaId:1628369,name:'Jayson Tatum',team:'BOS',prop:'Points',lineBase:25.5,usage:0.31,vol:'high'},
+    {id:'3032977',nbaId:1627759,name:'Jaylen Brown',team:'BOS',prop:'Points',lineBase:21.5,usage:0.26,vol:'med'},
+    {id:'3064514',nbaId:203507,name:'Giannis Antetokounmpo',team:'MIL',prop:'Points',lineBase:30,usage:0.35,vol:'high'},
+    {id:'3112335',nbaId:203999,name:'Nikola Jokic',team:'DEN',prop:'Points',lineBase:26.5,usage:0.30,vol:'high'},
+    {id:'4432174',nbaId:1630162,name:'Anthony Edwards',team:'MIN',prop:'Points',lineBase:25.5,usage:0.32,vol:'high'},
+    {id:'3155535',nbaId:1628378,name:'Donovan Mitchell',team:'CLE',prop:'Points',lineBase:26,usage:0.31,vol:'high'},
+    {id:'4277851',nbaId:1631094,name:'Paolo Banchero',team:'ORL',prop:'Points',lineBase:24,usage:0.29,vol:'high'},
+    {id:'4066328',nbaId:1630178,name:'Tyrese Maxey',team:'PHI',prop:'Points',lineBase:25,usage:0.30,vol:'high'},
+    {id:'3934672',nbaId:1630169,name:'Tyrese Haliburton',team:'IND',prop:'Points',lineBase:20,usage:0.24,vol:'med'},
+    {id:'4066351',nbaId:1628384,name:'Trae Young',team:'ATL',prop:'Points',lineBase:24,usage:0.34,vol:'high'},
+    {id:'2489683',nbaId:201939,name:'Stephen Curry',team:'GSW',prop:'Points',lineBase:26,usage:0.28,vol:'high',threePct:0.42},
+    {id:'3992',nbaId:1626164,name:'Devin Booker',team:'PHX',prop:'Points',lineBase:26,usage:0.30,vol:'high'},
+    {id:'4395628',nbaId:1630595,name:'Cade Cunningham',team:'DET',prop:'Points',lineBase:24,usage:0.29,vol:'high'},
+    {id:'4431671',nbaId:1630224,name:'Jalen Green',team:'HOU',prop:'Points',lineBase:23,usage:0.28,vol:'high'},
+    {id:'4431980',nbaId:1631167,name:'Alperen Sengun',team:'HOU',prop:'Points',lineBase:19,usage:0.24,vol:'med'},
+    {id:'4065684',nbaId:1628368,name:'De Aaron Fox',team:'SAC',prop:'Points',lineBase:23,usage:0.28,vol:'high'},
+    {id:'3468778',nbaId:203897,name:'Zach LaVine',team:'SAC',prop:'Points',lineBase:22,usage:0.27,vol:'med'},
+    {id:'3934718',nbaId:1628384,name:'Jalen Brunson',team:'NYK',prop:'Points',lineBase:27,usage:0.34,vol:'high'},
+    {id:'3934719',nbaId:1628384,name:'OG Anunoby',team:'NYK',prop:'Threes Made',lineBase:1.5,usage:0.18,vol:'med',threePct:0.37},
+    {id:'3102531',nbaId:1626157,name:'Karl-Anthony Towns',team:'NYK',prop:'Points',lineBase:24,usage:0.27,vol:'high'},
+    {id:'4397244',nbaId:1628969,name:'Mikal Bridges',team:'NYK',prop:'Points',lineBase:16.5,usage:0.20,vol:'med'},
+    {id:'3134907',nbaId:1628404,name:'Josh Hart',team:'NYK',prop:'Rebounds',lineBase:8.5,usage:0.13,vol:'low'},
+    {id:'6583',nbaId:203954,name:'Joel Embiid',team:'PHI',prop:'Points',lineBase:31,usage:0.36,vol:'high'},
+    {id:'2490149',nbaId:201142,name:'Kevin Durant',team:'PHX',prop:'Points',lineBase:26,usage:0.28,vol:'high'},
+    {id:'4433245',nbaId:1641705,name:'Victor Wembanyama',team:'SAS',prop:'Points',lineBase:22,usage:0.27,vol:'high'},
+    {id:'3907387',nbaId:1628389,name:'Bam Adebayo',team:'MIA',prop:'Points',lineBase:19.5,usage:0.22,vol:'med'},
+    {id:'4395725',nbaId:1630596,name:'Evan Mobley',team:'CLE',prop:'Points',lineBase:18,usage:0.21,vol:'med'},
+    {id:'4432800',nbaId:1630567,name:'Scottie Barnes',team:'TOR',prop:'Points',lineBase:20,usage:0.23,vol:'med'},
+    {id:'3978',nbaId:202691,name:'Klay Thompson',team:'DAL',prop:'Threes Made',lineBase:2.5,usage:0.18,vol:'med',threePct:0.40},
+    {id:'4066623',nbaId:1630217,name:'Desmond Bane',team:'MEM',prop:'Points',lineBase:19,usage:0.22,vol:'med',threePct:0.39},
+    {id:'4278576',nbaId:1630214,name:'Jalen Williams',team:'OKC',prop:'Points',lineBase:21,usage:0.24,vol:'med'},
+    {id:'4433137',nbaId:1630533,name:'Chet Holmgren',team:'OKC',prop:'Points',lineBase:17.5,usage:0.19,vol:'med'},
+    {id:'3136196',nbaId:1627742,name:'Brandon Ingram',team:'NO',prop:'Points',lineBase:22,usage:0.26,vol:'high'},
+    {id:'4066621',nbaId:203081,name:'Damian Lillard',team:'MIL',prop:'Points',lineBase:25,usage:0.31,vol:'high'},
+    {id:'4432816',nbaId:1630163,name:'LaMelo Ball',team:'CHA',prop:'Points',lineBase:23,usage:0.30,vol:'high'},
+    {id:'4278176',nbaId:1630532,name:'Franz Wagner',team:'ORL',prop:'Points',lineBase:22,usage:0.25,vol:'med'},
+    {id:'3149673',nbaId:1627749,name:'Dejounte Murray',team:'ATL',prop:'Points',lineBase:19,usage:0.22,vol:'med'},
   ],
   MLB: [
     {id:'33912',name:'Shohei Ohtani',team:'LAD',prop:'Total Bases',lineBase:1.5,batOrder:3,throwsL:false,mlbId:'660271'},
@@ -3737,55 +3740,42 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     }
 
     // ── NBA / WNBA ──
-    // Source priority: NBA Stats API (proxy required) → BallDontLie → ESPN
+    // Source priority: ESPN (fast, no proxy) → NBA Stats via proxy (full season) → BallDontLie
     if(sport === 'NBA' || sport === 'WNBA') {
       let espnVals = [], espnOppVals = [];
       let bdlVals = [];
-      let nbaStatsVals = [], nbaStatsOppVals = []; // always declared regardless of proxy
+      let nbaStatsVals = [], nbaStatsOppVals = [];
 
-      // Source 1: NBA Stats API — full season, requires Cloudflare proxy
-      if(sport === 'NBA' && STATE.settings.corsProxy) {
-        try {
-          const nbaData = await fetchNBAStatsGameLog(playerName, playerMeta?.nbaPersonId || null);
-          if(nbaData) {
-            const p = parseNBAStatsGameLog(nbaData, statLabel, opp);
-            nbaStatsVals = p.allVals; nbaStatsOppVals = p.vsOppVals;
-            traceLog('projectionEngine', `${playerName} (NBA): NBA Stats API got ${nbaStatsVals.length} games`, nbaStatsVals.length>0?'ok':'warn');
-          }
-        } catch(e) {
-          traceLog('projectionEngine', `${playerName} (NBA): NBA Stats API failed — ${e.message}`, 'warn');
-        }
-      }
-
-      // Source 2: ESPN — fetch regular + playoffs merged
+      // Source 1: ESPN — try first, it's fast and requires no proxy
       try {
         const mergedData = await fetchESPNGameLogAllSeasonTypes(espnSport, espnLeague, playerId);
         const parsed = parseESPNGameLog(mergedData, statLabel, opp);
         espnVals = parsed.allVals; espnOppVals = parsed.vsOppVals;
-        traceLog('projectionEngine', `${playerName} (${sport}): ESPN merged (reg+playoffs) got ${espnVals.length} games`, espnVals.length>0?'ok':'warn');
+        traceLog('projectionEngine', `${playerName} (${sport}): ESPN got ${espnVals.length} games`, espnVals.length>0?'ok':'warn');
       } catch(e) {
         traceLog('projectionEngine', `${playerName} (${sport}): ESPN failed — ${e.message}`, 'warn');
       }
 
-      // Exact-match name search fallback if ID lookup returned nothing
-      if(espnVals.length === 0 && playerName) {
-        try {
-          const searchData = await searchESPNAthlete(espnSport, espnLeague, playerName);
-          const foundId = exactMatchESPNId(searchData, playerName);
-          if(foundId && String(foundId) !== String(playerId)) {
-            const mergedData2 = await fetchESPNGameLogAllSeasonTypes(espnSport, espnLeague, foundId);
-            const parsed2 = parseESPNGameLog(mergedData2, statLabel, opp);
-            if(parsed2.allVals.length > 0) {
-              espnVals = parsed2.allVals; espnOppVals = parsed2.vsOppVals;
-              traceLog('projectionEngine', `${playerName}: ESPN exact-name fallback (id=${foundId}) got ${espnVals.length} games`, 'warn');
+      // Source 2: NBA Stats API via proxy — used if ESPN returned nothing or very few games
+      // Uses nbaId from PLAYER_DB (or nbaPersonId resolved during discovery)
+      // This gives full season data (~30-82 games) vs ESPN's ~20 cap
+      if(sport === 'NBA' && espnVals.length < 10 && STATE.settings.corsProxy) {
+        const nbaId = playerMeta?.nbaPersonId || playerMeta?.nbaId || null;
+        if(nbaId) {
+          try {
+            const nbaData = await fetchNBAStatsGameLog(playerName, nbaId);
+            if(nbaData) {
+              const p = parseNBAStatsGameLog(nbaData, statLabel, opp);
+              nbaStatsVals = p.allVals; nbaStatsOppVals = p.vsOppVals;
+              traceLog('projectionEngine', `${playerName} (NBA): NBA Stats fallback got ${nbaStatsVals.length} games`, nbaStatsVals.length>0?'ok':'warn');
             }
-          } else if(!foundId) {
-            traceLog('projectionEngine', `${playerName}: ESPN name search — no exact match found, skipping`, 'warn');
+          } catch(e) {
+            traceLog('projectionEngine', `${playerName} (NBA): NBA Stats fallback failed — ${e.message}`, 'warn');
           }
-        } catch(e) {}
+        }
       }
 
-      // Source 2: BallDontLie (only if key is set — supplements ESPN)
+      // Source 3: BallDontLie (only if key is set)
       if(STATE.settings.balldontlieKey) {
         try {
           const dateFrom = new Date(); dateFrom.setDate(dateFrom.getDate()-180);
@@ -3810,16 +3800,16 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         } catch(e) {}
       }
 
-      // Use whichever source has most games
-      if(nbaStatsVals.length > 0) {
+      // Pick best source — NBA Stats wins on volume, ESPN is fine if it has enough
+      if(nbaStatsVals.length > espnVals.length) {
         allVals = nbaStatsVals; vsOppVals = nbaStatsOppVals;
-        traceLog('projectionEngine', `${playerName} (${sport}): using NBA Stats API (${allVals.length} games)`, 'ok');
+        traceLog('projectionEngine', `${playerName} (${sport}): using NBA Stats (${allVals.length} games)`, 'ok');
       } else if(bdlVals.length > espnVals.length) {
         allVals = bdlVals; vsOppVals = espnOppVals;
         traceLog('projectionEngine', `${playerName} (${sport}): using BallDontLie (${allVals.length} games)`, 'ok');
       } else if(espnVals.length > 0) {
         allVals = espnVals; vsOppVals = espnOppVals;
-        traceLog('projectionEngine', `${playerName} (${sport}): using ESPN game log (${allVals.length} games — capped, ~20 max)`, 'ok');
+        traceLog('projectionEngine', `${playerName} (${sport}): using ESPN (${allVals.length} games)`, 'ok');
       }
 
       dataPoints = allVals.length;
