@@ -40,6 +40,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(env(safe-area-inset-bottom) + 16px)}
 .page{display:none;padding:14px 14px 0}
 .page.active{display:block}
+#props-sticky-bar *{pointer-events:auto}
+#props-sticky-bar{pointer-events:auto}
 
 /* SETTINGS MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:flex-end}
@@ -101,8 +103,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* PROP CARDS */
-.prop-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:10px;position:relative;overflow:hidden}
-.prop-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px}
+.prop-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:10px;position:relative}
+.prop-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px;pointer-events:none}
 .prop-card.over::before{background:var(--accent)}
 .prop-card.under::before{background:var(--red)}
 .prop-card.pass::before{background:var(--amber)}
@@ -297,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v8.3</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v8.5</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -330,7 +332,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       </div>
 
       <!-- Sticky controls — filters + generate button stay visible while scrolling -->
-      <div id="props-sticky-bar" style="position:sticky;top:0;z-index:50;background:var(--bg);padding:8px 0 4px;margin:-4px 0 0;border-bottom:1px solid var(--border)">
+      <div id="props-sticky-bar" style="position:-webkit-sticky;position:sticky;top:0;z-index:10;background:var(--bg);padding:6px 0 4px;margin:-4px 0 0;border-bottom:1px solid var(--border)">
         <!-- Sport filter chips -->
         <div class="filter-row" id="sport-filters" style="margin-bottom:6px">
           <div class="filter-chip active" data-sport="all" onclick="toggleSportFilter('all',this)">All sports</div>
@@ -368,7 +370,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
       <div id="mode-banner" style="margin-top:10px"></div>
       <div id="data-source-bar" class="data-source-bar"></div>
-      <div id="props-list"></div>
+      <div id="props-list" style="padding-top:4px"></div>
     </div>
 
     <!-- TRACE TAB -->
@@ -376,16 +378,15 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       <div class="section-title">API Test</div>
       <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px">Tap each to test the API connection live from your device</div>
       <div id="api-test-results" style="margin-bottom:14px"></div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px">All tests route through your Cloudflare proxy if needed. MLB has open CORS and works directly.</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
         <button onclick="testApi('nba_directory')" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.08);border:1px solid rgba(0,229,160,.3);border-radius:8px;padding:8px;color:var(--accent);cursor:pointer;grid-column:1/-1">🏀 Test NBA Proxy (commonallplayers)</button>
-        <button onclick="testApi('espn_nhl_sched')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">ESPN NHL Schedule</button>
-        <button onclick="testApi('espn_nhl_player')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">ESPN NHL Player</button>
         <button onclick="testApi('mlb_schedule')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">MLB Schedule</button>
         <button onclick="testApi('mlb_player')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">MLB Player Log</button>
-        <button onclick="testApi('nba_gamelog')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">NBA GameLog</button>
         <button onclick="testApi('espn_nba_sched')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">ESPN NBA Schedule</button>
-        <button onclick="testApi('mlb_gamelog_raw')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">MLB Gamelog Raw</button>
-        <button onclick="testApi('nba_gamelog_raw')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">NBA Gamelog Raw</button>
+        <button onclick="testApi('espn_nhl_sched')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">ESPN NHL Schedule</button>
+        <button onclick="testApi('nba_gamelog')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">ESPN NBA Gamelog</button>
+        <button onclick="testApi('espn_nhl_player')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">ESPN NHL Player</button>
       </div>
 
       <div class="section-title">Slate</div>
@@ -693,23 +694,46 @@ function copyTrace() {
 async function testApi(which) {
   const el = document.getElementById('api-test-results');
   const today = todayStr();
-  if(testName === 'nba_directory') {
-    const out = document.getElementById('api-test-results');
-    out.innerHTML = '<div style="font-family:var(--mono);font-size:10px;color:var(--amber)">Testing NBA proxy (commonallplayers)...</div>';
-    NBA_PLAYER_DIRECTORY = null; NBA_DIRECTORY_LOADING = null; // force reload
+
+  // NBA directory test — special case using proxy directly
+  if(which === 'nba_directory') {
+    el.innerHTML = '<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:var(--bg2);border-radius:8px">Testing NBA proxy (commonallplayers)...</div>';
+    NBA_PLAYER_DIRECTORY = null; NBA_DIRECTORY_LOADING = null;
     try {
       const dir = await loadNBAPlayerDirectory();
       if(dir && dir.size > 0) {
-        const sample = [...dir.entries()].slice(0,3).map(([n,id]) => `${n} → ${id}`).join(', ');
-        out.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--accent)">✓ NBA directory loaded — ${dir.size} players<br/>${sample}</div>`;
+        const sample = [...dir.entries()].slice(0,3).map(([n,id]) => `${n} → ${id}`).join('<br/>');
+        el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--accent);padding:8px;background:var(--bg2);border-radius:8px">✓ NBA directory loaded — ${dir.size} active players<br/><br/>${sample}</div>`;
       } else {
-        out.innerHTML = '<div style="font-family:var(--mono);font-size:10px;color:var(--red)">✗ NBA directory returned empty or failed — check proxy URL and token in Settings</div>';
+        el.innerHTML = '<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:var(--bg2);border-radius:8px">✗ NBA directory empty — check proxy URL and token in ⚙ Settings</div>';
       }
     } catch(e) {
-      out.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red)">✗ Error: ${e.message}</div>`;
+      el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:var(--bg2);border-radius:8px">✗ Error: ${e.message}</div>`;
     }
     return;
   }
+
+  // Helper: fetch via proxy if available, else direct
+  // On iPhone Safari direct cross-origin calls are blocked — proxy fixes this
+  async function safeFetch(url) {
+    const proxy = STATE.settings.corsProxy?.trim();
+    const token = STATE.settings.proxyToken || '';
+    // Try direct first (works for MLB API which has open CORS)
+    try {
+      const r = await fetch(url);
+      if(r.ok) return r.json();
+    } catch(e) {}
+    // Fall back to proxy
+    if(proxy) {
+      const proxyUrl = `${proxy}?url=${encodeURIComponent(url)}`;
+      const hdrs = token ? { 'x-proxy-auth': token } : {};
+      const r = await fetch(proxyUrl, { headers: hdrs });
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }
+    throw new Error('Load failed — set up Cloudflare proxy in ⚙ Settings for full access');
+  }
+
   const tests = {
     'nhl_schedule': {
       label: 'NHL Schedule (api-web.nhle.com)',
@@ -830,7 +854,7 @@ async function testApi(which) {
   el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--muted);padding:8px;background:var(--bg2);border-radius:8px">Testing ${t.label}...<br/><span style="font-size:8px;word-break:break-all">${t.url}</span></div>`;
 
   try {
-    const data = await fetchJSON(t.url);
+    const data = await safeFetch(t.url);
     const result = t.parse(data);
     const color = result.startsWith('✅') ? 'var(--accent)' : result.startsWith('⚠') ? 'var(--amber)' : 'var(--red)';
     el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:${color}">
@@ -1797,9 +1821,10 @@ async function lookupNBAPlayerId(playerName) {
   return null;
 }
 
-async function fetchNBAStatsGameLog(playerName) {
+async function fetchNBAStatsGameLog(playerName, nbaPersonId) {
   if(!STATE.settings.corsProxy) return null;
-  const nbaId = await lookupNBAPlayerId(playerName);
+  // Use pre-resolved PERSON_ID if passed, otherwise look it up
+  const nbaId = nbaPersonId || await lookupNBAPlayerId(playerName);
   if(!nbaId) {
     traceLog('projectionEngine', `${playerName} (NBA): not found in NBA player directory`, 'warn');
     return null;
@@ -1961,10 +1986,13 @@ function computeConfidence(dataPoints, stdDev, mean, hasMatchupData, hasInjuryDa
 // Replaces projection-minus-line approach.
 // Picks the side (OVER/UNDER) with higher EV.
 // Only outputs if: EV > minEdge threshold, conf >= minConf, hasRealLine.
-function evDecision(overEV, underEV, overProb, underProb, conf, hasRealLine) {
+function evDecision(overEV, underEV, overProb, underProb, conf, hasRealLine, sport) {
   if(!hasRealLine) return 'PASS';
-  const minEVPct  = (STATE.settings.minEdge ?? 5) / 100; // convert % to decimal
-  const minConf   = STATE.settings.minConf ?? 6;
+  const minEVPct = (STATE.settings.minEdge ?? 5) / 100;
+  const baseConf = STATE.settings.minConf ?? 6;
+  // MLB batting stats are inherently high-variance — lower confidence threshold
+  // A conf of 3-4 for MLB is actually good given the nature of the stat
+  const minConf = (sport === 'MLB' || sport === 'NHL') ? Math.min(baseConf, 3) : baseConf;
   if(conf < minConf) return 'PASS';
 
   const bestEV   = overEV >= underEV ? overEV : underEV;
@@ -2783,22 +2811,27 @@ async function runFetch(sportsToFetch) {
           : '?';
 
         // ── ID RESOLUTION: betting mode players come from Odds API with name only ──
-        // Step 1: For NBA — look up via NBA Stats API directory (proxy required)
-        // This replaces the hardcoded DB and covers all active players dynamically
-        if(!espnId && player.sport === 'NBA' && STATE.settings.corsProxy) {
-          const nbaId = await lookupNBAPlayerId(player.name);
-          if(nbaId) {
-            espnId = String(nbaId);
-            traceLog('playerDiscovery', `${player.name} (NBA): ID resolved via NBA Stats directory → ${espnId}`, 'ok');
-          }
-        }
-        // Step 1b: For non-NBA — check PLAYER_DB as fallback (limited but available)
-        if(!espnId && player.sport !== 'NBA' && player.name) {
+        // Step 1: Check PLAYER_DB for ESPN ID (works for all sports)
+        if(!espnId && player.name) {
           const norm = s => (s||'').toLowerCase().trim();
           const dbMatch = (PLAYER_DB[player.sport]||[]).find(p => norm(p.name) === norm(player.name));
           if(dbMatch?.id) {
             espnId = String(dbMatch.id);
             traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN ID from player database → ${espnId}`, 'ok');
+          }
+        }
+        // Step 2: For NBA — also store the NBA Stats PERSON_ID separately for game log fetches
+        // PERSON_ID ≠ ESPN ID — these are different systems entirely
+        // NBA Stats API game logs use PERSON_ID; ESPN game logs use ESPN athlete ID
+        if(player.sport === 'NBA' && STATE.settings.corsProxy) {
+          const nbaPersonId = await lookupNBAPlayerId(player.name);
+          if(nbaPersonId) {
+            // Store NBA person ID in meta — used by fetchNBAStatsGameLog
+            player.meta = { ...(player.meta||{}), nbaPersonId };
+            traceLog('playerDiscovery', `${player.name} (NBA): NBA Stats PERSON_ID → ${nbaPersonId}`, 'ok');
+            // If we still have no ESPN ID, use PERSON_ID as fallback identity token
+            // (game log will fall back to ESPN anyway if NBA Stats fails)
+            if(!espnId) espnId = String(nbaPersonId);
           }
         }
         // Step 2: ESPN name search fallback (may be CORS-blocked on Safari)
@@ -2938,7 +2971,8 @@ async function runFetch(sportsToFetch) {
         const effectiveId = espnId || mlbIdForGate || null;
         // Merge mlbId into playerMeta so buildPlayerProp can use it for MLB API fetch
         const playerMetaMerged = { ...(dbEntry||{}), ...(player.meta||{}),
-          mlbId: resolvedMlbId || null };
+          mlbId: resolvedMlbId || null,
+          nbaPersonId: player.meta?.nbaPersonId || null };
         const prop = await buildPlayerProp(
           effectiveId, player.name, player.sport, player.espnSport, player.espnLeague,
           dbEntry?.team||player.homeTeam, opp, 'today',
@@ -3638,7 +3672,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       // Source 1: NBA Stats API — full season, requires Cloudflare proxy
       if(sport === 'NBA' && STATE.settings.corsProxy) {
         try {
-          const nbaData = await fetchNBAStatsGameLog(playerName);
+          const nbaData = await fetchNBAStatsGameLog(playerName, playerMeta?.nbaPersonId || null);
           if(nbaData) {
             const p = parseNBAStatsGameLog(nbaData, statLabel, opp);
             nbaStatsVals = p.allVals; nbaStatsOppVals = p.vsOppVals;
