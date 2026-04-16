@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v9.3</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v9.5</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -2416,11 +2416,14 @@ async function runFetch(sportsToFetch) {
           if(!propType) continue;
           for(const outcome of market.outcomes || []) {
             if(outcome.name === 'Over' && outcome.description && outcome.point !== undefined) {
+              // Determine today vs tomorrow from event start time
+              const eventDate = event.commence_time ? localDateStr(new Date(event.commence_time)) : todayStr();
+              const dateTag = eventDate === tomorrowStr() ? 'tomorrow' : 'today';
               allPlayersWithLines.push({
                 name: outcome.description, sport,
                 espnSport: sportToESPN[sport]?.[0], espnLeague: sportToESPN[sport]?.[1],
                 prop: propType, line: parseFloat(outcome.point),
-                homeTeam, awayTeam, eventId: event.id
+                homeTeam, awayTeam, eventId: event.id, dateTag
               });
               oddsApiWorking = true;
             }
@@ -2550,46 +2553,50 @@ async function runFetch(sportsToFetch) {
       const schedulePromises = sportsToFetch
         .filter(s => s !== 'GOLF')
         .map(async sport => {
-          // NHL: ESPN (api-web.nhle.com is CORS-blocked on Safari)
-          if(sport === 'NHL') {
+          // Fetch both today AND tomorrow, merge and tag each event with its date
+          const fetchDay = async (date, dateTag) => {
+            if(sport === 'NHL') {
+              try {
+                const data = await fetchESPNSchedule('hockey', 'nhl', date);
+                return (data.events || []).map(e => ({ ...e, _dateTag: dateTag }));
+              } catch(e) { return []; }
+            }
+            if(sport === 'MLB') {
+              try {
+                const data = await fetchMLBSchedule(date);
+                const games = data?.dates?.[0]?.games || [];
+                return games.map(g => ({
+                  id: String(g.gamePk),
+                  _mlbGamePk: g.gamePk,
+                  _mlbHomeId: g.teams?.home?.team?.id,
+                  _mlbAwayId: g.teams?.away?.team?.id,
+                  _dateTag: dateTag,
+                  _homeProbablePitcher: g.teams?.home?.probablePitcher
+                    ? { id: g.teams.home.probablePitcher.id, name: g.teams.home.probablePitcher.fullName }
+                    : null,
+                  _awayProbablePitcher: g.teams?.away?.probablePitcher
+                    ? { id: g.teams.away.probablePitcher.id, name: g.teams.away.probablePitcher.fullName }
+                    : null,
+                  competitions: [{ competitors: [
+                    { homeAway:'home', team:{ abbreviation: mlbTeamAbbrev(g.teams?.home?.team?.name), id: String(g.teams?.home?.team?.id||'') }},
+                    { homeAway:'away', team:{ abbreviation: mlbTeamAbbrev(g.teams?.away?.team?.name), id: String(g.teams?.away?.team?.id||'') }}
+                  ]}]
+                }));
+              } catch(e) { return []; }
+            }
+            if(!sportToESPN[sport]) return [];
+            const [es, el] = sportToESPN[sport];
             try {
-              const data = await fetchESPNSchedule('hockey', 'nhl', today);
-              return { sport, events: data.events || [] };
-            } catch(e) { return { sport, events:[] }; }
-          }
-          // MLB: use official MLB schedule API
-          if(sport === 'MLB') {
-            try {
-              const data = await fetchMLBSchedule(today);
-              const games = data?.dates?.[0]?.games || [];
-              const events = games.map(g => ({
-                id: String(g.gamePk),
-                _mlbGamePk: g.gamePk,
-                _mlbHomeId: g.teams?.home?.team?.id,
-                _mlbAwayId: g.teams?.away?.team?.id,
-                // Probable pitchers — extracted from hydrated schedule response
-                // home pitcher faces away batters, away pitcher faces home batters
-                _homeProbablePitcher: g.teams?.home?.probablePitcher
-                  ? { id: g.teams.home.probablePitcher.id, name: g.teams.home.probablePitcher.fullName }
-                  : null,
-                _awayProbablePitcher: g.teams?.away?.probablePitcher
-                  ? { id: g.teams.away.probablePitcher.id, name: g.teams.away.probablePitcher.fullName }
-                  : null,
-                competitions: [{ competitors: [
-                  { homeAway:'home', team:{ abbreviation: mlbTeamAbbrev(g.teams?.home?.team?.name), id: String(g.teams?.home?.team?.id||'') }},
-                  { homeAway:'away', team:{ abbreviation: mlbTeamAbbrev(g.teams?.away?.team?.name), id: String(g.teams?.away?.team?.id||'') }}
-                ]}]
-              }));
-              return { sport, events };
-            } catch(e) { return { sport, events:[] }; }
-          }
-          // NBA, NFL, WNBA: ESPN schedule
-          if(!sportToESPN[sport]) return { sport, events:[] };
-          const [es, el] = sportToESPN[sport];
-          try {
-            const data = await fetchESPNSchedule(es, el, today);
-            return { sport, events: data.events || [] };
-          } catch(e) { return { sport, events:[] }; }
+              const data = await fetchESPNSchedule(es, el, date);
+              return (data.events || []).map(e => ({ ...e, _dateTag: dateTag }));
+            } catch(e) { return []; }
+          };
+
+          const [todayEvents, tomorrowEvents] = await Promise.all([
+            fetchDay(today, 'today'),
+            fetchDay(tomorrow, 'tomorrow'),
+          ]);
+          return { sport, events: [...todayEvents, ...tomorrowEvents] };
         });
       const scheduleResults = await Promise.all(schedulePromises);
       scheduleResults.forEach(r => {
@@ -2798,6 +2805,7 @@ async function runFetch(sportsToFetch) {
               prop: p.prop, line: p.lineBase || 0,
               homeTeam: home, awayTeam: away,
               espnId: p.id || null,
+              dateTag: game._dateTag || 'today',
               meta: { ...(p.meta || {}), opposingPitcher },
             });
           }
@@ -3041,7 +3049,7 @@ async function runFetch(sportsToFetch) {
           nbaPersonId: player.meta?.nbaPersonId || null };
         const prop = await buildPlayerProp(
           effectiveId, player.name, player.sport, player.espnSport, player.espnLeague,
-          dbEntry?.team||player.homeTeam, opp, 'today',
+          dbEntry?.team||player.homeTeam, opp, player.dateTag || 'today',
           injuries, propId++, player.prop, player.line, realLine, playerMetaMerged
         );
         if(prop && newPropsBySport[player.sport] !== undefined) {
