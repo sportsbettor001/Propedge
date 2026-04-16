@@ -297,7 +297,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v7.0</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v7.2</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1367,6 +1367,36 @@ async function fetchMLBPitcherStats(mlbPlayerId, season) {
   return splits[0]?.stat || null; // { era, whip, strikeOuts, baseOnBalls, inningsPitched, ... }
 }
 
+async function fetchMLBBatterVsPitcher(batterId, pitcherId, season) {
+  // Returns career + current season stats for this batter vs this specific pitcher
+  try {
+    const yr = season || new Date().getFullYear();
+    // Career stats vs this pitcher
+    const careerUrl = `${MLB_BASE}/people/${batterId}/stats?stats=vsPlayer&group=hitting&opposingPlayerId=${pitcherId}&gameType=R`;
+    // Season stats vs this pitcher
+    const seasonUrl = `${MLB_BASE}/people/${batterId}/stats?stats=vsPlayerTotal&group=hitting&opposingPlayerId=${pitcherId}&season=${yr}&gameType=R`;
+    const [careerData, seasonData] = await Promise.allSettled([
+      fetchWithFallback(careerUrl),
+      fetchWithFallback(seasonUrl),
+    ]);
+    const careerSplits = careerData.status === 'fulfilled' ? (careerData.value?.stats?.[0]?.splits || []) : [];
+    const seasonSplits = seasonData.status === 'fulfilled' ? (seasonData.value?.stats?.[0]?.splits || []) : [];
+    const career = careerSplits[0]?.stat || null;
+    const seas   = seasonSplits[0]?.stat || null;
+    if(!career && !seas) return null;
+    return {
+      career: career ? {
+        ab: career.atBats || 0, hits: career.hits || 0, hr: career.homeRuns || 0,
+        avg: career.avg || '.000', ops: career.ops || '.000', k: career.strikeOuts || 0,
+      } : null,
+      season: seas ? {
+        ab: seas.atBats || 0, hits: seas.hits || 0, hr: seas.homeRuns || 0,
+        avg: seas.avg || '.000', ops: seas.ops || '.000', k: seas.strikeOuts || 0,
+      } : null,
+    };
+  } catch(e) { return null; }
+}
+
 async function fetchMLBPlayerInfo(mlbPlayerId) {
   const url = `${MLB_BASE}/people/${mlbPlayerId}?hydrate=currentTeam,stats(group=[hitting,pitching],type=season)`;
   return await fetchWithFallback(url);
@@ -2216,6 +2246,14 @@ async function runFetch(sportsToFetch) {
                 _mlbGamePk: g.gamePk,
                 _mlbHomeId: g.teams?.home?.team?.id,
                 _mlbAwayId: g.teams?.away?.team?.id,
+                // Probable pitchers — extracted from hydrated schedule response
+                // home pitcher faces away batters, away pitcher faces home batters
+                _homeProbablePitcher: g.teams?.home?.probablePitcher
+                  ? { id: g.teams.home.probablePitcher.id, name: g.teams.home.probablePitcher.fullName }
+                  : null,
+                _awayProbablePitcher: g.teams?.away?.probablePitcher
+                  ? { id: g.teams.away.probablePitcher.id, name: g.teams.away.probablePitcher.fullName }
+                  : null,
                 competitions: [{ competitors: [
                   { homeAway:'home', team:{ abbreviation: mlbTeamAbbrev(g.teams?.home?.team?.name), id: String(g.teams?.home?.team?.id||'') }},
                   { homeAway:'away', team:{ abbreviation: mlbTeamAbbrev(g.teams?.away?.team?.name), id: String(g.teams?.away?.team?.id||'') }}
@@ -2411,11 +2449,20 @@ async function runFetch(sportsToFetch) {
           if(slateEntry) slateEntry.games.push({ home, away, players: ranked.map(p=>p.name) });
 
           for(const p of ranked) {
+            // For MLB batters: the opposing pitcher is the one throwing to them
+            // Home batters face the away probable pitcher, away batters face the home probable pitcher
+            let opposingPitcher = null;
+            if(sport === 'MLB' && p.position !== 'P') {
+              const playerTeam = (p.teamAbbr || p.meta?.team || '').toUpperCase();
+              const isHomeBatter = home && playerTeam && (home.toUpperCase().includes(playerTeam.slice(0,3)) || playerTeam.includes(home.slice(0,3)));
+              opposingPitcher = isHomeBatter ? game._awayProbablePitcher : game._homeProbablePitcher;
+            }
             playersToProcess.push({
               name: p.name, sport, espnSport, espnLeague, gameId,
               prop: p.prop, line: p.lineBase || 0,
               homeTeam: home, awayTeam: away,
-              espnId: p.id || null, meta: p.meta || null,
+              espnId: p.id || null,
+              meta: { ...(p.meta || {}), opposingPitcher },
             });
           }
         }
@@ -3118,13 +3165,37 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         traceLog('projectionEngine', `${playerName} (MLB): using ESPN (${allVals.length} games)`, 'ok');
       }
 
-      // Pitcher context and weather (MLB API extras — only if MLB API worked)
+      // Pitcher context, batter vs pitcher history, and weather
       if(mlbApiVals.length > 0) {
-        if(playerMeta.probablePitcherId) {
+        // Opposing pitcher ERA/WHIP context
+        const pitcherSource = playerMeta.opposingPitcher || (playerMeta.probablePitcherId ? { id: playerMeta.probablePitcherId, name: playerMeta.probablePitcherName } : null);
+        if(pitcherSource?.id) {
           try {
-            const ps = await fetchMLBPitcherStats(playerMeta.probablePitcherId, season);
-            if(ps) contextData.pitcher = { era:ps.era, whip:ps.whip, kPer9:ps.strikeoutsPer9Inn, name:playerMeta.probablePitcherName||'TBD' };
+            const ps = await fetchMLBPitcherStats(pitcherSource.id, season);
+            if(ps) contextData.pitcher = { era:ps.era, whip:ps.whip, kPer9:ps.strikeoutsPer9Inn, name:pitcherSource.name||'TBD' };
           } catch(e) {}
+          // Batter vs pitcher history (only for batters, not pitchers)
+          const isBatter = !['Strikeouts'].includes(statLabel);
+          const batterId = playerMeta.mlbId || null;
+          if(isBatter && batterId) {
+            try {
+              const bvp = await fetchMLBBatterVsPitcher(batterId, pitcherSource.id, season);
+              if(bvp) {
+                contextData.bvp = bvp;
+                const bvpNote = [];
+                if(bvp.season?.ab >= 3) {
+                  bvpNote.push(`This season vs ${pitcherSource.name||'pitcher'}: ${bvp.season.hits}/${bvp.season.ab} (avg ${bvp.season.avg})`);
+                }
+                if(bvp.career?.ab >= 5) {
+                  bvpNote.push(`Career vs ${pitcherSource.name||'pitcher'}: ${bvp.career.hits}/${bvp.career.ab} (avg ${bvp.career.avg})`);
+                }
+                if(bvpNote.length > 0) {
+                  contextData.bvpNote = bvpNote.join(' · ');
+                  traceLog('projectionEngine', `${playerName} vs pitcher ${pitcherSource.name}: ${bvpNote.join(' | ')}`, 'ok');
+                }
+              }
+            } catch(e) {}
+          }
         }
         if(team && date) {
           try {
@@ -3469,6 +3540,10 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     if(sport === 'NFL' && contextData.snapShareNote) {
       contextNotes.push(`Snap share: ${contextData.snapShareNote}`);
     }
+    // MLB batter vs pitcher history
+    if(sport === 'MLB' && contextData.bvpNote) {
+      contextNotes.push(`Batter vs pitcher: ${contextData.bvpNote}`);
+    }
 
     finalProjection = parseFloat(finalProjection.toFixed(2));
 
@@ -3534,25 +3609,31 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       : (sport === 'NBA' || sport === 'WNBA') && STATE.settings.balldontlieKey ? 'BallDontLie API'
       : 'ESPN game log';
 
+    const cvRatio = finalProjection > 0 ? effectiveStdDev / finalProjection : null;
+    const consistencyLabel = cv === null ? 'unknown' : cvRatio < 0.20 ? 'very consistent' : cvRatio < 0.40 ? 'fairly consistent' : cvRatio < 0.60 ? 'somewhat inconsistent' : 'highly inconsistent';
     const reasoning = [
-      `Model: EWMA (α=0.25) mean=${finalProjection} | σ=${effectiveStdDev.toFixed(2)} | Source: ${dataSourceLabel}`,
-      `Line: ${line} | P(Over)=${(overProbRaw*100).toFixed(1)}% | P(Under)=${(underProbRaw*100).toFixed(1)}%`,
-      `Implied (−110): over=${(impliedOver*100).toFixed(1)}% / under=${(impliedUnder*100).toFixed(1)}%`,
-      `EV: over=${overEVPct}% / under=${underEVPct}% → bet ${decision}`,
-      `Line source: ${hasRealLine ? 'DraftKings/FanDuel via The Odds API ✓' : 'No market line — analysis mode only (add Odds API key in ⚙ Settings for real lines)'}`,
-      `Data: ${dataPoints} games | Completeness: ${completeness.score}% ≥ ${thresholdInfo.threshold}%`,
-      `Breakdown: ${completeness.breakdown?.join(' · ')}`,
+      `Data source: ${dataSourceLabel} · ${dataPoints} games analyzed`,
+      `Season average: ${seasonAvg} ${statLabel.toLowerCase()} per game · Consistency: ${consistencyLabel}`,
+      hasRealLine
+        ? `Sportsbook line: ${line} (from DraftKings/FanDuel via Odds API)`
+        : `No sportsbook line available — analysis mode only`,
+      `Our projection: ${finalProjection} ${statLabel.toLowerCase()} · ${(overProbRaw*100).toFixed(0)}% chance of going OVER · ${(underProbRaw*100).toFixed(0)}% chance of going UNDER`,
+      hasRealLine
+        ? `Betting edge: ${overEVPct > underEVPct ? 'OVER' : 'UNDER'} has a +${Math.max(overEVPct, underEVPct)}% edge vs the implied odds (sportsbooks price both sides at ~52.4% to make money)`
+        : `No betting recommendation without a sportsbook line`,
+      `Data quality: ${completeness.score}% (minimum needed: ${thresholdInfo.threshold}%) — ${completeness.score >= thresholdInfo.threshold ? '✓ enough data' : '✗ insufficient data'}`,
     ];
-    if(seasonAvg) reasoning.push(`Season avg: ${seasonAvg} | Hit rate over ${line}: ${hitRateSeason ? hitRateSeason.hits + '/' + hitRateSeason.total + ' (' + hitRateSeason.pct + '%)' : 'N/A'}`);
-    if(volatilityNote) reasoning.push(`Volatility: ${volatilityNote}`);
-    if(injuryStatus) reasoning.push(`⚠ Injury: ${injuryStatus} — mean reduced`);
+    if(hitRateSeason) reasoning.push(`Historical hit rate: went over ${line} ${statLabel.toLowerCase()} in ${hitRateSeason.hits} of ${hitRateSeason.total} games this season (${hitRateSeason.pct}%)`);
+    if(injuryStatus) reasoning.push(`⚠ Injury status: ${injuryStatus} — projection adjusted down accordingly. Confirm before betting.`);
     contextNotes.forEach(n => reasoning.push(`Context: ${n}`));
 
     // ── NARRATIVE ──
     const narrative = buildNarrative(
       playerName, sport, statLabel, line, finalProjection, decision,
       overProbRaw, underProbRaw, overEVPct, underEVPct,
-      vsOppAvg, vsOppVals.length, opp, injuryStatus, dataPoints, hasRealLine, effectiveStdDev
+      vsOppAvg, vsOppVals.length, opp, injuryStatus, dataPoints, hasRealLine, effectiveStdDev,
+      contextData.bvpNote || null,
+      contextData.pitcher?.name || null
     );
 
     const isAnalysisProp = !hasRealLine;
@@ -3589,32 +3670,59 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
 // ═══════════════════════════════════════════════════════
 function buildNarrative(name, sport, prop, line, projMean, decision,
   overProb, underProb, overEVPct, underEVPct,
-  vsOppAvg, vsOppGames, opp, injury, dataPoints, hasRealLine, stdDev) {
+  vsOppAvg, vsOppGames, opp, injury, dataPoints, hasRealLine, stdDev, bvpNote, pitcherName) {
   const firstName = name.split(' ')[0];
+  const propLow = prop.toLowerCase();
+  const cv = projMean > 0 && stdDev ? stdDev / projMean : null;
+  const consistencyNote = cv === null ? '' : cv < 0.25 ? `${firstName} is very consistent in this category.` : cv < 0.50 ? `${firstName} is fairly consistent but has some game-to-game variance.` : `${firstName} can be unpredictable in this category — high variance player.`;
+
+  // Analysis mode — no sportsbook line
+  if(!hasRealLine) {
+    const trend = projMean > 0 ? `averaging ${projMean.toFixed(1)} ${propLow} per game over the last ${dataPoints} games` : `limited data available`;
+    const oppNote = vsOppAvg !== null && vsOppGames >= 3 ? ` Against ${opp} specifically, ${firstName} has averaged ${vsOppAvg.toFixed(1)} ${propLow} over ${vsOppGames} matchups.` : '';
+    const pitcherNote = bvpNote ? ` Head-to-head vs today's pitcher: ${bvpNote}.` : (pitcherName ? ` Facing ${pitcherName} today.` : '');
+    return `${firstName} is ${trend}.${oppNote}${pitcherNote} ${consistencyNote} Add an Odds API key in ⚙ Settings to get a betting recommendation.`;
+  }
+
+  if(dataPoints < 5) return `Not enough game history to make a reliable projection. Check back when more data is available.`;
 
   if(decision === 'PASS') {
-    if(!hasRealLine) return `Analysis mode — no verified sportsbook line available. Statistical projection: ${projMean.toFixed(1)} ${prop.toLowerCase()} (EWMA over ${dataPoints} games). Add an Odds API key in ⚙ Settings to enable betting recommendations.`;
-    if(dataPoints < 5) return `Insufficient data (${dataPoints} games). Minimum 5 required.`;
-    return `Neither OVER nor UNDER clears the EV threshold at current odds. No edge identified.`;
+    return `${firstName} projects to ${projMean.toFixed(1)} ${propLow} against the line of ${line}. The edge isn't strong enough to recommend a bet here — neither side has a clear advantage at current odds.`;
   }
 
   const isOver = decision === 'OVER';
-  const chosenProb = isOver ? (overProb*100).toFixed(1) : (underProb*100).toFixed(1);
-  const chosenEV   = isOver ? overEVPct : underEVPct;
-  const sentences  = [];
+  const chosenProb = isOver ? (overProb*100).toFixed(0) : (underProb*100).toFixed(0);
+  const chosenEV = isOver ? overEVPct : underEVPct;
+  const lineComparison = isOver
+    ? (projMean > line ? `projects above the line at ${projMean.toFixed(1)}` : `has a ${chosenProb}% historical chance of clearing ${line}`)
+    : (projMean < line ? `projects below the line at ${projMean.toFixed(1)}` : `has a ${chosenProb}% historical chance of staying under ${line}`);
 
-  sentences.push(
-    `Statistical model (${dataPoints} games, EWMA mean ${projMean.toFixed(1)}, σ=${stdDev?.toFixed(2) ?? 'N/A'}) gives ${firstName} a ${chosenProb}% probability to go ${decision} ${line} ${prop.toLowerCase()}.`
-  );
-  sentences.push(
-    `At standard −110 odds (52.4% implied), the model edge is +${chosenEV}% EV — above the ${STATE.settings.minEdge ?? 5}% threshold.`
-  );
+  const sentences = [];
+
+  // Main take
+  sentences.push(`${firstName} ${lineComparison} ${propLow} — our model gives this a ${chosenProb}% chance of going ${decision}.`);
+
+  // Opponent history
   if(vsOppAvg !== null && vsOppGames >= 3) {
-    sentences.push(`In ${vsOppGames} meetings vs ${opp}, ${firstName} averaged ${vsOppAvg.toFixed(1)} ${prop.toLowerCase()} (blended at 20% weight).`);
+    const oppTrend = isOver ? (vsOppAvg >= line ? 'above' : 'below') : (vsOppAvg <= line ? 'below' : 'above');
+    sentences.push(`In ${vsOppGames} previous games vs ${opp}, ${firstName} averaged ${vsOppAvg.toFixed(1)} ${propLow} — ${oppTrend} today's line.`);
   }
-  if(injury) {
-    sentences.push(`⚠ Listed as ${injury} — mean was reduced accordingly. Confirm status before betting.`);
+
+  // Batter vs pitcher history
+  if(bvpNote) {
+    sentences.push(`📊 Head-to-head: ${bvpNote}`);
+  } else if(pitcherName) {
+    sentences.push(`Facing ${pitcherName} today — no significant head-to-head history available.`);
   }
+
+  // Edge explanation in plain terms
+  sentences.push(`At current odds, this bet has a +${chosenEV}% edge — meaning for every $100 wagered, you'd expect to make $${chosenEV} more than you'd lose over time if the model is correct.`);
+
+  // Consistency
+  if(consistencyNote) sentences.push(consistencyNote);
+
+  // Injury warning
+  if(injury) sentences.push(`⚠ ${firstName} is listed as ${injury}. Projection has been reduced to account for this — confirm status before betting.`);
 
   return sentences.join(' ');
 }
