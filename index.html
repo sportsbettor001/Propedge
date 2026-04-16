@@ -297,7 +297,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v5.7</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v6.2</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <button class="settings-btn" onclick="openSettings()">⚙</button>
@@ -347,8 +347,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       </div>
       <div class="filter-row" id="date-filters">
         <div class="filter-chip active" data-date="all" onclick="setFilter('date','all',this)">All dates</div>
-        <div class="filter-chip" data-date="today" onclick="setFilter('date','today',this)">Today</div>
-        <div class="filter-chip" data-date="tomorrow" onclick="setFilter('date','tomorrow',this)">Tomorrow</div>
+        <div class="filter-chip" id="chip-today" data-date="today" onclick="setFilter('date','today',this)">Today</div>
+        <div class="filter-chip" id="chip-tomorrow" data-date="tomorrow" onclick="setFilter('date','tomorrow',this)">Tomorrow</div>
       </div>
 
       <!-- Cache status bar -->
@@ -543,6 +543,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
     <button class="modal-btn" onclick="saveSettings()">Save Settings</button>
     <button class="modal-close" onclick="closeSettings()">Close</button>
+    <button class="modal-close" onclick="revertToDefaults()" style="color:var(--amber);border-color:rgba(255,181,71,.3);margin-top:6px">↺ Revert keys to defaults</button>
+    <button class="modal-close" onclick="clearAllData()" style="color:var(--red);border-color:rgba(255,77,106,.3);margin-top:6px">⚠ Clear all data & localStorage</button>
 
     <div class="modal-section">About the engine</div>
     <div class="setting-hint" style="margin-top:8px">
@@ -694,8 +696,8 @@ async function testApi(which) {
       }
     },
     'espn_nba_sched': {
-      label: 'ESPN NBA Schedule',
-      url: `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${today.replace(/-/g,'')}`,
+      label: 'ESPN NBA Schedule (tries play-in + playoff + default)',
+      url: `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${today.replace(/-/g,'')}&groups=50`,
       parse: d => {
         const events = d?.events || [];
         return events.length > 0 ? `✅ ${events.length} games: ${events.slice(0,3).map(e=>e.shortName).join(', ')}` : `⚠ 0 events`;
@@ -928,6 +930,18 @@ function discardCachedData() {
 function setDateBar() {
   const now = new Date();
   document.getElementById('date-bar').textContent = now.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',year:'numeric'}).toUpperCase();
+  // Update Today/Tomorrow filter chips with actual dates
+  const todayChip = document.getElementById('chip-today');
+  const tomorrowChip = document.getElementById('chip-tomorrow');
+  if(todayChip) {
+    const todayLabel = now.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    todayChip.textContent = `Today · ${todayLabel}`;
+  }
+  if(tomorrowChip) {
+    const tom = new Date(); tom.setDate(tom.getDate()+1);
+    const tomorrowLabel = tom.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    tomorrowChip.textContent = `Tomorrow · ${tomorrowLabel}`;
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -950,6 +964,26 @@ function openSettings() {
   loadSettingsIntoForm();
   document.getElementById('settings-modal').classList.add('open');
 }
+function revertToDefaults() {
+  if(!confirm('Clear all API keys and proxy settings? Your props history and slip will be kept.')) return;
+  STATE.settings.oddsApiKey   = '';
+  STATE.settings.balldontlieKey = '';
+  STATE.settings.corsProxy    = '';
+  STATE.settings.proxyToken   = '';
+  saveState();
+  loadSettingsIntoForm();
+  showToast('Keys cleared — defaults restored', 'success');
+}
+
+function clearAllData() {
+  if(!confirm('This will wipe everything — keys, cached props, slip, history. Cannot be undone. Continue?')) return;
+  try {
+    localStorage.clear();
+  } catch(e) {}
+  showToast('All data cleared — reloading...', 'success');
+  setTimeout(() => location.reload(), 1200);
+}
+
 function closeSettings() {
   document.getElementById('settings-modal').classList.remove('open');
 }
@@ -1075,8 +1109,15 @@ async function fetchWithFallback(url) {
   }
 }
 
-function todayStr() { return new Date().toISOString().slice(0,10); }
-function tomorrowStr() { const d = new Date(); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); }
+function localDateStr(d) {
+  // Use local date, not UTC — avoids date being wrong for US timezones
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function todayStr() { return localDateStr(new Date()); }
+function tomorrowStr() { const d = new Date(); d.setDate(d.getDate()+1); return localDateStr(d); }
 
 // ═══════════════════════════════════════════════════════
 // ESPN API — NBA/NFL/WNBA schedules, game logs, injuries
@@ -1085,7 +1126,30 @@ function tomorrowStr() { const d = new Date(); d.setDate(d.getDate()+1); return 
 const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 
 async function fetchESPNSchedule(sport, league, date) {
-  return await fetchWithFallback(`${ESPN_BASE}/${sport}/${league}/scoreboard?dates=${date.replace(/-/g,'')}`);
+  const dateStr = date.replace(/-/g,'');
+  const base = `${ESPN_BASE}/${sport}/${league}/scoreboard`;
+
+  // For NBA, try multiple season group params — ESPN hides play-in and playoff
+  // games from the default scoreboard endpoint. groups=50 includes postseason.
+  if(league === 'nba') {
+    // Try each variant, return first one that has events
+    const urls = [
+      `${base}?dates=${dateStr}&groups=50`,   // postseason / play-in
+      `${base}?dates=${dateStr}&seasontype=5`, // play-in tournament specifically
+      `${base}?dates=${dateStr}&seasontype=3`, // playoffs
+      `${base}?dates=${dateStr}`,              // default (regular season)
+    ];
+    for(const url of urls) {
+      try {
+        const data = await fetchWithFallback(url);
+        if(data?.events?.length > 0) return data;
+      } catch(e) { continue; }
+    }
+    // Return empty if nothing found
+    return { events: [] };
+  }
+
+  return await fetchWithFallback(`${base}?dates=${dateStr}`);
 }
 async function fetchESPNPlayerStats(sport, league, athleteId) {
   return await fetchWithFallback(`${ESPN_BASE}/${sport}/${league}/athletes/${athleteId}/statistics`);
@@ -1115,17 +1179,71 @@ async function searchESPNAthlete(sport, league, name) {
   return await fetchWithFallback(`${ESPN_BASE}/${sport}/${league}/athletes?limit=20&search=${encodeURIComponent(name)}`);
 }
 
-// Exact-match ESPN athlete lookup — returns athlete ID only if displayName matches exactly
-// No fuzzy matching. If ambiguous or no exact match → returns null.
+// Fuzzy ESPN athlete lookup — tries exact match first, then progressively looser matching
+// Handles nicknames (Steph→Stephen), missing middle names, apostrophes etc.
 function exactMatchESPNId(searchData, targetName) {
-  const norm = s => (s||'').toLowerCase().trim();
+  const norm = s => (s||'').toLowerCase().trim().replace(/['.,-]/g,'');
   const target = norm(targetName);
   const athletes = searchData?.athletes || searchData?.items || [];
-  const exact = athletes.find(a => {
-    const displayName = norm(a.displayName || a.athlete?.displayName || '');
-    return displayName === target;
+  if(!athletes.length) return null;
+
+  // Helper to get display name from athlete object
+  const getName = a => norm(a.displayName || a.athlete?.displayName || '');
+  const getId   = a => a.id || a.athlete?.id || null;
+
+  // 1. Exact match
+  const exact = athletes.find(a => getName(a) === target);
+  if(exact) return getId(exact);
+
+  // 2. All typed words appear in the ESPN name (handles missing middle names)
+  // e.g. "Joel Embiid" matches "Joel Hans Embiid"
+  const targetWords = target.split(/\s+/).filter(Boolean);
+  const allWords = athletes.find(a => {
+    const n = getName(a);
+    return targetWords.every(w => n.includes(w));
   });
-  return exact ? (exact.id || exact.athlete?.id || null) : null;
+  if(allWords) return getId(allWords);
+
+  // 3. Last name + first initial match
+  // e.g. "S Curry" or "Curry" alone
+  const lastNameOnly = athletes.find(a => {
+    const parts = getName(a).split(/\s+/);
+    const lastName = parts[parts.length-1];
+    const targetParts = target.split(/\s+/);
+    const targetLast = targetParts[targetParts.length-1];
+    return lastName === targetLast && (
+      targetParts.length === 1 ||
+      parts[0].startsWith(targetParts[0][0])
+    );
+  });
+  if(lastNameOnly) return getId(lastNameOnly);
+
+  // 4. Common nickname map
+  const nicknames = {
+    'steph':'stephen','steph curry':'stephen curry',
+    'bam':'bam adebayo','pg':'paul george',
+    'kd':'kevin durant','ad':'anthony davis',
+    'cp3':'chris paul','russ':'russell westbrook',
+    'melo':'carmelo anthony','bron':'lebron james',
+    'the joker':'nikola jokic','joker':'nikola jokic',
+    'sga':'shai gilgeous-alexander','ant':'anthony edwards',
+    'payton':'payton pritchard','trae':'trae young',
+    'ja':'ja morant','miles':'miles bridges',
+  };
+  const mapped = nicknames[target];
+  if(mapped) {
+    const nickMatch = athletes.find(a => getName(a) === norm(mapped));
+    if(nickMatch) return getId(nickMatch);
+  }
+
+  // 5. Substring — typed name is contained within ESPN name or vice versa
+  const substring = athletes.find(a => {
+    const n = getName(a);
+    return n.includes(target) || target.includes(n);
+  });
+  if(substring) return getId(substring);
+
+  return null;
 }
 
 // PRIMARY: fetch all players participating in a specific game
@@ -3332,27 +3450,23 @@ async function analyzePick() {
 
     try {
       const searchData = await searchESPNAthlete(espnSport, espnLeague, player);
-      const athletes = searchData?.athletes || searchData?.items || [];
-      // Exact name match only — user typed the name, so we enforce it
-      const norm = s => (s||'').toLowerCase().trim();
-      const exact = athletes.find(a =>
-        norm(a.displayName || a.athlete?.displayName || '') === norm(player)
-      );
-      if(exact) {
-        athleteId   = exact.id || exact.athlete?.id;
-        athleteName = exact.displayName || exact.athlete?.displayName || player;
+      // Use fuzzy matching — handles nicknames, missing middle names, etc.
+      const foundId = exactMatchESPNId(searchData, player);
+      if(foundId) {
+        athleteId = foundId;
+        // Get the display name from the matched athlete
+        const allAthletes = searchData?.athletes || searchData?.items || [];
+        const matched = allAthletes.find(a => (a.id||a.athlete?.id) == foundId);
+        athleteName = matched?.displayName || matched?.athlete?.displayName || player;
       }
     } catch(e) {}
 
     if(athleteId) {
       try {
         const gameLogData = await fetchESPNGameLog(espnSport, espnLeague, athleteId);
-        const events = gameLogData?.seasonTypes?.[0]?.categories?.[0]?.events || [];
-        const statIdx = getStatIndex(sport, prop);
-        gameLogValues = events.slice(-10).map(e => {
-          const val = Array.isArray(e) ? e[statIdx] : (e.stats?.[statIdx]);
-          return val !== undefined ? parseFloat(val) : null;
-        }).filter(v => v !== null && !isNaN(v));
+        // Use the same confirmed parser as the main engine
+        const parsed = _parseESPNGameLogSingle(gameLogData, prop, null);
+        gameLogValues = parsed.allVals.slice(-20); // last 20 games
         dataPoints = gameLogValues.length;
         foundViaAPI = dataPoints > 0;
       } catch(e) {}
