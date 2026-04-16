@@ -297,7 +297,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v6.9</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v7.0</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -2557,7 +2557,7 @@ async function runFetch(sportsToFetch) {
           if(player.sport === 'MLB' && prop.dataSource?.gamelog > 0) apiStatusMap.MLB = 'ok';
           if(player.sport === 'NHL' && prop.dataSource?.gamelog > 0) apiStatusMap.NHL = 'ok';
         } else if(!prop) {
-          traceLog('outputLog', `${player.name} (${player.sport}): buildPlayerProp returned null — suppressed`, 'warn');
+          traceLog('outputLog', `${player.name} (${player.sport}): could not build projection — see Projection Engine section above for reason`, 'warn');
         }
       } catch(e) {
         traceLog('outputLog', `${player.name} (${player.sport}): ERROR — ${e.message}`, 'fail');
@@ -2581,7 +2581,7 @@ async function runFetch(sportsToFetch) {
       const wrongSport = props.filter(p => p.sport !== sport);
       if(wrongSport.length > 0) return { valid: false, reason: `${wrongSport.length} props have wrong sport tag` };
 
-      // Rule 2: group by game and check ≤3 UNIQUE players per game
+      // Rule 2: group by game and check ≤ max players per game (respects analysis mode setting)
       const gamePlayerMap = {}; // gameId/opp → Set of player names
       for(const p of props) {
         const gameKey = p.opp || 'unknown'; // use opponent as game key (reliable)
@@ -2589,7 +2589,8 @@ async function runFetch(sportsToFetch) {
         gamePlayerMap[gameKey].add(p.player);
       }
       for(const [gameKey, players] of Object.entries(gamePlayerMap)) {
-        if(players.size > 3) return { valid: false, reason: `Game vs ${gameKey} has ${players.size} players (max 3)` };
+        const maxAllowed = Math.max(STATE.settings.playersPerGame || 3, STATE.settings.analysisPlayersPerGame || 5);
+        if(players.size > maxAllowed) return { valid: false, reason: `Game vs ${gameKey} has ${players.size} players (max ${maxAllowed})` };
       }
 
       // Rule 3: output size is validated after processing via structural max check (see below).
@@ -3312,23 +3313,31 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
 
     // ── HARD GATE: minimum 5 valid games required ──
     if(dataPoints < 5) {
-      traceLog('projectionEngine', `${playerName} (${sport}): only ${dataPoints} valid games — need ≥5 — REJECTED`, 'fail');
+      traceLog('projectionEngine', `${playerName} (${sport}): only ${dataPoints} games found — need at least 5 for a reliable projection — skipped`, 'fail');
       return null;
     }
 
-    // ── MLB MEANINGFUL STATS GATE ──
-    // Pitchers have near-zero hitting stats (EWMA≈0) and batters have near-zero
-    // pitching stats. Filter out players whose stat is clearly wrong for their role.
+    // ── SPORT-SPECIFIC MEANINGFUL STATS GATE ──
+    // Filter out players whose stats are too low to be worth projecting.
+    // This removes pitchers accidentally getting batter props and vice versa,
+    // plus NHL fourth-liners who barely score.
     if(sport === 'MLB') {
       const isPitcherProp = ['Strikeouts'].includes(statLabel);
       const isBatterProp  = ['Hits','Total Bases','RBIs','Runs','Home Runs'].includes(statLabel);
       const ewmaPreview = computeEWMA(allVals);
       if(isBatterProp && ewmaPreview !== null && ewmaPreview < 0.15) {
-        traceLog('projectionEngine', `${playerName} (MLB): EWMA=${ewmaPreview?.toFixed(2)} for ${statLabel} — likely pitcher fetched as batter, REJECTED`, 'fail');
+        traceLog('projectionEngine', `${playerName} (MLB): avg ${ewmaPreview?.toFixed(2)} ${statLabel}/game — too low, likely a pitcher playing as batter — skipped`, 'fail');
         return null;
       }
       if(isPitcherProp && ewmaPreview !== null && ewmaPreview < 0.5) {
-        traceLog('projectionEngine', `${playerName} (MLB): EWMA=${ewmaPreview?.toFixed(2)} for ${statLabel} — likely batter fetched as pitcher, REJECTED`, 'fail');
+        traceLog('projectionEngine', `${playerName} (MLB): avg ${ewmaPreview?.toFixed(2)} strikeouts/game — too low, likely not a starting pitcher — skipped`, 'fail');
+        return null;
+      }
+    }
+    if(sport === 'NHL' && statLabel === 'Points') {
+      const ewmaPreview = computeEWMA(allVals);
+      if(ewmaPreview !== null && ewmaPreview < 0.15) {
+        traceLog('projectionEngine', `${playerName} (NHL): avg ${ewmaPreview?.toFixed(2)} points/game — fourth-liner or defensive player, not worth projecting — skipped`, 'fail');
         return null;
       }
     }
@@ -3343,7 +3352,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       return null;
     }
 
-    traceLog('projectionEngine', `${playerName} (${sport}) — ${dataPoints} games, EWMA=${finalProjection}, σ=${stdDev?.toFixed(2) ?? 'N/A'}`, 'ok');
+    traceLog('projectionEngine', `${playerName} (${sport}) — ${dataPoints} games used · avg projection: ${finalProjection} ${statLabel} · variability: ${stdDev?.toFixed(2) ?? 'N/A'} (lower = more consistent)`, 'ok');
 
     // ── OPPONENT CONTEXT: optional 20% blend if ≥3 games vs opponent ──
     const vsOppAvg = vsOppVals.length >= 3
@@ -3510,14 +3519,14 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     const winProb   = winProbDisplay(chosenProb);
 
     // ── COMPLETENESS GATE ──
-    traceLog('filteringLog', `${playerName} completeness ${completeness.score}% vs ${thresholdInfo.threshold}% (${sport})`, completeness.score>=thresholdInfo.threshold?'pass':'fail');
+    traceLog('filteringLog', `${playerName} data quality score: ${completeness.score}% (need ${thresholdInfo.threshold}%) — ${completeness.score>=thresholdInfo.threshold ? "✓ enough data to project" : "✗ not enough data to project reliably"}`, completeness.score>=thresholdInfo.threshold?'pass':'fail');
     if(completeness.score < thresholdInfo.threshold) {
-      traceLog('outputLog', `${playerName}: SUPPRESSED — completeness ${completeness.score}% < ${thresholdInfo.threshold}%`, 'fail');
+      traceLog('outputLog', `${playerName}: SKIPPED — data quality ${completeness.score}% is below the ${thresholdInfo.threshold}% minimum needed for a reliable projection`, 'fail');
       return null;
     }
 
-    traceLog('filteringLog', `${playerName} conf=${conf}/10 overEV=${overEVPct}% underEV=${underEVPct}% decision=${decision}`, decision!=='PASS'?'pass':'ok');
-    traceLog('outputLog', `${playerName} → ${decision} | EWMA=${finalProjection} σ=${effectiveStdDev.toFixed(2)} overP=${(overProbRaw*100).toFixed(1)}% EV=${chosenEV}%`, decision!=='PASS'?'pass':'ok');
+    traceLog('filteringLog', `${playerName} confidence ${conf}/10 · over edge: ${overEVPct}% · under edge: ${underEVPct}% · recommendation: ${decision}`, decision!=='PASS'?'pass':'ok');
+    traceLog('outputLog', `${playerName} → ${decision} | projected ${finalProjection} ${statLabel} · ${(overProbRaw*100).toFixed(1)}% chance of going OVER · edge: ${chosenEV}%`, decision!=='PASS'?'pass':'ok');
 
     // ── REASONING ──
     const dataSourceLabel = sport === 'MLB' ? 'statsapi.mlb.com (official)'
