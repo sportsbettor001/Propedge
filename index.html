@@ -297,7 +297,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v5.5</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v5.7</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <button class="settings-btn" onclick="openSettings()">⚙</button>
@@ -1067,9 +1067,9 @@ async function fetchWithFallback(url) {
     const proxy = STATE.settings.corsProxy;
     if(proxy && proxy.trim()) {
       const token = STATE.settings.proxyToken || '';
-      const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
-      const proxyUrl = `${proxy}?url=${encodeURIComponent(url)}${tokenParam}`;
-      try { return await fetchJSON(proxyUrl); } catch(e2) {}
+      const proxyUrl = `${proxy}?url=${encodeURIComponent(url)}`;
+      const headers = token ? { 'x-proxy-auth': token } : {};
+      try { return await fetchJSON(proxyUrl, { headers }); } catch(e2) {}
     }
     throw new Error('Fetch failed: ' + e.message);
   }
@@ -1363,17 +1363,17 @@ async function fetchBDLPlayerStats(playerName, sport, dateFrom, dateTo) {
 // If no proxy configured, falls back to ESPN automatically.
 // ═══════════════════════════════════════════════════════
 const NBA_STATS_IDS = {
-  'Joel Embiid':2203954,'Stephen Curry':201939,'Paolo Banchero':1631094,
+  'Joel Embiid':203954,'Stephen Curry':201939,'Paolo Banchero':1631094,
   'Franz Wagner':1630532,'Nikola Jokic':203999,'Luka Doncic':1629029,
   'Shai Gilgeous-Alexander':1628983,'Giannis Antetokounmpo':203507,
   'LeBron James':2544,'Kevin Durant':201142,'Jayson Tatum':1628369,
   'Jaylen Brown':1627759,'Anthony Davis':203076,'Devin Booker':1626164,
-  'Donovan Mitchell':1628378,'Damian Lillard':203081,'Trae Young':1629029,
+  'Donovan Mitchell':1628378,'Damian Lillard':203081,'Trae Young':1628384,
   'Zion Williamson':1629627,'Ja Morant':1629630,'Anthony Edwards':1630162,
   'Tyrese Haliburton':1630169,'Bam Adebayo':1628389,'Kawhi Leonard':202695,
   'Jimmy Butler':202710,'Draymond Green':203110,'Klay Thompson':202691,
   'Karl-Anthony Towns':1626157,'Julius Randle':203944,'Jalen Brunson':1628384,
-  'Rudy Gobert':203497,"De'Aaron Fox":1628368,'Zach LaVine':203897,
+  'Rudy Gobert':203497,'De Aaron Fox':1628368,'Zach LaVine':203897,
   'Bradley Beal':203078,'Kristaps Porzingis':204001,'Pascal Siakam':1626169,
   'OG Anunoby':1628384,'Mikal Bridges':1628969,'Brandon Ingram':1627742,
   'Cade Cunningham':1630595,'Evan Mobley':1630596,'Scottie Barnes':1630567,
@@ -2263,12 +2263,12 @@ async function runFetch(sportsToFetch) {
           continue; // skip this player entirely — do not enter projection engine
         }
 
+        // realLine = verified sportsbook line from Odds API (betting mode only).
+        // In analysis mode player.eventId is undefined — pass null so hasRealLine stays false.
+        const realLine = (player.eventId && player.line > 0) ? player.line : null;
         const prop = await buildPlayerProp(
           espnId, player.name, player.sport, player.espnSport, player.espnLeague,
           dbEntry?.team||player.homeTeam, opp, 'today',
-          // realLine = verified sportsbook line from Odds API (betting mode only).
-          // In analysis mode player.eventId is undefined — pass null so hasRealLine stays false.
-          const realLine = (player.eventId && player.line > 0) ? player.line : null;
           injuries, propId++, player.prop, player.line, realLine, dbEntry||{}
         );
         if(prop && newPropsBySport[player.sport] !== undefined) {
@@ -2433,7 +2433,7 @@ const PLAYER_DB = {
     {id:'4277905',name:'Cade Cunningham',team:'DET',prop:'Points',lineBase:24,usage:0.29,vol:'high'},
     {id:'4278073',name:'Jalen Green',team:'HOU',prop:'Points',lineBase:23,usage:0.28,vol:'high'},
     {id:'4429634',name:'Alperen Sengun',team:'HOU',prop:'Points',lineBase:19,usage:0.24,vol:'med'},
-    {id:'4065684',name:"De'Aaron Fox",team:'SAC',prop:'Points',lineBase:23,usage:0.28,vol:'high'},
+    {id:'4065684',name:'De\'Aaron Fox',team:'SAC',prop:'Points',lineBase:23,usage:0.28,vol:'high'},
     {id:'3468778',name:'Zach LaVine',team:'SAC',prop:'Points',lineBase:22,usage:0.27,vol:'med'},
     {id:'3934718',name:'Jalen Brunson',team:'NYK',prop:'Points',lineBase:27,usage:0.34,vol:'high'},
     {id:'3934719',name:'OG Anunoby',team:'NYK',prop:'Threes Made',lineBase:1.5,usage:0.18,vol:'med',threePct:0.37},
