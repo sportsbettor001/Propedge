@@ -297,7 +297,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v6.4</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v6.5</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1902,6 +1902,7 @@ async function runFetch(sportsToFetch) {
 
     // Pre-mark sport API statuses for sports being fetched
     // MLB and NHL use official APIs inside buildPlayerProp — set here so badges show
+    if(sportsToFetch.includes('NBA') || sportsToFetch.includes('WNBA')) apiStatusMap.NBA = 'warn';
     if(sportsToFetch.includes('MLB')) apiStatusMap.MLB = 'warn'; // will upgrade to 'ok' when data returns
     if(sportsToFetch.includes('NHL')) apiStatusMap.NHL = 'warn';
     renderApiStatus(apiStatusMap);
@@ -2413,6 +2414,7 @@ async function runFetch(sportsToFetch) {
           newPropsBySport[player.sport].push(prop);
           traceLog('outputLog', `${player.name} (${player.sport}): prop built — ${prop.decision} proj=${prop.proj}`, prop.decision !== 'PASS' ? 'pass' : 'ok');
           // Mark official API as ok when data successfully returns
+          if(player.sport === 'NBA' && prop.dataSource?.gamelog > 0) apiStatusMap.NBA = 'ok';
           if(player.sport === 'MLB' && prop.dataSource?.gamelog > 0) apiStatusMap.MLB = 'ok';
           if(player.sport === 'NHL' && prop.dataSource?.gamelog > 0) apiStatusMap.NHL = 'ok';
         } else if(!prop) {
@@ -4140,7 +4142,9 @@ function markLegOutcome(slipId, legId, result) {
 // ═══════════════════════════════════════════════════════
 function renderApiStatus(statusMap) {
   const area = document.getElementById('api-status');
+  const hasProxy = !!(STATE.settings.corsProxy && STATE.settings.proxyToken);
   const items = [
+    { key: 'NBA', label: hasProxy ? 'NBA+' : 'NBA' },
     { key: 'MLB', label: 'MLB' },
     { key: 'NHL', label: 'NHL' },
     { key: 'ESPN', label: 'ESPN' },
@@ -4150,7 +4154,7 @@ function renderApiStatus(statusMap) {
   area.innerHTML = items.map(item => {
     const status = statusMap[item.key];
     const cls = !status ? 'warn' : status === 'ok' ? 'ok' : status === 'err' ? 'err' : 'warn';
-    return `<span class="api-badge ${cls}">${item.label}</span>`;
+    return `<span class="api-badge ${cls}" title="${item.key === 'NBA' ? (hasProxy ? 'NBA: Cloudflare proxy active (stats.nba.com)' : 'NBA: ESPN only (~20 game cap)') : ''}">${item.label}</span>`;
   }).join('');
 }
 
