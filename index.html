@@ -691,6 +691,20 @@ function copyTrace() {
   });
 }
 
+function getNBASeason() {
+  const y = new Date().getFullYear();
+  const m = new Date().getMonth() + 1;
+  const startYear = m >= 10 ? y : y - 1;
+  return `${startYear}-${String(startYear+1).slice(2)}`;
+}
+
+function fetchWithTimeout(url, options, ms) {
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error(`Timed out after ${ms/1000}s`)), ms)
+  );
+  return Promise.race([fetch(url, options), timeout]);
+}
+
 async function testApi(which) {
   const el = document.getElementById('api-test-results');
   const today = todayStr();
@@ -1265,12 +1279,6 @@ function updateCacheStatusBar() {
 // API call log — tracks every fetch for the trace tab
 const API_CALL_LOG = [];
 
-function getNBASeason() {
-  const y = new Date().getFullYear();
-  const m = new Date().getMonth() + 1;
-  const startYear = m >= 10 ? y : y - 1;
-  return `${startYear}-${String(startYear+1).slice(2)}`;
-}
 function logApiCall(url, status) {
   const domain = (() => { try { return new URL(url).hostname; } catch(e) { return url.slice(0,40); } })();
   const existing = API_CALL_LOG.find(e => e.domain === domain);
