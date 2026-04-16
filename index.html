@@ -297,7 +297,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v6.7</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v6.8</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -2503,11 +2503,13 @@ async function runFetch(sportsToFetch) {
           gateReasons.push('missing player name');
         }
 
-        // G2: player must have an ESPN ID (from API discovery)
-        // DB match is optional enrichment — not required for identity
-        const hasValidIdentity = !!espnId;
+        // G2: player must have a valid identity
+        // For MLB: MLB ID is sufficient (roster players don't have ESPN IDs)
+        // For other sports: ESPN ID required
+        const mlbIdForGate = player.meta?.mlbId || dbEntry?.mlbId || null;
+        const hasValidIdentity = !!espnId || (player.sport === 'MLB' && !!mlbIdForGate);
         if(!hasValidIdentity) {
-          gateReasons.push('no ESPN ID — player could not be identified from API');
+          gateReasons.push('no valid ID — player could not be identified from API');
         }
 
         // G3: must have a prop type
@@ -2535,10 +2537,15 @@ async function runFetch(sportsToFetch) {
         // realLine = verified sportsbook line from Odds API (betting mode only).
         // In analysis mode player.eventId is undefined — pass null so hasRealLine stays false.
         const realLine = (player.eventId && player.line > 0) ? player.line : null;
+        // For MLB roster players: use mlbId as the primary ID, espnId may be null
+        const effectiveId = espnId || mlbIdForGate || null;
+        // Merge mlbId into playerMeta so buildPlayerProp can use it for MLB API fetch
+        const playerMetaMerged = { ...(dbEntry||{}), ...(player.meta||{}),
+          mlbId: mlbIdForGate || dbEntry?.mlbId || player.meta?.mlbId || null };
         const prop = await buildPlayerProp(
-          espnId, player.name, player.sport, player.espnSport, player.espnLeague,
+          effectiveId, player.name, player.sport, player.espnSport, player.espnLeague,
           dbEntry?.team||player.homeTeam, opp, 'today',
-          injuries, propId++, player.prop, player.line, realLine, dbEntry||{}
+          injuries, propId++, player.prop, player.line, realLine, playerMetaMerged
         );
         if(prop && newPropsBySport[player.sport] !== undefined) {
           newPropsBySport[player.sport].push(prop);
@@ -3305,6 +3312,23 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     if(dataPoints < 5) {
       traceLog('projectionEngine', `${playerName} (${sport}): only ${dataPoints} valid games — need ≥5 — REJECTED`, 'fail');
       return null;
+    }
+
+    // ── MLB MEANINGFUL STATS GATE ──
+    // Pitchers have near-zero hitting stats (EWMA≈0) and batters have near-zero
+    // pitching stats. Filter out players whose stat is clearly wrong for their role.
+    if(sport === 'MLB') {
+      const isPitcherProp = ['Strikeouts'].includes(statLabel);
+      const isBatterProp  = ['Hits','Total Bases','RBIs','Runs','Home Runs'].includes(statLabel);
+      const ewmaPreview = computeEWMA(allVals);
+      if(isBatterProp && ewmaPreview !== null && ewmaPreview < 0.15) {
+        traceLog('projectionEngine', `${playerName} (MLB): EWMA=${ewmaPreview?.toFixed(2)} for ${statLabel} — likely pitcher fetched as batter, REJECTED`, 'fail');
+        return null;
+      }
+      if(isPitcherProp && ewmaPreview !== null && ewmaPreview < 0.5) {
+        traceLog('projectionEngine', `${playerName} (MLB): EWMA=${ewmaPreview?.toFixed(2)} for ${statLabel} — likely batter fetched as pitcher, REJECTED`, 'fail');
+        return null;
+      }
     }
 
     // ── CORE STAT MODEL: EWMA mean + standard deviation ──
