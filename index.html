@@ -297,7 +297,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v6.5</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v6.6</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -520,16 +520,28 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       <div class="setting-hint">The token you put in your Worker code (ALLOWED_TOKEN). Keeps your proxy private.</div>
     </div>
 
-    <div class="modal-section">Engine Settings</div>
+    <div class="modal-section">Betting Mode Engine (Odds API)</div>
     <div class="setting-group">
-      <label class="setting-label">Games per sport per generate (free tier: 2 · paid: 4-6)</label>
+      <label class="setting-label">Games per sport (default: 2 — protects API quota)</label>
       <input class="setting-input" id="s-games-per-sport" type="number" placeholder="2" min="1" max="8" inputmode="numeric"/>
-      <div class="setting-hint">⚠ Changing this requires a new fetch to take effect.</div>
+      <div class="setting-hint">⚠ Keep low to protect your 500 req/month Odds API quota. Requires re-fetch.</div>
     </div>
     <div class="setting-group">
       <label class="setting-label">Players per game (default: 3)</label>
       <input class="setting-input" id="s-players-per-game" type="number" placeholder="3" min="1" max="10" inputmode="numeric"/>
-      <div class="setting-hint">⚠ Changing this requires a new fetch to take effect.</div>
+      <div class="setting-hint">⚠ Requires re-fetch to take effect.</div>
+    </div>
+
+    <div class="modal-section">Analysis Mode Engine (free APIs — no quota)</div>
+    <div class="setting-group">
+      <label class="setting-label">Games per sport (default: 4 — free, use more)</label>
+      <input class="setting-input" id="s-analysis-games" type="number" placeholder="4" min="1" max="12" inputmode="numeric"/>
+      <div class="setting-hint">No API cost — ESPN/NHL/MLB are free. Higher = more coverage. Requires re-fetch.</div>
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">Players per game (default: 5)</label>
+      <input class="setting-input" id="s-analysis-players" type="number" placeholder="5" min="1" max="15" inputmode="numeric"/>
+      <div class="setting-hint">No API cost — more players = better slate coverage. Requires re-fetch.</div>
     </div>
     <div class="setting-group">
       <label class="setting-label">Min edge % to show OVER/UNDER (default: 5)</label>
@@ -596,7 +608,9 @@ let STATE = loadState() || {
     minEdge: 5,
     minConf: 6,
     gamesPerSport: 2,
-    playersPerGame: 3
+    playersPerGame: 3,
+    analysisGamesPerSport: 4,
+    analysisPlayersPerGame: 5
   },
   apiStatus: {},
   lastGenerated: null
@@ -617,7 +631,7 @@ if(STATE.props && Array.isArray(STATE.props) && STATE.props.length > 0 && !STATE
 }
 
 // Ensure settings object has all keys
-STATE.settings = Object.assign({ oddsApiKey:'', balldontlieKey:'', corsProxy:'', proxyToken:'', minEdge:5, minConf:6, gamesPerSport:2, playersPerGame:3 }, STATE.settings || {});
+STATE.settings = Object.assign({ oddsApiKey:'', balldontlieKey:'', corsProxy:'', proxyToken:'', minEdge:5, minConf:6, gamesPerSport:2, playersPerGame:3, analysisGamesPerSport:4, analysisPlayersPerGame:5 }, STATE.settings || {});
 if(!STATE.sportCache) STATE.sportCache = {};
 
 // ═══════════════════════════════════════════════════════
@@ -1016,12 +1030,16 @@ function loadSettingsIntoForm() {
   document.getElementById('s-min-conf').value = s.minConf ?? 6;
   document.getElementById('s-games-per-sport').value = s.gamesPerSport || 2;
   document.getElementById('s-players-per-game').value = s.playersPerGame || 3;
+  document.getElementById('s-analysis-games').value = s.analysisGamesPerSport || 4;
+  document.getElementById('s-analysis-players').value = s.analysisPlayersPerGame || 5;
 }
 function saveSettings() {
   const prevMinEdge = STATE.settings.minEdge;
   const prevMinConf = STATE.settings.minConf;
   const prevGamesPerSport = STATE.settings.gamesPerSport;
   const prevPlayersPerGame = STATE.settings.playersPerGame;
+  const prevAnalysisGames = STATE.settings.analysisGamesPerSport;
+  const prevAnalysisPlayers = STATE.settings.analysisPlayersPerGame;
 
   STATE.settings.oddsApiKey = document.getElementById('s-odds-key').value.trim();
   STATE.settings.balldontlieKey = document.getElementById('s-bdl-key').value.trim();
@@ -1031,12 +1049,14 @@ function saveSettings() {
   STATE.settings.minConf = parseInt(document.getElementById('s-min-conf').value) || 6;
   STATE.settings.gamesPerSport = Math.min(8, Math.max(1, parseInt(document.getElementById('s-games-per-sport').value) || 2));
   STATE.settings.playersPerGame = Math.min(10, Math.max(1, parseInt(document.getElementById('s-players-per-game').value) || 3));
+  STATE.settings.analysisGamesPerSport = Math.min(12, Math.max(1, parseInt(document.getElementById('s-analysis-games').value) || 4));
+  STATE.settings.analysisPlayersPerGame = Math.min(15, Math.max(1, parseInt(document.getElementById('s-analysis-players').value) || 5));
   saveState();
   closeSettings();
 
   // Check what changed
   const filterSettingsChanged = (STATE.settings.minEdge !== prevMinEdge || STATE.settings.minConf !== prevMinConf);
-  const fetchSettingsChanged = (STATE.settings.gamesPerSport !== prevGamesPerSport || STATE.settings.playersPerGame !== prevPlayersPerGame);
+  const fetchSettingsChanged = (STATE.settings.gamesPerSport !== prevGamesPerSport || STATE.settings.playersPerGame !== prevPlayersPerGame || STATE.settings.analysisGamesPerSport !== prevAnalysisGames || STATE.settings.analysisPlayersPerGame !== prevAnalysisPlayers);
 
   if(filterSettingsChanged) {
     renderProps();
@@ -2115,7 +2135,7 @@ async function runFetch(sportsToFetch) {
 
     } else {
       // ── ANALYSIS MODE: Sport → Game → Top 3 players per game ──
-      const gps = STATE.settings.gamesPerSport || 2;
+      const gps = STATE.settings.analysisGamesPerSport || 4; // analysis mode — free APIs, use higher limit
       const schedulePromises = sportsToFetch
         .filter(s => s !== 'GOLF')
         .map(async sport => {
@@ -2258,7 +2278,7 @@ async function runFetch(sportsToFetch) {
           // No hard cap — process ALL discovered players in analysis mode.
           // In betting mode the Odds API already caps to players with live lines.
           const seen = new Set();
-          const maxPlayers = STATE.settings.playersPerGame || 3;
+          const maxPlayers = STATE.settings.analysisPlayersPerGame || 5; // analysis mode — free APIs, use higher limit
           const ranked = candidatePool
             .filter(p => p.name && p.name.trim().length > 1)
             .sort((a, b) => {
@@ -2489,8 +2509,9 @@ async function runFetch(sportsToFetch) {
     // the structure is broken — discard that sport entirely.
     // Expected max per sport = gamesPerSport × 3 players × avg props per player
     // We use a generous multiplier since one player can have multiple props.
-    const gamesInSlate = STATE.settings.gamesPerSport || 2;
-    const structuralMaxPerSport = gamesInSlate * 3 * 4; // 3 players × up to 4 prop types each
+    const gamesInSlate = Math.max(STATE.settings.gamesPerSport || 2, STATE.settings.analysisGamesPerSport || 4);
+    const maxPlayersPerGame = Math.max(STATE.settings.playersPerGame || 3, STATE.settings.analysisPlayersPerGame || 5);
+    const structuralMaxPerSport = gamesInSlate * maxPlayersPerGame * 4; // players × up to 4 prop types each
     sportsToFetch.forEach(sport => {
       const cached = STATE.sportCache[sport];
       if(!cached || !cached.props || cached.validationFailed) return;
