@@ -297,7 +297,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v8.2</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v8.3</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -377,6 +377,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px">Tap each to test the API connection live from your device</div>
       <div id="api-test-results" style="margin-bottom:14px"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
+        <button onclick="testApi('nba_directory')" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.08);border:1px solid rgba(0,229,160,.3);border-radius:8px;padding:8px;color:var(--accent);cursor:pointer;grid-column:1/-1">🏀 Test NBA Proxy (commonallplayers)</button>
         <button onclick="testApi('espn_nhl_sched')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">ESPN NHL Schedule</button>
         <button onclick="testApi('espn_nhl_player')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">ESPN NHL Player</button>
         <button onclick="testApi('mlb_schedule')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">MLB Schedule</button>
@@ -692,6 +693,23 @@ function copyTrace() {
 async function testApi(which) {
   const el = document.getElementById('api-test-results');
   const today = todayStr();
+  if(testName === 'nba_directory') {
+    const out = document.getElementById('api-test-results');
+    out.innerHTML = '<div style="font-family:var(--mono);font-size:10px;color:var(--amber)">Testing NBA proxy (commonallplayers)...</div>';
+    NBA_PLAYER_DIRECTORY = null; NBA_DIRECTORY_LOADING = null; // force reload
+    try {
+      const dir = await loadNBAPlayerDirectory();
+      if(dir && dir.size > 0) {
+        const sample = [...dir.entries()].slice(0,3).map(([n,id]) => `${n} → ${id}`).join(', ');
+        out.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--accent)">✓ NBA directory loaded — ${dir.size} players<br/>${sample}</div>`;
+      } else {
+        out.innerHTML = '<div style="font-family:var(--mono);font-size:10px;color:var(--red)">✗ NBA directory returned empty or failed — check proxy URL and token in Settings</div>';
+      }
+    } catch(e) {
+      out.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red)">✗ Error: ${e.message}</div>`;
+    }
+    return;
+  }
   const tests = {
     'nhl_schedule': {
       label: 'NHL Schedule (api-web.nhle.com)',
@@ -1707,42 +1725,55 @@ function getNBASeason() {
 }
 
 async function loadNBAPlayerDirectory() {
-  // Already loaded
+  // Already loaded this session
   if(NBA_PLAYER_DIRECTORY) return NBA_PLAYER_DIRECTORY;
-  // Already loading — wait for it
+  // Already loading — wait for existing promise
   if(NBA_DIRECTORY_LOADING) return NBA_DIRECTORY_LOADING;
   if(!STATE.settings.corsProxy) return null;
 
   NBA_DIRECTORY_LOADING = (async () => {
-    try {
-      const season = getNBASeason();
-      const url = `https://stats.nba.com/stats/commonallplayers?IsOnlyCurrentSeason=1&LeagueID=00&Season=${season}`;
-      // Use slow fetch — stats.nba.com can take 10-15s, proxy adds latency
-      const proxy = STATE.settings.corsProxy;
-      const token = STATE.settings.proxyToken || '';
-      const proxyUrl = `${proxy}?url=${encodeURIComponent(url)}`;
-      const data = await fetchJSONSlow(proxyUrl, token ? { headers: { 'x-proxy-auth': token } } : {});
-      const headers = data?.resultSets?.[0]?.headers || [];
-      const rows = data?.resultSets?.[0]?.rowSet || [];
-      const nameIdx = headers.findIndex(h => h === 'DISPLAY_FIRST_LAST');
-      const idIdx   = headers.findIndex(h => h === 'PERSON_ID');
-      if(nameIdx < 0 || idIdx < 0 || !rows.length) return null;
+    const proxy = STATE.settings.corsProxy.trim();
+    const token = STATE.settings.proxyToken || '';
+    const season = getNBASeason();
+    const nbaUrl = `https://stats.nba.com/stats/commonallplayers?IsOnlyCurrentSeason=1&LeagueID=00&Season=${season}`;
+    const proxyUrl = `${proxy}?url=${encodeURIComponent(nbaUrl)}`;
+    const hdrs = token ? { 'x-proxy-auth': token } : {};
 
-      const norm = s => (s||'').toLowerCase().trim();
-      NBA_PLAYER_DIRECTORY = new Map();
-      for(const row of rows) {
-        const name = row[nameIdx];
-        const id   = row[idIdx];
-        if(name && id) NBA_PLAYER_DIRECTORY.set(norm(name), id);
+    // Retry up to 2 times — Safari can abort on first attempt
+    for(let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        traceLog('gameIngestion', `NBA directory: attempt ${attempt}/2 via proxy...`, 'ok');
+        // Use native fetch with no AbortController — let Safari manage timeout
+        const res = await fetch(proxyUrl, { headers: hdrs });
+        if(!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        logApiCall(proxyUrl, 'ok');
+        const rHeaders = data?.resultSets?.[0]?.headers || [];
+        const rows = data?.resultSets?.[0]?.rowSet || [];
+        const nameIdx = rHeaders.findIndex(h => h === 'DISPLAY_FIRST_LAST');
+        const idIdx   = rHeaders.findIndex(h => h === 'PERSON_ID');
+        if(nameIdx < 0 || idIdx < 0 || !rows.length) {
+          throw new Error(`unexpected response format (${rows.length} rows)`);
+        }
+        const norm = s => (s||'').toLowerCase().trim();
+        NBA_PLAYER_DIRECTORY = new Map();
+        for(const row of rows) {
+          const name = row[nameIdx];
+          const id   = row[idIdx];
+          if(name && id) NBA_PLAYER_DIRECTORY.set(norm(name), id);
+        }
+        traceLog('gameIngestion', `NBA player directory loaded — ${NBA_PLAYER_DIRECTORY.size} active players`, 'ok');
+        NBA_DIRECTORY_LOADING = null;
+        return NBA_PLAYER_DIRECTORY;
+      } catch(e) {
+        logApiCall(proxyUrl, 'error');
+        traceLog('gameIngestion', `NBA directory attempt ${attempt} failed — ${e.message}`, 'warn');
+        if(attempt < 2) await new Promise(r => setTimeout(r, 1500)); // wait before retry
       }
-      traceLog('gameIngestion', `NBA player directory loaded — ${NBA_PLAYER_DIRECTORY.size} active players`, 'ok');
-      return NBA_PLAYER_DIRECTORY;
-    } catch(e) {
-      traceLog('gameIngestion', `NBA player directory failed to load — ${e.message}`, 'warn');
-      return null;
-    } finally {
-      NBA_DIRECTORY_LOADING = null;
     }
+    traceLog('gameIngestion', 'NBA directory failed after 2 attempts — will use ESPN fallback for NBA', 'warn');
+    NBA_DIRECTORY_LOADING = null;
+    return null;
   })();
   return NBA_DIRECTORY_LOADING;
 }
@@ -1776,10 +1807,14 @@ async function fetchNBAStatsGameLog(playerName) {
   const season = getNBASeason();
   try {
     const url = `https://stats.nba.com/stats/playergamelogs?PlayerID=${nbaId}&Season=${season}&SeasonType=Regular+Season&LeagueID=00`;
-    const proxy = STATE.settings.corsProxy;
+    const proxy = STATE.settings.corsProxy.trim();
     const token = STATE.settings.proxyToken || '';
     const proxyUrl = `${proxy}?url=${encodeURIComponent(url)}`;
-    const data = await fetchJSONSlow(proxyUrl, token ? { headers: { 'x-proxy-auth': token } } : {});
+    // Use native fetch without AbortController — Safari kills timed-out requests
+    const res = await fetch(proxyUrl, token ? { headers: { 'x-proxy-auth': token } } : {});
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    logApiCall(proxyUrl, 'ok');
     const headers = data?.resultSets?.[0]?.headers || [];
     const rows    = data?.resultSets?.[0]?.rowSet    || [];
     if(!headers.length || !rows.length) return null;
