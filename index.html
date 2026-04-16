@@ -297,7 +297,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v7.6</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v7.8</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -329,40 +329,43 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         <div class="metric-card"><div class="metric-label">All-time ROI</div><div class="metric-value" id="m-roi">—</div><div class="metric-sub" id="m-roi-sub">no history</div></div>
       </div>
 
-      <!-- Sport filter chips — double as fetch status indicators -->
-      <div class="filter-row" id="sport-filters">
-        <div class="filter-chip active" data-sport="all" onclick="toggleSportFilter('all',this)">All sports</div>
-        <div class="filter-chip" data-sport="NBA" onclick="toggleSportFilter('NBA',this)"><div class="sport-status-dot"></div>NBA</div>
-        <div class="filter-chip" data-sport="WNBA" onclick="toggleSportFilter('WNBA',this)"><div class="sport-status-dot"></div>WNBA</div>
-        <div class="filter-chip" data-sport="MLB" onclick="toggleSportFilter('MLB',this)"><div class="sport-status-dot"></div>MLB</div>
-        <div class="filter-chip" data-sport="NFL" onclick="toggleSportFilter('NFL',this)"><div class="sport-status-dot"></div>NFL</div>
-        <div class="filter-chip" data-sport="NHL" onclick="toggleSportFilter('NHL',this)"><div class="sport-status-dot"></div>NHL</div>
-        <div class="filter-chip" data-sport="GOLF" onclick="toggleSportFilter('GOLF',this)"><div class="sport-status-dot"></div>Golf</div>
+      <!-- Sticky controls — filters + generate button stay visible while scrolling -->
+      <div id="props-sticky-bar" style="position:sticky;top:0;z-index:50;background:var(--bg);padding:8px 0 4px;margin:-4px 0 0;border-bottom:1px solid var(--border)">
+        <!-- Sport filter chips -->
+        <div class="filter-row" id="sport-filters" style="margin-bottom:6px">
+          <div class="filter-chip active" data-sport="all" onclick="toggleSportFilter('all',this)">All sports</div>
+          <div class="filter-chip" data-sport="NBA" onclick="toggleSportFilter('NBA',this)"><div class="sport-status-dot"></div>NBA</div>
+          <div class="filter-chip" data-sport="WNBA" onclick="toggleSportFilter('WNBA',this)"><div class="sport-status-dot"></div>WNBA</div>
+          <div class="filter-chip" data-sport="MLB" onclick="toggleSportFilter('MLB',this)"><div class="sport-status-dot"></div>MLB</div>
+          <div class="filter-chip" data-sport="NFL" onclick="toggleSportFilter('NFL',this)"><div class="sport-status-dot"></div>NFL</div>
+          <div class="filter-chip" data-sport="NHL" onclick="toggleSportFilter('NHL',this)"><div class="sport-status-dot"></div>NHL</div>
+          <div class="filter-chip" data-sport="GOLF" onclick="toggleSportFilter('GOLF',this)"><div class="sport-status-dot"></div>Golf</div>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:6px">
+          <div class="filter-row" id="dec-filters" style="margin-bottom:0;flex:1">
+            <div class="filter-chip active" data-dec="all" onclick="setFilter('dec','all',this)">All</div>
+            <div class="filter-chip" data-dec="OVER" onclick="setFilter('dec','OVER',this)">OVER</div>
+            <div class="filter-chip" data-dec="UNDER" onclick="setFilter('dec','UNDER',this)">UNDER</div>
+            <div class="filter-chip" data-dec="PASS" onclick="setFilter('dec','PASS',this)">PASS</div>
+          </div>
+          <div class="filter-row" id="date-filters" style="margin-bottom:0">
+            <div class="filter-chip active" data-date="all" onclick="setFilter('date','all',this)">All dates</div>
+            <div class="filter-chip" id="chip-today" data-date="today" onclick="setFilter('date','today',this)">Today</div>
+            <div class="filter-chip" id="chip-tomorrow" data-date="tomorrow" onclick="setFilter('date','tomorrow',this)">Tomorrow</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="gen-btn" id="gen-btn" onclick="generateProps()" style="flex:1;margin-bottom:0;padding:10px">
+            <span id="gen-btn-text">Generate Props</span>
+          </button>
+          <button class="refetch-btn" id="refetch-btn" onclick="refetchAll()" style="margin-bottom:0;padding:10px;width:auto;white-space:nowrap">
+            ↺ Refresh
+          </button>
+        </div>
+        <div class="cache-status-bar" id="cache-status-bar" style="margin-top:4px;margin-bottom:0"></div>
       </div>
 
-      <div class="filter-row" id="dec-filters">
-        <div class="filter-chip active" data-dec="all" onclick="setFilter('dec','all',this)">All</div>
-        <div class="filter-chip" data-dec="OVER" onclick="setFilter('dec','OVER',this)">OVER</div>
-        <div class="filter-chip" data-dec="UNDER" onclick="setFilter('dec','UNDER',this)">UNDER</div>
-        <div class="filter-chip" data-dec="PASS" onclick="setFilter('dec','PASS',this)">PASS</div>
-      </div>
-      <div class="filter-row" id="date-filters">
-        <div class="filter-chip active" data-date="all" onclick="setFilter('date','all',this)">All dates</div>
-        <div class="filter-chip" id="chip-today" data-date="today" onclick="setFilter('date','today',this)">Today</div>
-        <div class="filter-chip" id="chip-tomorrow" data-date="tomorrow" onclick="setFilter('date','tomorrow',this)">Tomorrow</div>
-      </div>
-
-      <!-- Cache status bar -->
-      <div class="cache-status-bar" id="cache-status-bar"></div>
-
-      <button class="gen-btn" id="gen-btn" onclick="generateProps()">
-        <span id="gen-btn-text">Generate Props</span>
-      </button>
-      <button class="refetch-btn" id="refetch-btn" onclick="refetchAll()">
-        ↺ Refresh all — ignore cache
-      </button>
-
-      <div id="mode-banner"></div>
+      <div id="mode-banner" style="margin-top:10px"></div>
       <div id="data-source-bar" class="data-source-bar"></div>
       <div id="props-list"></div>
     </div>
@@ -387,7 +390,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       <div id="slate-log-panel" style="margin-bottom:14px"></div>
       <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
         Pipeline Trace
-        <button onclick="clearTrace()" style="font-family:var(--mono);font-size:9px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:3px 10px;color:var(--muted);cursor:pointer">Clear</button>
+        <div style="display:flex;gap:6px">
+          <button onclick="copyTrace()" style="font-family:var(--mono);font-size:9px;background:var(--bg3);border:1px solid rgba(0,229,160,.3);border-radius:6px;padding:3px 10px;color:var(--accent);cursor:pointer">⎘ Copy</button>
+          <button onclick="clearTrace()" style="font-family:var(--mono);font-size:9px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:3px 10px;color:var(--muted);cursor:pointer">Clear</button>
+        </div>
       </div>
       <div id="trace-panel"><div class="trace-empty">Run "Generate Props" to populate trace log.</div></div>
     </div>
@@ -649,6 +655,35 @@ function traceLog(section, msg, level='ok') {
   STATE.trace[section].push({ msg, level });
 }
 function clearTrace() { STATE.trace = null; renderTrace(); }
+
+function copyTrace() {
+  const t = STATE.trace;
+  if(!t) { showToast('No trace data to copy', 'error'); return; }
+  const labels = { gameIngestion:'GAME INGESTION', playerDiscovery:'PLAYER DISCOVERY',
+    projectionEngine:'PROJECTION ENGINE', filteringLog:'FILTERING', outputLog:'OUTPUT' };
+  let text = `PropEdge Trace — ${t.runAt} — Mode: ${(t.mode||'unknown').toUpperCase()}\n`;
+  text += '='.repeat(60) + '\n';
+  for(const s of ['gameIngestion','playerDiscovery','projectionEngine','filteringLog','outputLog']) {
+    const entries = t[s] || [];
+    text += `\n${labels[s]} (${entries.length})\n${'-'.repeat(40)}\n`;
+    if(!entries.length) text += 'No entries\n';
+    else entries.forEach(e => { text += `${e.msg}\n`; });
+  }
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('✓ Trace copied to clipboard', 'success');
+  }).catch(() => {
+    // Fallback for browsers that block clipboard
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('✓ Trace copied', 'success');
+  });
+}
 
 async function testApi(which) {
   const el = document.getElementById('api-test-results');
@@ -2558,17 +2593,28 @@ async function runFetch(sportsToFetch) {
           : '?';
 
         // ── ID RESOLUTION: betting mode players come from Odds API with name only ──
-        // If no ESPN ID yet, search ESPN by name to resolve it.
-        // This covers NHL, NBA, NFL players discovered via Odds API lines.
+        // Use STRICT exact match only — fuzzy matching causes wrong player data.
+        // Odds API provides full proper names so exact match is reliable.
         if(!espnId && player.name && player.espnSport && player.espnLeague) {
           try {
             const searchData = await searchESPNAthlete(player.espnSport, player.espnLeague, player.name);
-            const foundId = exactMatchESPNId(searchData, player.name);
-            if(foundId) {
-              espnId = String(foundId);
-              traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN ID resolved via name search → ${espnId}`, 'ok');
+            const athletes = searchData?.athletes || searchData?.items || [];
+            const norm = s => (s||'').toLowerCase().trim().replace(/['.,-]/g,'');
+            const target = norm(player.name);
+            // Strict: only accept if display name matches exactly
+            const exactMatch = athletes.find(a => {
+              const n = norm(a.displayName || a.athlete?.displayName || '');
+              return n === target;
+            });
+            if(exactMatch) {
+              espnId = String(exactMatch.id || exactMatch.athlete?.id);
+              traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN ID resolved → ${espnId}`, 'ok');
+            } else {
+              traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN ID not found (${athletes.length} results, no exact match)`, 'warn');
             }
-          } catch(e) {}
+          } catch(e) {
+            traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN ID search failed — ${e.message}`, 'warn');
+          }
         }
 
         // For MLB: resolve MLB ID from roster if missing
@@ -2580,9 +2626,35 @@ async function runFetch(sportsToFetch) {
             const person = searchData?.people?.[0];
             if(person?.id) {
               resolvedMlbId = person.id;
-              traceLog('playerDiscovery', `${player.name} (MLB): MLB ID resolved via name search → ${resolvedMlbId}`, 'ok');
+              traceLog('playerDiscovery', `${player.name} (MLB): MLB ID resolved → ${resolvedMlbId}`, 'ok');
+            } else {
+              traceLog('playerDiscovery', `${player.name} (MLB): MLB ID not found in people search`, 'warn');
             }
-          } catch(e) {}
+          } catch(e) {
+            traceLog('playerDiscovery', `${player.name} (MLB): MLB ID search failed — ${e.message}`, 'warn');
+          }
+        }
+
+        // For NHL: if ESPN search failed, try NHL API player search
+        if(!espnId && player.sport === 'NHL' && player.name) {
+          try {
+            const nhlSearchUrl = `https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=5&q=${encodeURIComponent(player.name)}&active=true`;
+            const nhlResults = await fetchWithFallback(nhlSearchUrl);
+            const results = Array.isArray(nhlResults) ? nhlResults : [];
+            const norm = s => (s||'').toLowerCase().trim();
+            const target = norm(player.name);
+            const match = results.find(r => norm(`${r.firstName} ${r.lastName}`) === target);
+            if(match?.playerId) {
+              // Store NHL player ID in meta for game log fetch
+              resolvedMlbId = match.playerId; // reuse resolvedMlbId slot for NHL ID
+              espnId = String(match.playerId); // use as identity token
+              traceLog('playerDiscovery', `${player.name} (NHL): NHL ID resolved → ${match.playerId}`, 'ok');
+            } else {
+              traceLog('playerDiscovery', `${player.name} (NHL): NHL ID not found (${results.length} results)`, 'warn');
+            }
+          } catch(e) {
+            traceLog('playerDiscovery', `${player.name} (NHL): NHL ID search failed — ${e.message}`, 'warn');
+          }
         }
 
         // ══════════════════════════════════════════════════════
@@ -2627,6 +2699,9 @@ async function runFetch(sportsToFetch) {
         // realLine = verified sportsbook line from Odds API (betting mode only).
         // In analysis mode player.eventId is undefined — pass null so hasRealLine stays false.
         const realLine = (player.eventId && player.line > 0) ? player.line : null;
+        if(player.sport === 'MLB' && player.eventId) {
+          traceLog('projectionEngine', `${player.name} (MLB): line=${player.line} eventId=${player.eventId} → realLine=${realLine}`, realLine ? 'ok' : 'warn');
+        }
         // For MLB roster players: use mlbId as the primary ID, espnId may be null
         const effectiveId = espnId || mlbIdForGate || null;
         // Merge mlbId into playerMeta so buildPlayerProp can use it for MLB API fetch
