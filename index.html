@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v8.5</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v8.7</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -697,18 +697,26 @@ async function testApi(which) {
 
   // NBA directory test — special case using proxy directly
   if(which === 'nba_directory') {
-    el.innerHTML = '<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:var(--bg2);border-radius:8px">Testing NBA proxy (commonallplayers)...</div>';
+    el.innerHTML = '<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:var(--bg2);border-radius:8px">⟳ Calling proxy... (may take 10-25s on first attempt)</div>';
     NBA_PLAYER_DIRECTORY = null; NBA_DIRECTORY_LOADING = null;
+    // Show elapsed seconds while waiting
+    let secs = 0;
+    const ticker = setInterval(() => {
+      secs++;
+      el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:var(--bg2);border-radius:8px">⟳ Calling proxy... ${secs}s elapsed</div>`;
+    }, 1000);
     try {
       const dir = await loadNBAPlayerDirectory();
+      clearInterval(ticker);
       if(dir && dir.size > 0) {
         const sample = [...dir.entries()].slice(0,3).map(([n,id]) => `${n} → ${id}`).join('<br/>');
-        el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--accent);padding:8px;background:var(--bg2);border-radius:8px">✓ NBA directory loaded — ${dir.size} active players<br/><br/>${sample}</div>`;
+        el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--accent);padding:8px;background:var(--bg2);border-radius:8px">✓ NBA directory loaded in ${secs}s — ${dir.size} players<br/><br/>${sample}</div>`;
       } else {
-        el.innerHTML = '<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:var(--bg2);border-radius:8px">✗ NBA directory empty — check proxy URL and token in ⚙ Settings</div>';
+        el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:var(--bg2);border-radius:8px">✗ Failed after ${secs}s — proxy returned empty/null<br/>Check your proxy URL and token in ⚙ Settings</div>`;
       }
     } catch(e) {
-      el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:var(--bg2);border-radius:8px">✗ Error: ${e.message}</div>`;
+      clearInterval(ticker);
+      el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:var(--bg2);border-radius:8px;word-break:break-all">✗ Error after ${secs}s:<br/>${e.message}</div>`;
     }
     return;
   }
@@ -1748,10 +1756,16 @@ function getNBASeason() {
   return `${startYear}-${String(startYear+1).slice(2)}`;
 }
 
+// Promise.race timeout that works on Safari without AbortController
+function fetchWithTimeout(url, options, ms) {
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error(`Timed out after ${ms/1000}s`)), ms)
+  );
+  return Promise.race([fetch(url, options), timeout]);
+}
+
 async function loadNBAPlayerDirectory() {
-  // Already loaded this session
   if(NBA_PLAYER_DIRECTORY) return NBA_PLAYER_DIRECTORY;
-  // Already loading — wait for existing promise
   if(NBA_DIRECTORY_LOADING) return NBA_DIRECTORY_LOADING;
   if(!STATE.settings.corsProxy) return null;
 
@@ -1763,21 +1777,29 @@ async function loadNBAPlayerDirectory() {
     const proxyUrl = `${proxy}?url=${encodeURIComponent(nbaUrl)}`;
     const hdrs = token ? { 'x-proxy-auth': token } : {};
 
-    // Retry up to 2 times — Safari can abort on first attempt
     for(let attempt = 1; attempt <= 2; attempt++) {
       try {
-        traceLog('gameIngestion', `NBA directory: attempt ${attempt}/2 via proxy...`, 'ok');
-        // Use native fetch with no AbortController — let Safari manage timeout
-        const res = await fetch(proxyUrl, { headers: hdrs });
-        if(!res.ok) throw new Error('HTTP ' + res.status);
+        traceLog('gameIngestion', `NBA directory: attempt ${attempt}/2...`, 'ok');
+        // 25s timeout via Promise.race — no AbortController (Safari compat)
+        const res = await fetchWithTimeout(proxyUrl, { headers: hdrs }, 25000);
+        if(!res.ok) {
+          const errText = await res.text().catch(() => '');
+          throw new Error(`HTTP ${res.status} — ${errText.slice(0,100)}`);
+        }
         const data = await res.json();
         logApiCall(proxyUrl, 'ok');
+        // Log raw structure for debugging
+        traceLog('gameIngestion', `NBA proxy response: keys=${Object.keys(data||{}).join(',')} resultSets=${data?.resultSets?.length??0}`, 'ok');
         const rHeaders = data?.resultSets?.[0]?.headers || [];
         const rows = data?.resultSets?.[0]?.rowSet || [];
         const nameIdx = rHeaders.findIndex(h => h === 'DISPLAY_FIRST_LAST');
         const idIdx   = rHeaders.findIndex(h => h === 'PERSON_ID');
         if(nameIdx < 0 || idIdx < 0 || !rows.length) {
-          throw new Error(`unexpected response format (${rows.length} rows)`);
+          // Log the actual response structure for debugging
+          const topKeys = Object.keys(data||{}).join(',');
+          const rsLen = data?.resultSets?.length ?? 'none';
+          const rs0Keys = data?.resultSets?.[0] ? Object.keys(data.resultSets[0]).join(',') : 'none';
+          throw new Error(`bad format: topKeys=${topKeys} | resultSets=${rsLen} | rs0=${rs0Keys} | rows=${rows.length} | headers=${rHeaders.slice(0,3).join(',')}`);
         }
         const norm = s => (s||'').toLowerCase().trim();
         NBA_PLAYER_DIRECTORY = new Map();
@@ -1792,10 +1814,10 @@ async function loadNBAPlayerDirectory() {
       } catch(e) {
         logApiCall(proxyUrl, 'error');
         traceLog('gameIngestion', `NBA directory attempt ${attempt} failed — ${e.message}`, 'warn');
-        if(attempt < 2) await new Promise(r => setTimeout(r, 1500)); // wait before retry
+        if(attempt < 2) await new Promise(r => setTimeout(r, 2000));
       }
     }
-    traceLog('gameIngestion', 'NBA directory failed after 2 attempts — will use ESPN fallback for NBA', 'warn');
+    traceLog('gameIngestion', 'NBA directory failed — ESPN fallback will be used for NBA game logs', 'warn');
     NBA_DIRECTORY_LOADING = null;
     return null;
   })();
@@ -1835,8 +1857,8 @@ async function fetchNBAStatsGameLog(playerName, nbaPersonId) {
     const proxy = STATE.settings.corsProxy.trim();
     const token = STATE.settings.proxyToken || '';
     const proxyUrl = `${proxy}?url=${encodeURIComponent(url)}`;
-    // Use native fetch without AbortController — Safari kills timed-out requests
-    const res = await fetch(proxyUrl, token ? { headers: { 'x-proxy-auth': token } } : {});
+    // 25s timeout via Promise.race — Safari compat (no AbortController)
+    const res = await fetchWithTimeout(proxyUrl, token ? { headers: { 'x-proxy-auth': token } } : {}, 25000);
     if(!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     logApiCall(proxyUrl, 'ok');
