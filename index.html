@@ -297,7 +297,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v6.6</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v6.7</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1373,6 +1373,64 @@ async function fetchMLBPlayerInfo(mlbPlayerId) {
 }
 
 // ═══════════════════════════════════════════════════════
+// MLB ROSTER FETCH — gets today's active roster from MLB Stats API
+// Used for player discovery since ESPN game IDs don't match MLB gamePks
+// ═══════════════════════════════════════════════════════
+async function fetchMLBRoster(teamId) {
+  try {
+    const url = `${MLB_BASE}/teams/${teamId}/roster?rosterType=active`;
+    const data = await fetchWithFallback(url);
+    return (data?.roster || []).map(p => ({
+      id: String(p.person?.id || ''),
+      name: p.person?.fullName || '',
+      position: p.position?.abbreviation || '',
+      mlbId: p.person?.id || null,
+    }));
+  } catch(e) { return []; }
+}
+
+async function fetchMLBLineupsForGame(gamePk) {
+  // Fetch confirmed lineup if game has started/been announced
+  try {
+    const url = `${MLB_BASE}/game/${gamePk}/boxscore`;
+    const data = await fetchWithFallback(url);
+    const players = [];
+    for(const side of ['home','away']) {
+      const teamData = data?.teams?.[side];
+      const battingOrder = teamData?.battingOrder || [];
+      const allPlayers = teamData?.players || {};
+      // Batting order gives us starters in order
+      battingOrder.forEach((pid, idx) => {
+        const p = allPlayers[`ID${pid}`];
+        if(!p) return;
+        players.push({
+          id: String(pid),
+          name: p.person?.fullName || '',
+          position: p.position?.abbreviation || '',
+          mlbId: pid,
+          starter: true,
+          battingOrder: idx + 1,
+        });
+      });
+      // Also grab pitcher
+      const pitcher = teamData?.pitchers?.[0];
+      if(pitcher) {
+        const pp = allPlayers[`ID${pitcher}`];
+        if(pp) players.push({
+          id: String(pitcher),
+          name: pp.person?.fullName || '',
+          position: 'P',
+          mlbId: pitcher,
+          starter: true,
+          battingOrder: 0,
+        });
+      }
+    }
+    return players;
+  } catch(e) { return []; }
+}
+
+// ═══════════════════════════════════════════════════════
 // NHL API — Official NHL web API, no key required
 // api-web.nhle.com — player game logs, goalie stats, TOI,
 // line assignments, schedules
@@ -2153,6 +2211,9 @@ async function runFetch(sportsToFetch) {
               const games = data?.dates?.[0]?.games || [];
               const events = games.map(g => ({
                 id: String(g.gamePk),
+                _mlbGamePk: g.gamePk,
+                _mlbHomeId: g.teams?.home?.team?.id,
+                _mlbAwayId: g.teams?.away?.team?.id,
                 competitions: [{ competitors: [
                   { homeAway:'home', team:{ abbreviation: mlbTeamAbbrev(g.teams?.home?.team?.name), id: String(g.teams?.home?.team?.id||'') }},
                   { homeAway:'away', team:{ abbreviation: mlbTeamAbbrev(g.teams?.away?.team?.name), id: String(g.teams?.away?.team?.id||'') }}
@@ -2220,24 +2281,73 @@ async function runFetch(sportsToFetch) {
             return (PLAYER_DB[sport]||[]).find(p => norm(p.name) === target) || null;
           };
 
-          // ── TIER 1: Game summary (all players who appeared) ──
+          // ── TIER 1: Player discovery — MLB uses MLB API, others use ESPN ──
           let candidatePool = [];
-          if(game.id) {
-            const apiPlayers = await fetchESPNGamePlayers(espnSport, espnLeague, game.id);
-            traceLog('playerDiscovery', `${sport} ${home}v${away} T1-GameAPI: ${apiPlayers.length} players`, apiPlayers.length>0?'pass':'warn');
-            for(const ap of apiPlayers) {
-              const db = enrichFromDB(ap.name); // exact match only
-              candidatePool.push({
-                id: ap.id, name: ap.name, teamAbbr: ap.teamAbbr,
-                starter: ap.starter, position: ap.position,
-                prop: db?.prop || defaultPropForSport(sport),
-                lineBase: db?.lineBase || null, meta: db || null,
-              });
+
+          if(sport === 'MLB') {
+            // MLB: ESPN game IDs don't match MLB gamePks so ESPN summary is useless.
+            // Use MLB boxscore (confirmed lineups) → fallback to active roster.
+            const mlbPk = game._mlbGamePk;
+            const mlbHomeId = game._mlbHomeId;
+            const mlbAwayId = game._mlbAwayId;
+
+            if(mlbPk) {
+              const lineupPlayers = await fetchMLBLineupsForGame(mlbPk);
+              if(lineupPlayers.length > 0) {
+                traceLog('playerDiscovery', `MLB ${home}v${away} T1-Lineup: ${lineupPlayers.length} players`, 'pass');
+                for(const p of lineupPlayers) {
+                  const db = enrichFromDB(p.name);
+                  candidatePool.push({
+                    id: p.id, name: p.name, teamAbbr: '',
+                    starter: p.starter, position: p.position,
+                    prop: db?.prop || (p.position === 'P' ? 'Strikeouts' : 'Hits'),
+                    lineBase: db?.lineBase || null,
+                    meta: db ? { ...db, mlbId: p.mlbId } : { mlbId: p.mlbId },
+                  });
+                }
+              }
+            }
+
+            // Fallback: active rosters from both teams
+            if(candidatePool.length === 0 && (mlbHomeId || mlbAwayId)) {
+              traceLog('playerDiscovery', `MLB ${home}v${away} T1 lineup empty — trying active rosters`, 'warn');
+              const rFetches = [];
+              if(mlbHomeId) rFetches.push(fetchMLBRoster(mlbHomeId));
+              if(mlbAwayId) rFetches.push(fetchMLBRoster(mlbAwayId));
+              const rosters = await Promise.all(rFetches);
+              for(const roster of rosters) {
+                for(const p of roster) {
+                  const db = enrichFromDB(p.name);
+                  candidatePool.push({
+                    id: p.id, name: p.name, teamAbbr: '',
+                    starter: false, position: p.position,
+                    prop: db?.prop || (p.position === 'P' ? 'Strikeouts' : 'Hits'),
+                    lineBase: db?.lineBase || null,
+                    meta: db ? { ...db, mlbId: p.mlbId } : { mlbId: p.mlbId },
+                  });
+                }
+              }
+              traceLog('playerDiscovery', `MLB ${home}v${away} T2-Rosters: ${candidatePool.length} players`, candidatePool.length>0?'pass':'warn');
+            }
+          } else {
+            // NBA/NFL/NHL/WNBA: use ESPN game summary
+            if(game.id) {
+              const apiPlayers = await fetchESPNGamePlayers(espnSport, espnLeague, game.id);
+              traceLog('playerDiscovery', `${sport} ${home}v${away} T1-GameAPI: ${apiPlayers.length} players`, apiPlayers.length>0?'pass':'warn');
+              for(const ap of apiPlayers) {
+                const db = enrichFromDB(ap.name);
+                candidatePool.push({
+                  id: ap.id, name: ap.name, teamAbbr: ap.teamAbbr,
+                  starter: ap.starter, position: ap.position,
+                  prop: db?.prop || defaultPropForSport(sport),
+                  lineBase: db?.lineBase || null, meta: db || null,
+                });
+              }
             }
           }
 
-          // ── TIER 2: Team rosters — if game summary returned nothing ──
-          if(candidatePool.length === 0) {
+          // ── TIER 2: ESPN Team rosters — non-MLB only, if T1 returned nothing ──
+          if(candidatePool.length === 0 && sport !== 'MLB') {
             traceLog('playerDiscovery', `${sport} ${home}v${away} T1 empty — trying T2 rosters`, 'warn');
             const rFetches = [];
             if(homeTeamId) rFetches.push(fetchESPNTeamRoster(espnSport, espnLeague, homeTeamId));
@@ -2245,7 +2355,7 @@ async function runFetch(sportsToFetch) {
             const rosters = await Promise.all(rFetches);
             for(const roster of rosters) {
               for(const rp of roster) {
-                const db = enrichFromDB(rp.name); // exact match only
+                const db = enrichFromDB(rp.name);
                 candidatePool.push({
                   id: rp.id, name: rp.name, teamAbbr: '', starter: false, position: rp.position,
                   prop: db?.prop || defaultPropForSport(sport),
