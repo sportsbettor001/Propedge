@@ -297,7 +297,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v7.2</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v7.4</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1429,7 +1429,7 @@ async function fetchMLBLineupsForGame(gamePk) {
       const teamData = data?.teams?.[side];
       const battingOrder = teamData?.battingOrder || [];
       const allPlayers = teamData?.players || {};
-      // Batting order gives us starters in order
+      // Batting order gives us starters in order — tag each player with their side
       battingOrder.forEach((pid, idx) => {
         const p = allPlayers[`ID${pid}`];
         if(!p) return;
@@ -1440,9 +1440,10 @@ async function fetchMLBLineupsForGame(gamePk) {
           mlbId: pid,
           starter: true,
           battingOrder: idx + 1,
+          side, // 'home' or 'away'
         });
       });
-      // Also grab pitcher
+      // Starting pitcher
       const pitcher = teamData?.pitchers?.[0];
       if(pitcher) {
         const pp = allPlayers[`ID${pitcher}`];
@@ -1453,6 +1454,7 @@ async function fetchMLBLineupsForGame(gamePk) {
           mlbId: pitcher,
           starter: true,
           battingOrder: 0,
+          side,
         });
       }
     }
@@ -2335,11 +2337,18 @@ async function runFetch(sportsToFetch) {
               const lineupPlayers = await fetchMLBLineupsForGame(mlbPk);
               if(lineupPlayers.length > 0) {
                 traceLog('playerDiscovery', `MLB ${home}v${away} T1-Lineup: ${lineupPlayers.length} players`, 'pass');
+                // Determine home/away side from batting order index
+                // fetchMLBLineupsForGame processes 'home' then 'away' — tag accordingly
+                let sideIndex = 0;
+                let currentSide = 'home';
                 for(const p of lineupPlayers) {
+                  // Switch to away when we see a player from a different side
+                  // (boxscore processes home then away)
                   const db = enrichFromDB(p.name);
                   candidatePool.push({
-                    id: p.id, name: p.name, teamAbbr: '',
+                    id: p.id, name: p.name, teamAbbr: p.side || '',
                     starter: p.starter, position: p.position,
+                    _side: p.side || null,
                     prop: db?.prop || (p.position === 'P' ? 'Strikeouts' : 'Hits'),
                     lineBase: db?.lineBase || null,
                     meta: db ? { ...db, mlbId: p.mlbId } : { mlbId: p.mlbId },
@@ -2352,15 +2361,16 @@ async function runFetch(sportsToFetch) {
             if(candidatePool.length === 0 && (mlbHomeId || mlbAwayId)) {
               traceLog('playerDiscovery', `MLB ${home}v${away} T1 lineup empty — trying active rosters`, 'warn');
               const rFetches = [];
-              if(mlbHomeId) rFetches.push(fetchMLBRoster(mlbHomeId));
-              if(mlbAwayId) rFetches.push(fetchMLBRoster(mlbAwayId));
+              if(mlbHomeId) rFetches.push(fetchMLBRoster(mlbHomeId).then(r => r.map(p => ({...p, side:'home'}))));
+              if(mlbAwayId) rFetches.push(fetchMLBRoster(mlbAwayId).then(r => r.map(p => ({...p, side:'away'}))));
               const rosters = await Promise.all(rFetches);
               for(const roster of rosters) {
                 for(const p of roster) {
                   const db = enrichFromDB(p.name);
                   candidatePool.push({
-                    id: p.id, name: p.name, teamAbbr: '',
+                    id: p.id, name: p.name, teamAbbr: p.side,
                     starter: false, position: p.position,
+                    _side: p.side,
                     prop: db?.prop || (p.position === 'P' ? 'Strikeouts' : 'Hits'),
                     lineBase: db?.lineBase || null,
                     meta: db ? { ...db, mlbId: p.mlbId } : { mlbId: p.mlbId },
@@ -2453,9 +2463,16 @@ async function runFetch(sportsToFetch) {
             // Home batters face the away probable pitcher, away batters face the home probable pitcher
             let opposingPitcher = null;
             if(sport === 'MLB' && p.position !== 'P') {
-              const playerTeam = (p.teamAbbr || p.meta?.team || '').toUpperCase();
-              const isHomeBatter = home && playerTeam && (home.toUpperCase().includes(playerTeam.slice(0,3)) || playerTeam.includes(home.slice(0,3)));
-              opposingPitcher = isHomeBatter ? game._awayProbablePitcher : game._homeProbablePitcher;
+              // Use the side tag set during discovery — much more reliable than team name matching
+              const playerSide = p._side || p.teamAbbr || null;
+              const isHomeBatter = playerSide === 'home';
+              const isAwayBatter = playerSide === 'away';
+              if(isHomeBatter) {
+                opposingPitcher = game._awayProbablePitcher; // home batter faces away pitcher
+              } else if(isAwayBatter) {
+                opposingPitcher = game._homeProbablePitcher; // away batter faces home pitcher
+              }
+              // If side unknown, skip — don't assign wrong pitcher
             }
             playersToProcess.push({
               name: p.name, sport, espnSport, espnLeague, gameId,
@@ -3177,7 +3194,11 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
           // Batter vs pitcher history (only for batters, not pitchers)
           const isBatter = !['Strikeouts'].includes(statLabel);
           const batterId = playerMeta.mlbId || null;
-          if(isBatter && batterId) {
+          if(isBatter && !batterId) {
+            // No MLB ID — can't look up BvP history, show pitcher name only
+            traceLog('projectionEngine', `${playerName}: no MLB ID available — skipping batter vs pitcher lookup (pitcher: ${pitcherSource.name||'unknown'})`, 'warn');
+            contextData.pitcher = contextData.pitcher || { name: pitcherSource.name };
+          } else if(isBatter && batterId) {
             try {
               const bvp = await fetchMLBBatterVsPitcher(batterId, pitcherSource.id, season);
               if(bvp) {
@@ -3191,10 +3212,20 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
                 }
                 if(bvpNote.length > 0) {
                   contextData.bvpNote = bvpNote.join(' · ');
-                  traceLog('projectionEngine', `${playerName} vs pitcher ${pitcherSource.name}: ${bvpNote.join(' | ')}`, 'ok');
+                  traceLog('projectionEngine', `${playerName} vs ${pitcherSource.name}: ${bvpNote.join(' | ')}`, 'ok');
+                } else {
+                  // API returned but no meaningful AB history — show fallback
+                  traceLog('projectionEngine', `${playerName} vs ${pitcherSource.name}: no significant at-bat history found`, 'warn');
+                  contextData.noBvpHistory = true;
                 }
+              } else {
+                traceLog('projectionEngine', `${playerName}: batter vs pitcher fetch returned null (pitcher: ${pitcherSource.name||'unknown'})`, 'warn');
+                contextData.noBvpHistory = true;
               }
-            } catch(e) {}
+            } catch(e) {
+              traceLog('projectionEngine', `${playerName}: batter vs pitcher fetch failed — ${e.message}`, 'warn');
+              contextData.noBvpHistory = true;
+            }
           }
         }
         if(team && date) {
@@ -3543,6 +3574,10 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     // MLB batter vs pitcher history
     if(sport === 'MLB' && contextData.bvpNote) {
       contextNotes.push(`Batter vs pitcher: ${contextData.bvpNote}`);
+    } else if(sport === 'MLB' && contextData.pitcher?.name && contextData.noBvpHistory) {
+      contextNotes.push(`Facing ${contextData.pitcher.name} today — no head-to-head history found`);
+    } else if(sport === 'MLB' && contextData.pitcher?.name && !contextData.bvpNote) {
+      contextNotes.push(`Facing ${contextData.pitcher.name} today — head-to-head data unavailable (no MLB ID)`);
     }
 
     finalProjection = parseFloat(finalProjection.toFixed(2));
