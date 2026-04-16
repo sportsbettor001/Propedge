@@ -297,7 +297,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v7.8</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v8.1</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -341,22 +341,23 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           <div class="filter-chip" data-sport="NHL" onclick="toggleSportFilter('NHL',this)"><div class="sport-status-dot"></div>NHL</div>
           <div class="filter-chip" data-sport="GOLF" onclick="toggleSportFilter('GOLF',this)"><div class="sport-status-dot"></div>Golf</div>
         </div>
-        <div style="display:flex;gap:6px;margin-bottom:6px">
-          <div class="filter-row" id="dec-filters" style="margin-bottom:0;flex:1">
-            <div class="filter-chip active" data-dec="all" onclick="setFilter('dec','all',this)">All</div>
-            <div class="filter-chip" data-dec="OVER" onclick="setFilter('dec','OVER',this)">OVER</div>
-            <div class="filter-chip" data-dec="UNDER" onclick="setFilter('dec','UNDER',this)">UNDER</div>
-            <div class="filter-chip" data-dec="PASS" onclick="setFilter('dec','PASS',this)">PASS</div>
-          </div>
-          <div class="filter-row" id="date-filters" style="margin-bottom:0">
-            <div class="filter-chip active" data-date="all" onclick="setFilter('date','all',this)">All dates</div>
-            <div class="filter-chip" id="chip-today" data-date="today" onclick="setFilter('date','today',this)">Today</div>
-            <div class="filter-chip" id="chip-tomorrow" data-date="tomorrow" onclick="setFilter('date','tomorrow',this)">Tomorrow</div>
-          </div>
+        <div class="filter-row" id="dec-filters" style="margin-bottom:6px">
+          <div class="filter-chip active" data-dec="all" onclick="setFilter('dec','all',this)">All</div>
+          <div class="filter-chip" data-dec="OVER" onclick="setFilter('dec','OVER',this)">OVER</div>
+          <div class="filter-chip" data-dec="UNDER" onclick="setFilter('dec','UNDER',this)">UNDER</div>
+          <div class="filter-chip" data-dec="PASS" onclick="setFilter('dec','PASS',this)">PASS</div>
+        </div>
+        <div class="filter-row" id="date-filters" style="margin-bottom:6px">
+          <div class="filter-chip active" data-date="all" onclick="setFilter('date','all',this)">All dates</div>
+          <div class="filter-chip" id="chip-today" data-date="today" onclick="setFilter('date','today',this)">Today</div>
+          <div class="filter-chip" id="chip-tomorrow" data-date="tomorrow" onclick="setFilter('date','tomorrow',this)">Tomorrow</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center">
           <button class="gen-btn" id="gen-btn" onclick="generateProps()" style="flex:1;margin-bottom:0;padding:10px">
             <span id="gen-btn-text">Generate Props</span>
+          </button>
+          <button id="use-cache-btn" onclick="restoreCachedData()" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;color:var(--muted);padding:10px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0" title="Load previously fetched props without hitting API">
+            📦 Use cache
           </button>
           <button class="refetch-btn" id="refetch-btn" onclick="refetchAll()" style="margin-bottom:0;padding:10px;width:auto;white-space:nowrap">
             ↺ Refresh
@@ -648,6 +649,9 @@ const TRACE_SECTIONS = ['gameIngestion','playerDiscovery','projectionEngine','fi
 function initTrace() {
   STATE.trace = { runAt: new Date().toISOString(), mode: null,
     gameIngestion:[], playerDiscovery:[], projectionEngine:[], filteringLog:[], outputLog:[] };
+  // Reset API call log and NBA directory for this session
+  API_CALL_LOG.length = 0;
+  NBA_PLAYER_DIRECTORY = null; // will reload fresh from stats.nba.com
   renderTrace();
 }
 function traceLog(section, msg, level='ok') {
@@ -832,6 +836,20 @@ function renderTrace() {
     projectionEngine:'3 · Projection Engine', filteringLog:'4 · Filtering', outputLog:'5 · Output (log entries)' };
   const modeColor = t.mode==='betting' ? 'var(--accent)' : 'var(--amber)';
   let html = `<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:10px">Run: ${t.runAt} · Mode: <span style="color:${modeColor}">${(t.mode||'unknown').toUpperCase()}</span></div>`;
+
+  // API call summary
+  if(API_CALL_LOG.length > 0) {
+    html += `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:10px">`;
+    html += `<div style="font-family:var(--mono);font-size:9px;font-weight:700;color:var(--blue);margin-bottom:6px">API CALLS THIS SESSION</div>`;
+    API_CALL_LOG.forEach(e => {
+      const errColor = e.errors > 0 ? 'var(--red)' : 'var(--accent)';
+      html += `<div style="font-family:var(--mono);font-size:9px;display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid var(--border)">`;
+      html += `<span style="color:var(--text)">${e.domain}</span>`;
+      html += `<span><span style="color:${errColor}">${e.count}x</span>${e.errors?` <span style="color:var(--red)">(${e.errors} err)</span>`:''} <span style="color:var(--muted)">${e.first}${e.count>1?' → '+e.last:''}</span></span>`;
+      html += `</div>`;
+    });
+    html += `</div>`;
+  }
   for(const s of TRACE_SECTIONS) {
     const entries = t[s] || [];
     html += `<div class="trace-section"><div class="trace-section-title">${labels[s]} (${entries.length})</div><div class="trace-entries">`;
@@ -948,7 +966,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function showCacheRestorePrompt() {
-  // Build a summary of what's cached
   const sports = Object.entries(STATE.sportCache)
     .filter(([, e]) => e?.props?.length > 0)
     .map(([sport, e]) => {
@@ -957,13 +974,19 @@ function showCacheRestorePrompt() {
       return `${sport}: ${e.props.length} props (${ageStr})`;
     });
 
+  const allProps = getAllCachedProps();
+  const hasRealLines = allProps.some(p => p.dataSource?.hasRealLine === true);
+  const modeNote = hasRealLines
+    ? `<div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:6px">✓ Real sportsbook lines available — betting mode ready</div>`
+    : `<div style="font-family:var(--mono);font-size:10px;color:var(--amber);margin-top:6px">⚠ No sportsbook lines — analysis mode only</div>`;
+
   const propsList = document.getElementById('props-list');
   propsList.innerHTML = `
     <div class="cache-restore-banner">
-      <div class="cache-restore-title">📦 Cached data available</div>
-      <div class="cache-restore-sub">${sports.join('<br/>')}<br/><br/>Load this data or start fresh?</div>
+      <div class="cache-restore-title">📦 Cached props available</div>
+      <div class="cache-restore-sub">${sports.join('<br/>')}${modeNote}</div>
       <div class="cache-restore-btns">
-        <button class="cache-restore-yes" onclick="restoreCachedData()">✓ Yes, load it</button>
+        <button class="cache-restore-yes" onclick="restoreCachedData()">✓ Load cached</button>
         <button class="cache-restore-no" onclick="discardCachedData()">✕ Start fresh</button>
       </div>
     </div>`;
@@ -1133,6 +1156,9 @@ function updateSportChipStatus() {
 function updateCacheStatusBar() {
   const bar = document.getElementById('cache-status-bar');
   const allProps = getAllCachedProps();
+  // Show/hide Use Cache button
+  const useCacheBtn = document.getElementById('use-cache-btn');
+  if(useCacheBtn) useCacheBtn.style.display = allProps.length > 0 ? 'block' : 'none';
   if(allProps.length === 0) { bar.innerHTML = ''; return; }
 
   const sports = Object.keys(STATE.sportCache).filter(s => STATE.sportCache[s]?.props?.length > 0);
@@ -1156,16 +1182,33 @@ function updateCacheStatusBar() {
 // ═══════════════════════════════════════════════════════
 // API HELPERS
 // ═══════════════════════════════════════════════════════
+// API call log — tracks every fetch for the trace tab
+const API_CALL_LOG = [];
+function logApiCall(url, status) {
+  const domain = (() => { try { return new URL(url).hostname; } catch(e) { return url.slice(0,40); } })();
+  const existing = API_CALL_LOG.find(e => e.domain === domain);
+  const now = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  if(existing) {
+    existing.count++;
+    existing.last = now;
+    if(status === 'error') existing.errors = (existing.errors||0) + 1;
+  } else {
+    API_CALL_LOG.push({ domain, count:1, first:now, last:now, errors: status==='error'?1:0 });
+  }
+}
+
 async function fetchJSON(url, options = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
     const res = await fetch(url, { ...options, signal: controller.signal });
     clearTimeout(timeout);
-    if(!res.ok) throw new Error('HTTP ' + res.status);
+    if(!res.ok) { logApiCall(url, 'error'); throw new Error('HTTP ' + res.status); }
+    logApiCall(url, 'ok');
     return await res.json();
   } catch(e) {
     clearTimeout(timeout);
+    logApiCall(url, 'error');
     throw e;
   }
 }
@@ -1643,40 +1686,92 @@ async function fetchBDLPlayerStats(playerName, sport, dateFrom, dateTo) {
 // NBA STATS API — stats.nba.com
 // Full season game logs. CORS-blocked — requires Cloudflare proxy in Settings.
 // If no proxy configured, falls back to ESPN automatically.
+// Player directory fetched once per session via commonallplayers endpoint.
+// No hardcoded DB — works for any active NBA player.
 // ═══════════════════════════════════════════════════════
-const NBA_STATS_IDS = {
-  'Joel Embiid':203954,'Stephen Curry':201939,'Paolo Banchero':1631094,
-  'Franz Wagner':1630532,'Nikola Jokic':203999,'Luka Doncic':1629029,
-  'Shai Gilgeous-Alexander':1628983,'Giannis Antetokounmpo':203507,
-  'LeBron James':2544,'Kevin Durant':201142,'Jayson Tatum':1628369,
-  'Jaylen Brown':1627759,'Anthony Davis':203076,'Devin Booker':1626164,
-  'Donovan Mitchell':1628378,'Damian Lillard':203081,'Trae Young':1628384,
-  'Zion Williamson':1629627,'Ja Morant':1629630,'Anthony Edwards':1630162,
-  'Tyrese Haliburton':1630169,'Bam Adebayo':1628389,'Kawhi Leonard':202695,
-  'Jimmy Butler':202710,'Draymond Green':203110,'Klay Thompson':202691,
-  'Karl-Anthony Towns':1626157,'Julius Randle':203944,'Jalen Brunson':1628384,
-  'Rudy Gobert':203497,'De Aaron Fox':1628368,'Zach LaVine':203897,
-  'Bradley Beal':203078,'Kristaps Porzingis':204001,'Pascal Siakam':1626169,
-  'OG Anunoby':1628384,'Mikal Bridges':1628969,'Brandon Ingram':1627742,
-  'Cade Cunningham':1630595,'Evan Mobley':1630596,'Scottie Barnes':1630567,
-  'Josh Giddey':1630581,'Alperen Sengun':1631167,'Victor Wembanyama':1641705,
-  'Chet Holmgren':1630533,'Jabari Smith Jr.':1630538,
-};
 
-async function fetchNBAStatsGameLog(playerName) {
-  const nbaId = NBA_STATS_IDS[playerName];
-  if(!nbaId) return null;
-  if(!STATE.settings.corsProxy) return null; // no proxy = skip, fall back to ESPN
+// In-memory player directory — loaded once per session
+let NBA_PLAYER_DIRECTORY = null; // Map: normalized name → PERSON_ID
+let NBA_DIRECTORY_LOADING = null; // Promise while loading
+
+function getNBASeason() {
   const y = new Date().getFullYear();
   const m = new Date().getMonth() + 1;
   const startYear = m >= 10 ? y : y - 1;
-  const season = `${startYear}-${String(startYear+1).slice(2)}`;
+  return `${startYear}-${String(startYear+1).slice(2)}`;
+}
+
+async function loadNBAPlayerDirectory() {
+  // Already loaded
+  if(NBA_PLAYER_DIRECTORY) return NBA_PLAYER_DIRECTORY;
+  // Already loading — wait for it
+  if(NBA_DIRECTORY_LOADING) return NBA_DIRECTORY_LOADING;
+  if(!STATE.settings.corsProxy) return null;
+
+  NBA_DIRECTORY_LOADING = (async () => {
+    try {
+      const season = getNBASeason();
+      const url = `https://stats.nba.com/stats/commonallplayers?IsOnlyCurrentSeason=1&LeagueID=00&Season=${season}`;
+      const data = await fetchWithFallback(url);
+      const headers = data?.resultSets?.[0]?.headers || [];
+      const rows = data?.resultSets?.[0]?.rowSet || [];
+      const nameIdx = headers.findIndex(h => h === 'DISPLAY_FIRST_LAST');
+      const idIdx   = headers.findIndex(h => h === 'PERSON_ID');
+      if(nameIdx < 0 || idIdx < 0 || !rows.length) return null;
+
+      const norm = s => (s||'').toLowerCase().trim();
+      NBA_PLAYER_DIRECTORY = new Map();
+      for(const row of rows) {
+        const name = row[nameIdx];
+        const id   = row[idIdx];
+        if(name && id) NBA_PLAYER_DIRECTORY.set(norm(name), id);
+      }
+      traceLog('gameIngestion', `NBA player directory loaded — ${NBA_PLAYER_DIRECTORY.size} active players`, 'ok');
+      return NBA_PLAYER_DIRECTORY;
+    } catch(e) {
+      traceLog('gameIngestion', `NBA player directory failed to load — ${e.message}`, 'warn');
+      return null;
+    } finally {
+      NBA_DIRECTORY_LOADING = null;
+    }
+  })();
+  return NBA_DIRECTORY_LOADING;
+}
+
+async function lookupNBAPlayerId(playerName) {
+  const dir = await loadNBAPlayerDirectory();
+  if(!dir) return null;
+  const norm = s => (s||'').toLowerCase().trim();
+  const target = norm(playerName);
+  // 1. Exact match
+  if(dir.has(target)) return dir.get(target);
+  // 2. Try without punctuation
+  const clean = target.replace(/['.,-]/g,'');
+  for(const [k,v] of dir) {
+    if(k.replace(/['.,-]/g,'') === clean) return v;
+  }
+  // 3. Last name match — return only if unique
+  const targetLast = target.split(' ').pop();
+  const lastMatches = [...dir.entries()].filter(([k]) => k.split(' ').pop() === targetLast);
+  if(lastMatches.length === 1) return lastMatches[0][1];
+  return null;
+}
+
+async function fetchNBAStatsGameLog(playerName) {
+  if(!STATE.settings.corsProxy) return null;
+  const nbaId = await lookupNBAPlayerId(playerName);
+  if(!nbaId) {
+    traceLog('projectionEngine', `${playerName} (NBA): not found in NBA player directory`, 'warn');
+    return null;
+  }
+  const season = getNBASeason();
   try {
     const url = `https://stats.nba.com/stats/playergamelogs?PlayerID=${nbaId}&Season=${season}&SeasonType=Regular+Season&LeagueID=00`;
-    const data = await fetchWithFallback(url); // proxy handles CORS
+    const data = await fetchWithFallback(url);
     const headers = data?.resultSets?.[0]?.headers || [];
     const rows    = data?.resultSets?.[0]?.rowSet    || [];
     if(!headers.length || !rows.length) return null;
+    traceLog('projectionEngine', `${playerName} (NBA): NBA Stats API found via directory (ID ${nbaId})`, 'ok');
     return { headers, rows, playerName };
   } catch(e) { return null; }
 }
@@ -2593,27 +2688,43 @@ async function runFetch(sportsToFetch) {
           : '?';
 
         // ── ID RESOLUTION: betting mode players come from Odds API with name only ──
-        // Use STRICT exact match only — fuzzy matching causes wrong player data.
-        // Odds API provides full proper names so exact match is reliable.
+        // Step 1: For NBA — look up via NBA Stats API directory (proxy required)
+        // This replaces the hardcoded DB and covers all active players dynamically
+        if(!espnId && player.sport === 'NBA' && STATE.settings.corsProxy) {
+          const nbaId = await lookupNBAPlayerId(player.name);
+          if(nbaId) {
+            espnId = String(nbaId);
+            traceLog('playerDiscovery', `${player.name} (NBA): ID resolved via NBA Stats directory → ${espnId}`, 'ok');
+          }
+        }
+        // Step 1b: For non-NBA — check PLAYER_DB as fallback (limited but available)
+        if(!espnId && player.sport !== 'NBA' && player.name) {
+          const norm = s => (s||'').toLowerCase().trim();
+          const dbMatch = (PLAYER_DB[player.sport]||[]).find(p => norm(p.name) === norm(player.name));
+          if(dbMatch?.id) {
+            espnId = String(dbMatch.id);
+            traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN ID from player database → ${espnId}`, 'ok');
+          }
+        }
+        // Step 2: ESPN name search fallback (may be CORS-blocked on Safari)
         if(!espnId && player.name && player.espnSport && player.espnLeague) {
           try {
             const searchData = await searchESPNAthlete(player.espnSport, player.espnLeague, player.name);
             const athletes = searchData?.athletes || searchData?.items || [];
             const norm = s => (s||'').toLowerCase().trim().replace(/['.,-]/g,'');
             const target = norm(player.name);
-            // Strict: only accept if display name matches exactly
             const exactMatch = athletes.find(a => {
               const n = norm(a.displayName || a.athlete?.displayName || '');
               return n === target;
             });
             if(exactMatch) {
               espnId = String(exactMatch.id || exactMatch.athlete?.id);
-              traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN ID resolved → ${espnId}`, 'ok');
+              traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN ID via search → ${espnId}`, 'ok');
             } else {
-              traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN ID not found (${athletes.length} results, no exact match)`, 'warn');
+              traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN search — no exact match (${athletes.length} results)`, 'warn');
             }
           } catch(e) {
-            traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN ID search failed — ${e.message}`, 'warn');
+            traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN search failed — ${e.message}`, 'warn');
           }
         }
 
@@ -2638,19 +2749,30 @@ async function runFetch(sportsToFetch) {
         // For NHL: if ESPN search failed, try NHL API player search
         if(!espnId && player.sport === 'NHL' && player.name) {
           try {
-            const nhlSearchUrl = `https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=5&q=${encodeURIComponent(player.name)}&active=true`;
+            const nhlSearchUrl = `https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=10&q=${encodeURIComponent(player.name)}&active=true`;
             const nhlResults = await fetchWithFallback(nhlSearchUrl);
             const results = Array.isArray(nhlResults) ? nhlResults : [];
-            const norm = s => (s||'').toLowerCase().trim();
+            const norm = s => (s||'').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
             const target = norm(player.name);
-            const match = results.find(r => norm(`${r.firstName} ${r.lastName}`) === target);
+            const nameParts = target.split(/\s+/);
+            const targetFirst = nameParts[0] || '';
+            const targetLast  = nameParts[nameParts.length-1] || '';
+
+            // Log what was returned to help debug
+            const returned = results.slice(0,3).map(r => `${r.firstName} ${r.lastName}(${r.playerId})`).join(', ');
+            traceLog('playerDiscovery', `${player.name} (NHL): NHL search returned: ${returned||'none'}`, 'warn');
+
+            // Try progressively: full name → first+last → last name only
+            let match = results.find(r => norm(`${r.firstName} ${r.lastName}`) === target);
+            if(!match) match = results.find(r => norm(r.firstName) === targetFirst && norm(r.lastName) === targetLast);
+            if(!match) match = results.find(r => norm(r.lastName) === targetLast);
+
             if(match?.playerId) {
-              // Store NHL player ID in meta for game log fetch
-              resolvedMlbId = match.playerId; // reuse resolvedMlbId slot for NHL ID
-              espnId = String(match.playerId); // use as identity token
-              traceLog('playerDiscovery', `${player.name} (NHL): NHL ID resolved → ${match.playerId}`, 'ok');
+              resolvedMlbId = match.playerId;
+              espnId = String(match.playerId);
+              traceLog('playerDiscovery', `${player.name} (NHL): NHL ID resolved → ${match.playerId} (${match.firstName} ${match.lastName})`, 'ok');
             } else {
-              traceLog('playerDiscovery', `${player.name} (NHL): NHL ID not found (${results.length} results)`, 'warn');
+              traceLog('playerDiscovery', `${player.name} (NHL): NHL ID not found in ${results.length} results`, 'warn');
             }
           } catch(e) {
             traceLog('playerDiscovery', `${player.name} (NHL): NHL ID search failed — ${e.message}`, 'warn');
@@ -4071,16 +4193,7 @@ function toggleSportFilter(sport, el) {
     }
   }
 
-  // Check if newly selected sport has no cache — if so, auto-trigger fetch
-  if(sport !== 'all') {
-    const status = getCacheStatus(sport);
-    if(filters.sports.has(sport) && (status === 'none' || status === 'expired')) {
-      // Prompt a fetch just for this sport
-      runFetch([sport]);
-      return;
-    }
-  }
-
+  // Just filter — never auto-fetch on chip tap. User must tap Generate.
   renderProps();
 }
 
