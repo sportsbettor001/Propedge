@@ -297,7 +297,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v7.4</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v7.6</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -2550,17 +2550,43 @@ async function runFetch(sportsToFetch) {
           const target = norm(player.name);
           dbEntry = (PLAYER_DB[player.sport]||[]).find(p => norm(p.name) === target) || null;
         }
-        const espnId = player.espnId || dbEntry?.id || null;
+        let espnId = player.espnId || dbEntry?.id || null;
         const opp = player.homeTeam && player.awayTeam
           ? (dbEntry?.team && (player.homeTeam.toUpperCase().includes(dbEntry.team.toUpperCase().slice(0,3)) || player.awayTeam.toUpperCase().includes(dbEntry.team.toUpperCase().slice(0,3)))
               ? (player.homeTeam.toUpperCase().includes(dbEntry.team.toUpperCase().slice(0,3)) ? player.awayTeam : player.homeTeam)
               : player.awayTeam)
           : '?';
 
+        // ── ID RESOLUTION: betting mode players come from Odds API with name only ──
+        // If no ESPN ID yet, search ESPN by name to resolve it.
+        // This covers NHL, NBA, NFL players discovered via Odds API lines.
+        if(!espnId && player.name && player.espnSport && player.espnLeague) {
+          try {
+            const searchData = await searchESPNAthlete(player.espnSport, player.espnLeague, player.name);
+            const foundId = exactMatchESPNId(searchData, player.name);
+            if(foundId) {
+              espnId = String(foundId);
+              traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN ID resolved via name search → ${espnId}`, 'ok');
+            }
+          } catch(e) {}
+        }
+
+        // For MLB: resolve MLB ID from roster if missing
+        let resolvedMlbId = player.meta?.mlbId || dbEntry?.mlbId || null;
+        if(!resolvedMlbId && player.sport === 'MLB' && player.name) {
+          try {
+            const searchUrl = `${MLB_BASE}/people/search?names=${encodeURIComponent(player.name)}&sportId=1`;
+            const searchData = await fetchWithFallback(searchUrl);
+            const person = searchData?.people?.[0];
+            if(person?.id) {
+              resolvedMlbId = person.id;
+              traceLog('playerDiscovery', `${player.name} (MLB): MLB ID resolved via name search → ${resolvedMlbId}`, 'ok');
+            }
+          } catch(e) {}
+        }
+
         // ══════════════════════════════════════════════════════
-        // PRE-PROJECTION VALIDATION GATE (FIX 1 + 2)
-        // Single mandatory checkpoint — every player must pass before
-        // entering the projection engine. No exceptions, no silent drops.
+        // PRE-PROJECTION VALIDATION GATE
         // ══════════════════════════════════════════════════════
         const gateReasons = [];
 
@@ -2570,9 +2596,7 @@ async function runFetch(sportsToFetch) {
         }
 
         // G2: player must have a valid identity
-        // For MLB: MLB ID is sufficient (roster players don't have ESPN IDs)
-        // For other sports: ESPN ID required
-        const mlbIdForGate = player.meta?.mlbId || dbEntry?.mlbId || null;
+        const mlbIdForGate = resolvedMlbId;
         const hasValidIdentity = !!espnId || (player.sport === 'MLB' && !!mlbIdForGate);
         if(!hasValidIdentity) {
           gateReasons.push('no valid ID — player could not be identified from API');
@@ -2607,7 +2631,7 @@ async function runFetch(sportsToFetch) {
         const effectiveId = espnId || mlbIdForGate || null;
         // Merge mlbId into playerMeta so buildPlayerProp can use it for MLB API fetch
         const playerMetaMerged = { ...(dbEntry||{}), ...(player.meta||{}),
-          mlbId: mlbIdForGate || dbEntry?.mlbId || player.meta?.mlbId || null };
+          mlbId: resolvedMlbId || null };
         const prop = await buildPlayerProp(
           effectiveId, player.name, player.sport, player.espnSport, player.espnLeague,
           dbEntry?.team||player.homeTeam, opp, 'today',
@@ -2617,9 +2641,11 @@ async function runFetch(sportsToFetch) {
           newPropsBySport[player.sport].push(prop);
           traceLog('outputLog', `${player.name} (${player.sport}): prop built — ${prop.decision} proj=${prop.proj}`, prop.decision !== 'PASS' ? 'pass' : 'ok');
           // Mark official API as ok when data successfully returns
-          if(player.sport === 'NBA' && prop.dataSource?.gamelog > 0) apiStatusMap.NBA = 'ok';
+          if(player.sport === 'NBA' && prop.dataSource?.gamelog > 0) { apiStatusMap.NBA = 'ok'; apiStatusMap.ESPN = 'ok'; }
+          if(player.sport === 'WNBA' && prop.dataSource?.gamelog > 0) apiStatusMap.ESPN = 'ok';
+          if(player.sport === 'NFL' && prop.dataSource?.gamelog > 0) apiStatusMap.ESPN = 'ok';
           if(player.sport === 'MLB' && prop.dataSource?.gamelog > 0) apiStatusMap.MLB = 'ok';
-          if(player.sport === 'NHL' && prop.dataSource?.gamelog > 0) apiStatusMap.NHL = 'ok';
+          if(player.sport === 'NHL' && prop.dataSource?.gamelog > 0) { apiStatusMap.NHL = 'ok'; apiStatusMap.ESPN = 'ok'; }
         } else if(!prop) {
           traceLog('outputLog', `${player.name} (${player.sport}): could not build projection — see Projection Engine section above for reason`, 'warn');
         }
@@ -3289,14 +3315,28 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       dataPoints = allVals.length;
     }
 
-    // ── NBA / WNBA: Fetch BOTH regular season + playoff logs (merged) ──
-    // Fixes the playoff low-game-count issue — merges both season types
-    // so players with only 3-4 playoff games still have full regular season history.
+    // ── NBA / WNBA ──
+    // Source priority: NBA Stats API (proxy required) → BallDontLie → ESPN
     if(sport === 'NBA' || sport === 'WNBA') {
       let espnVals = [], espnOppVals = [];
       let bdlVals = [];
+      let nbaStatsVals = [], nbaStatsOppVals = []; // always declared regardless of proxy
 
-      // Source 1: ESPN — fetch regular + playoffs merged
+      // Source 1: NBA Stats API — full season, requires Cloudflare proxy
+      if(sport === 'NBA' && STATE.settings.corsProxy) {
+        try {
+          const nbaData = await fetchNBAStatsGameLog(playerName);
+          if(nbaData) {
+            const p = parseNBAStatsGameLog(nbaData, statLabel, opp);
+            nbaStatsVals = p.allVals; nbaStatsOppVals = p.vsOppVals;
+            traceLog('projectionEngine', `${playerName} (NBA): NBA Stats API got ${nbaStatsVals.length} games`, nbaStatsVals.length>0?'ok':'warn');
+          }
+        } catch(e) {
+          traceLog('projectionEngine', `${playerName} (NBA): NBA Stats API failed — ${e.message}`, 'warn');
+        }
+      }
+
+      // Source 2: ESPN — fetch regular + playoffs merged
       try {
         const mergedData = await fetchESPNGameLogAllSeasonTypes(espnSport, espnLeague, playerId);
         const parsed = parseESPNGameLog(mergedData, statLabel, opp);
