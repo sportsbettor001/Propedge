@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v9.1</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v9.3</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -715,14 +715,9 @@ async function testApi(which) {
     let secs = 0;
     const ticker = setInterval(() => { secs++; el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:var(--bg2);border-radius:8px">⟳ Testing proxy... ${secs}s</div>`; }, 1000);
     try {
-      const proxy = STATE.settings.corsProxy?.trim();
-      const token = STATE.settings.proxyToken || '';
-      if(!proxy) throw new Error('No proxy URL set in ⚙ Settings');
+      if(!STATE.settings.corsProxy) throw new Error('No proxy URL set in ⚙ Settings');
       const nbaUrl = `https://stats.nba.com/stats/playergamelogs?PlayerID=1630163&Season=${getNBASeason()}&SeasonType=Regular+Season&LeagueID=00`;
-      const proxyUrl = `${proxy}?url=${encodeURIComponent(nbaUrl)}`;
-      const res = await fetchWithTimeout(proxyUrl, token ? { headers: { 'x-proxy-auth': token } } : {}, 40000);
-      if(!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
+      const data = await fetchWithFallback(nbaUrl);
       clearInterval(ticker);
       const rows = data?.resultSets?.[0]?.rowSet || [];
       const headers = data?.resultSets?.[0]?.headers || [];
@@ -1904,27 +1899,17 @@ async function lookupNBAPlayerId(playerName) {
 
 async function fetchNBAStatsGameLog(playerName, nbaPersonId) {
   if(!STATE.settings.corsProxy) return null;
-  // Use pre-resolved PERSON_ID if passed, otherwise look it up
   const nbaId = nbaPersonId || await lookupNBAPlayerId(playerName);
-  if(!nbaId) {
-    traceLog('projectionEngine', `${playerName} (NBA): not found in NBA player directory`, 'warn');
-    return null;
-  }
+  if(!nbaId) return null;
   const season = getNBASeason();
   try {
     const url = `https://stats.nba.com/stats/playergamelogs?PlayerID=${nbaId}&Season=${season}&SeasonType=Regular+Season&LeagueID=00`;
-    const proxy = STATE.settings.corsProxy.trim();
-    const token = STATE.settings.proxyToken || '';
-    const proxyUrl = `${proxy}?url=${encodeURIComponent(url)}`;
-    // 25s timeout via Promise.race — Safari compat (no AbortController)
-    const res = await fetchWithTimeout(proxyUrl, token ? { headers: { 'x-proxy-auth': token } } : {}, 40000);
-    if(!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    logApiCall(proxyUrl, 'ok');
+    // fetchWithFallback routes through proxy automatically — same as working version
+    const data = await fetchWithFallback(url);
     const headers = data?.resultSets?.[0]?.headers || [];
     const rows    = data?.resultSets?.[0]?.rowSet    || [];
     if(!headers.length || !rows.length) return null;
-    traceLog('projectionEngine', `${playerName} (NBA): NBA Stats API found via directory (ID ${nbaId})`, 'ok');
+    traceLog('projectionEngine', `${playerName} (NBA): NBA Stats got ${rows.length} games (ID ${nbaId})`, 'ok');
     return { headers, rows, playerName };
   } catch(e) { return null; }
 }
