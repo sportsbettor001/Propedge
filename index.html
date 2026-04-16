@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v9.0</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v9.1</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -720,7 +720,7 @@ async function testApi(which) {
       if(!proxy) throw new Error('No proxy URL set in ⚙ Settings');
       const nbaUrl = `https://stats.nba.com/stats/playergamelogs?PlayerID=1630163&Season=${getNBASeason()}&SeasonType=Regular+Season&LeagueID=00`;
       const proxyUrl = `${proxy}?url=${encodeURIComponent(nbaUrl)}`;
-      const res = await fetchWithTimeout(proxyUrl, token ? { headers: { 'x-proxy-auth': token } } : {}, 20000);
+      const res = await fetchWithTimeout(proxyUrl, token ? { headers: { 'x-proxy-auth': token } } : {}, 40000);
       if(!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       clearInterval(ticker);
@@ -1310,7 +1310,7 @@ async function fetchJSON(url, options = {}, timeoutMs = 8000) {
 
 // Fetch with longer timeout for slow APIs like stats.nba.com
 async function fetchJSONSlow(url, options = {}) {
-  return fetchJSON(url, options, 20000); // 20s timeout
+  return fetchJSON(url, options, 40000); // 40s timeout for slow APIs
 }
 
 async function fetchWithFallback(url) {
@@ -1917,7 +1917,7 @@ async function fetchNBAStatsGameLog(playerName, nbaPersonId) {
     const token = STATE.settings.proxyToken || '';
     const proxyUrl = `${proxy}?url=${encodeURIComponent(url)}`;
     // 25s timeout via Promise.race — Safari compat (no AbortController)
-    const res = await fetchWithTimeout(proxyUrl, token ? { headers: { 'x-proxy-auth': token } } : {}, 25000);
+    const res = await fetchWithTimeout(proxyUrl, token ? { headers: { 'x-proxy-auth': token } } : {}, 40000);
     if(!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     logApiCall(proxyUrl, 'ok');
