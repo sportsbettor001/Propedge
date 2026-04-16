@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v8.9</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v9.0</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1264,6 +1264,13 @@ function updateCacheStatusBar() {
 // ═══════════════════════════════════════════════════════
 // API call log — tracks every fetch for the trace tab
 const API_CALL_LOG = [];
+
+function getNBASeason() {
+  const y = new Date().getFullYear();
+  const m = new Date().getMonth() + 1;
+  const startYear = m >= 10 ? y : y - 1;
+  return `${startYear}-${String(startYear+1).slice(2)}`;
+}
 function logApiCall(url, status) {
   const domain = (() => { try { return new URL(url).hostname; } catch(e) { return url.slice(0,40); } })();
   const existing = API_CALL_LOG.find(e => e.domain === domain);
