@@ -297,7 +297,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v8.1</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v8.2</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1702,38 +1702,59 @@ function getNBASeason() {
 }
 
 async function loadNBAPlayerDirectory() {
-  // Already loaded
+  // Already loaded successfully
   if(NBA_PLAYER_DIRECTORY) return NBA_PLAYER_DIRECTORY;
-  // Already loading — wait for it
+  // Already loading — wait for the in-flight promise (don't start a second fetch)
   if(NBA_DIRECTORY_LOADING) return NBA_DIRECTORY_LOADING;
   if(!STATE.settings.corsProxy) return null;
 
-  NBA_DIRECTORY_LOADING = (async () => {
-    try {
-      const season = getNBASeason();
-      const url = `https://stats.nba.com/stats/commonallplayers?IsOnlyCurrentSeason=1&LeagueID=00&Season=${season}`;
-      const data = await fetchWithFallback(url);
-      const headers = data?.resultSets?.[0]?.headers || [];
-      const rows = data?.resultSets?.[0]?.rowSet || [];
-      const nameIdx = headers.findIndex(h => h === 'DISPLAY_FIRST_LAST');
-      const idIdx   = headers.findIndex(h => h === 'PERSON_ID');
-      if(nameIdx < 0 || idIdx < 0 || !rows.length) return null;
-
-      const norm = s => (s||'').toLowerCase().trim();
-      NBA_PLAYER_DIRECTORY = new Map();
-      for(const row of rows) {
-        const name = row[nameIdx];
-        const id   = row[idIdx];
-        if(name && id) NBA_PLAYER_DIRECTORY.set(norm(name), id);
-      }
-      traceLog('gameIngestion', `NBA player directory loaded — ${NBA_PLAYER_DIRECTORY.size} active players`, 'ok');
-      return NBA_PLAYER_DIRECTORY;
-    } catch(e) {
-      traceLog('gameIngestion', `NBA player directory failed to load — ${e.message}`, 'warn');
-      return null;
-    } finally {
-      NBA_DIRECTORY_LOADING = null;
+  async function attemptLoad() {
+    const season = getNBASeason();
+    const url = `https://stats.nba.com/stats/commonallplayers?IsOnlyCurrentSeason=1&LeagueID=00&Season=${season}`;
+    const data = await fetchWithFallback(url);
+    const headers = data?.resultSets?.[0]?.headers || [];
+    const rows    = data?.resultSets?.[0]?.rowSet    || [];
+    const nameIdx = headers.findIndex(h => h === 'DISPLAY_FIRST_LAST');
+    const idIdx   = headers.findIndex(h => h === 'PERSON_ID');
+    if(nameIdx < 0 || idIdx < 0 || !rows.length) return null;
+    const norm = s => (s||'').toLowerCase().trim();
+    const dir = new Map();
+    for(const row of rows) {
+      const name = row[nameIdx];
+      const id   = row[idIdx];
+      if(name && id) dir.set(norm(name), id);
     }
+    return dir;
+  }
+
+  NBA_DIRECTORY_LOADING = (async () => {
+    // Attempt 1
+    try {
+      const dir = await attemptLoad();
+      if(dir) {
+        NBA_PLAYER_DIRECTORY = dir;
+        NBA_DIRECTORY_LOADING = null;
+        traceLog('gameIngestion', `NBA player directory loaded — ${NBA_PLAYER_DIRECTORY.size} active players`, 'ok');
+        return NBA_PLAYER_DIRECTORY;
+      }
+    } catch(e) {
+      traceLog('gameIngestion', `NBA player directory attempt 1 failed (${e.message}) — retrying in 2s`, 'warn');
+    }
+    // Attempt 2 (retry once after short delay — handles transient aborts)
+    await new Promise(r => setTimeout(r, 2000));
+    try {
+      const dir = await attemptLoad();
+      if(dir) {
+        NBA_PLAYER_DIRECTORY = dir;
+        NBA_DIRECTORY_LOADING = null;
+        traceLog('gameIngestion', `NBA player directory loaded on retry — ${NBA_PLAYER_DIRECTORY.size} active players`, 'ok');
+        return NBA_PLAYER_DIRECTORY;
+      }
+    } catch(e) {
+      traceLog('gameIngestion', `NBA player directory failed after retry — ${e.message}`, 'warn');
+    }
+    NBA_DIRECTORY_LOADING = null;
+    return null;
   })();
   return NBA_DIRECTORY_LOADING;
 }
@@ -1914,10 +1935,13 @@ function computeConfidence(dataPoints, stdDev, mean, hasMatchupData, hasInjuryDa
 // Replaces projection-minus-line approach.
 // Picks the side (OVER/UNDER) with higher EV.
 // Only outputs if: EV > minEdge threshold, conf >= minConf, hasRealLine.
-function evDecision(overEV, underEV, overProb, underProb, conf, hasRealLine) {
+function evDecision(overEV, underEV, overProb, underProb, conf, hasRealLine, sport) {
   if(!hasRealLine) return 'PASS';
   const minEVPct  = (STATE.settings.minEdge ?? 5) / 100; // convert % to decimal
-  const minConf   = STATE.settings.minConf ?? 6;
+  // MLB has inherently higher stat variance (hits/RBIs are low-frequency events),
+  // so use a lower confidence threshold to avoid all-PASS results.
+  const baseMinConf = STATE.settings.minConf ?? 6;
+  const minConf = (sport === 'MLB') ? Math.min(baseMinConf, 4) : baseMinConf;
   if(conf < minConf) return 'PASS';
 
   const bestEV   = overEV >= underEV ? overEV : underEV;
@@ -2134,7 +2158,17 @@ async function runFetch(sportsToFetch) {
 
   const apiStatusMap = {};
   initTrace();
+  if(STATE.trace) { STATE.trace.mode = getAppMode(); }
   traceLog('gameIngestion', `Run started — sports: ${sportsToFetch.join(', ')}`, 'ok');
+
+  // ── PRE-LOAD NBA PLAYER DIRECTORY ──
+  // Load once now, fully awaited, before any per-player work begins.
+  // This prevents the "Fetch is aborted" cascade where 24 simultaneous
+  // lookups all race to start the directory fetch and abort each other.
+  if(sportsToFetch.includes('NBA') && STATE.settings.corsProxy) {
+    traceLog('gameIngestion', 'Pre-loading NBA player directory…', 'ok');
+    await loadNBAPlayerDirectory();
+  }
 
   try {
     const today = todayStr();
@@ -2758,19 +2792,41 @@ async function runFetch(sportsToFetch) {
             const targetFirst = nameParts[0] || '';
             const targetLast  = nameParts[nameParts.length-1] || '';
 
+            // NHL search API returns 'name' (full name) not firstName/lastName fields
+            // Helper to get full name from result regardless of field shape
+            const getFullName = r => {
+              if(r.name) return r.name;
+              if(r.firstName && r.lastName) return `${r.firstName} ${r.lastName}`;
+              // Some responses use firstName/lastName as objects with 'default' key
+              const fn = r.firstName?.default || r.firstName || '';
+              const ln = r.lastName?.default  || r.lastName  || '';
+              return `${fn} ${ln}`.trim();
+            };
+            const getPlayerId = r => r.playerId || r.id || r.playerSlug;
+
             // Log what was returned to help debug
-            const returned = results.slice(0,3).map(r => `${r.firstName} ${r.lastName}(${r.playerId})`).join(', ');
+            const returned = results.slice(0,3).map(r => `${getFullName(r)}(${getPlayerId(r)})`).join(', ');
             traceLog('playerDiscovery', `${player.name} (NHL): NHL search returned: ${returned||'none'}`, 'warn');
 
             // Try progressively: full name → first+last → last name only
-            let match = results.find(r => norm(`${r.firstName} ${r.lastName}`) === target);
-            if(!match) match = results.find(r => norm(r.firstName) === targetFirst && norm(r.lastName) === targetLast);
-            if(!match) match = results.find(r => norm(r.lastName) === targetLast);
+            let match = results.find(r => norm(getFullName(r)) === target);
+            if(!match) {
+              match = results.find(r => {
+                const fn = norm(getFullName(r));
+                const parts = fn.split(/\s+/);
+                return parts[0] === targetFirst && parts[parts.length-1] === targetLast;
+              });
+            }
+            if(!match) match = results.find(r => {
+              const parts = norm(getFullName(r)).split(/\s+/);
+              return parts[parts.length-1] === targetLast;
+            });
 
-            if(match?.playerId) {
-              resolvedMlbId = match.playerId;
-              espnId = String(match.playerId);
-              traceLog('playerDiscovery', `${player.name} (NHL): NHL ID resolved → ${match.playerId} (${match.firstName} ${match.lastName})`, 'ok');
+            const matchedId = match ? getPlayerId(match) : null;
+            if(matchedId) {
+              resolvedMlbId = matchedId;
+              espnId = String(matchedId);
+              traceLog('playerDiscovery', `${player.name} (NHL): NHL ID resolved → ${matchedId} (${getFullName(match)})`, 'ok');
             } else {
               traceLog('playerDiscovery', `${player.name} (NHL): NHL ID not found in ${results.length} results`, 'warn');
             }
@@ -3860,7 +3916,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     const conf = computeConfidence(dataPoints, effectiveStdDev, finalProjection, hasMatchupData, !!injuryStatus);
 
     // ── DECISION ──
-    const decision = evDecision(overEV, underEV, overProbRaw, underProbRaw, conf, hasRealLine);
+    const decision = evDecision(overEV, underEV, overProbRaw, underProbRaw, conf, hasRealLine, sport);
     const chosenEV  = decision === 'OVER' ? overEVPct : decision === 'UNDER' ? underEVPct : 0;
     const chosenProb = decision === 'OVER' ? overProbRaw : decision === 'UNDER' ? underProbRaw : 0.5;
     const winProb   = winProbDisplay(chosenProb);
