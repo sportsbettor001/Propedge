@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v9.7</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v10.4</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1376,6 +1376,14 @@ async function fetchESPNGameLog(sport, league, athleteId, seasontype) {
 }
 
 async function fetchESPNGameLogAllSeasonTypes(sport, league, athleteId) {
+  // NBA: regular season (seasontype=2) already includes play-in games.
+  // Do NOT fetch seasontype=3 for NBA — ESPN returns PREVIOUS season's
+  // playoff games which inflate the game count incorrectly.
+  // NHL: fetch both since current playoffs are ongoing and give useful data.
+  if(league === 'nba') {
+    const regular = await fetchESPNGameLog(sport, league, athleteId, 2).catch(() => null);
+    return { _regular: regular, _playoffs: null, _merged: true };
+  }
   const [regular, playoffs] = await Promise.allSettled([
     fetchESPNGameLog(sport, league, athleteId, 2),
     fetchESPNGameLog(sport, league, athleteId, 3),
@@ -3053,6 +3061,10 @@ async function runFetch(sportsToFetch) {
           dbEntry?.team||player.homeTeam, opp, player.dateTag || 'today',
           injuries, propId++, player.prop, player.line, realLine, playerMetaMerged
         );
+        if(prop === 'insufficient_data') {
+          traceLog('outputLog', `${player.name} (${player.sport}): insufficient_data — skipped`, 'warn');
+          prop = null;
+        }
         if(prop && newPropsBySport[player.sport] !== undefined) {
           newPropsBySport[player.sport].push(prop);
           traceLog('outputLog', `${player.name} (${player.sport}): prop built — ${prop.decision} proj=${prop.proj}`, prop.decision !== 'PASS' ? 'pass' : 'ok');
@@ -3414,7 +3426,8 @@ function parseESPNGameLog(gameLogData, statLabel, opp) {
     const regCount  = regParsed.allVals.length;
     const playCount = playParsed.allVals.length;
     // Only merge playoffs when sample is substantial — early playoffs (1-2 games) skew reg season
-    const includePlays = playCount >= 10;
+    // Only merge playoffs if substantial sample — early rounds (< 15 games) skew regular season stats
+    const includePlays = playCount >= 15;
     return {
       allVals:   [...regParsed.allVals,   ...(includePlays ? playParsed.allVals   : [])],
       vsOppVals: [...regParsed.vsOppVals, ...(includePlays ? playParsed.vsOppVals : [])],
@@ -3470,6 +3483,15 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
   if(topLabels.length > 0 && gameLogData?.seasonTypes?.length > 0) {
     for(const st of (gameLogData.seasonTypes || [])) {
       const stName = (st?.displayName || '').toLowerCase();
+      const stId = st?.id || st?.type || '';
+      const stEvents = (st?.categories || []).reduce((sum, c) => {
+        const evRaw = c?.events || {};
+        return sum + (Array.isArray(evRaw) ? evRaw.length : Object.keys(evRaw).length);
+      }, 0);
+      // Log every season type found so we can see exact displayNames from ESPN
+      if(typeof traceLog === 'function') {
+        traceLog('projectionEngine', `ESPN season type: "${st?.displayName}" id=${stId} events=${stEvents} allowedType=${allowedSeasonType||'all'}`, 'ok');
+      }
       // Always skip preseason
       if(stName.includes('preseason') || stName.includes('pre-season')) continue;
       // Filter to allowed season type if specified
@@ -3523,6 +3545,670 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
   return { allVals, vsOppVals };
 }
 
+
+// ═══════════════════════════════════════════════════════
+// DATA SNAPSHOT SYSTEM
+// One fetch per player per session. Validated + cached.
+// localStorage TTL: NBA/NHL 6h, MLB 12h
+// ═══════════════════════════════════════════════════════
+
+const SNAPSHOT_TTL = { NBA:6, NHL:6, WNBA:6, NFL:6, MLB:12, GOLF:12 };
+
+function snapshotKey(playerId, sport) {
+  return `pe_snap_${sport}_${playerId}`;
+}
+
+function loadSnapshot(playerId, sport) {
+  try {
+    const raw = localStorage.getItem(snapshotKey(playerId, sport));
+    if(!raw) return null;
+    const snap = JSON.parse(raw);
+    const ttlMs = (SNAPSHOT_TTL[sport] || 6) * 3600000;
+    if(Date.now() - snap.lastUpdated > ttlMs) return null; // expired
+    if(!snap.games || snap.games.length < 5) return null;  // stale/invalid
+    return snap;
+  } catch(e) { return null; }
+}
+
+function saveSnapshot(snap) {
+  try {
+    localStorage.setItem(snapshotKey(snap.playerId, snap.sport), JSON.stringify(snap));
+  } catch(e) {} // storage full — silent fail
+}
+
+// Build a validated snapshot from raw game log values + minutes
+// Returns null if validation fails (caller should skip player)
+// Extract raw game objects { value, minutes, opponent, date } from ESPN game log response
+// Used to build snapshots with full context (minutes for filtering, opponents for matchup)
+function extractESPNRawGames(gameLogData, statLabel, opp) {
+  const statAliases = {
+    'Points':['pts','points','PTS'],'Rebounds':['reb','rebounds','REB'],
+    'Assists':['ast','assists','AST'],'Threes Made':['3pm','3-pt made','3PTM'],
+    'Hits':['h','hits','H'],'Total Bases':['tb','TB'],'Strikeouts':['k','so','K','SO'],
+    'RBIs':['rbi','RBI'],'Shots on Goal':['sog','shots','SOG'],
+    'Pass Yards':['pyds','YDS'],'Rush Yards':['ryds'],'Receiving Yards':['recyds'],
+    'Receptions':['rec','REC']
+  };
+  const getAliases = s => statAliases[s] || [s.toLowerCase()];
+  const raw = gameLogData?._regular || gameLogData;
+  if(!raw) return [];
+
+  const topLabels = (raw?.labels || raw?.names || []).map(l => (l||'').toString().toLowerCase());
+  const rootEvObj = raw?.events || {};
+  const rootEvArr = Array.isArray(rootEvObj) ? rootEvObj : Object.values(rootEvObj);
+
+  // Build eventId → opponent map
+  const oppByEventId = {};
+  for(const ev of rootEvArr) {
+    if(ev?.id) oppByEventId[String(ev.id)] = (ev?.opponent?.abbreviation || ev?.opponent?.shortDisplayName || '').toUpperCase();
+  }
+
+  const findIdx = stat => {
+    for(const alias of getAliases(stat)) {
+      const al = alias.toLowerCase();
+      const idx = topLabels.findIndex(l => l === al || l.includes(al) || al.includes(l));
+      if(idx !== -1) return idx;
+    }
+    return -1;
+  };
+  const minsIdx  = topLabels.findIndex(l => l === 'min' || l === 'minutes' || l.includes('min'));
+  const statIdx  = findIdx(statLabel);
+
+  const results = [];
+
+  if(topLabels.length > 0 && raw?.seasonTypes?.length > 0) {
+    for(const st of raw.seasonTypes || []) {
+      const stName = (st?.displayName || '').toLowerCase();
+      if(stName.includes('preseason')) continue;
+      for(const cat of st.categories || []) {
+        const eventsRaw = cat?.events || {};
+        const events = Array.isArray(eventsRaw) ? eventsRaw : Object.values(eventsRaw);
+        for(const ev of events) {
+          const stats = ev?.stats || [];
+          if(!stats.length) continue;
+          const evId  = String(ev?.eventId || ev?.id || '');
+          const val   = statIdx >= 0 ? parseFloat(stats[statIdx]) : NaN;
+          const mins  = minsIdx >= 0 ? parseFloat(stats[minsIdx])  : NaN;
+          const opponent = oppByEventId[evId] || '';
+          const date = ev?.gameDate || ev?.date || '';
+          if(!isNaN(val)) results.push({ value: val, minutes: mins, opponent, date });
+        }
+      }
+    }
+  }
+  return results;
+}
+
+function buildSnapshot(playerId, sport, rawGames, source) {
+  // rawGames: array of { value, minutes, opponent, date }
+  const MIN_MINUTES = { NBA:20, NHL:20, WNBA:20 };
+  const minMins = MIN_MINUTES[sport] || 0;
+
+  // Clean: remove nulls, NaN, and low-minute games
+  const cleaned = rawGames.filter(g => {
+    const v = parseFloat(g.value);
+    const m = parseFloat(g.minutes);
+    if(isNaN(v) || v < 0) return false;
+    if(minMins > 0 && !isNaN(m) && m < minMins) return false;
+    return true;
+  });
+
+  if(cleaned.length < 5) return null; // fail — caller uses last good snapshot
+
+  const games     = cleaned.map(g => parseFloat(g.value));
+  const minutes   = cleaned.map(g => parseFloat(g.minutes) || 0);
+  const opponents = cleaned.map(g => g.opponent || '');
+  const dates     = cleaned.map(g => g.date || '');
+  const seasonAvg = parseFloat((games.reduce((a,b)=>a+b,0)/games.length).toFixed(2));
+
+  return { playerId, sport, games, minutes, opponents, dates, seasonAvg,
+           sampleSize: games.length, source, lastUpdated: Date.now() };
+}
+
+// ═══════════════════════════════════════════════════════
+// SHARP PROJECTION ENGINE (7-step model)
+// Input: validated snapshot. Output: finalProjection + diagnostics.
+// Same inputs always produce same outputs (deterministic).
+// ═══════════════════════════════════════════════════════
+
+function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
+
+function computeSharpProjection(snap, vsOppVals) {
+  const { games, minutes, seasonAvg } = snap;
+  if(!games || games.length < 5) return null;
+
+  // Step 1 — data already cleaned in buildSnapshot
+
+  // Step 2 — EWMA
+  const ewma = computeEWMA(games);
+  if(ewma === null || ewma <= 0) return null;
+
+  // Step 3 — Minutes adjustment
+  const last10Mins = minutes.slice(0, 10);
+  const last5Mins  = minutes.slice(0, 5);
+  const avgMins      = last10Mins.length ? last10Mins.reduce((a,b)=>a+b,0)/last10Mins.length : 0;
+  const expectedMins = last5Mins.length  ? last5Mins.reduce((a,b)=>a+b,0)/last5Mins.length   : 0;
+  const minutesFactor = (avgMins > 0 && expectedMins > 0)
+    ? clamp(expectedMins / avgMins, 0.85, 1.15)
+    : 1.0;
+  const minutesAdj = ewma * minutesFactor;
+
+  // Step 4 — Matchup REMOVED from projection (moved to context layer)
+  // Projection = pure player baseline only
+  const vsAvg = null; // context engine handles matchup
+  const matchupFactor = 1.0;
+  const matchupAdj = ewma; // neutral
+
+  // Step 5 — Trend adjustment
+  const last5  = games.slice(0, 5);
+  const last10 = games.slice(0, 10);
+  const avg5  = last5.length  ? last5.reduce((a,b)=>a+b,0)/last5.length   : ewma;
+  const avg10 = last10.length ? last10.reduce((a,b)=>a+b,0)/last10.length : ewma;
+  const trendFactor = avg10 > 0 ? clamp(avg5 / avg10, 0.90, 1.10) : 1.0;
+  const trendAdj = ewma * trendFactor;
+
+  // Step 6 — Volatility adjustment
+  const stdDev = computeStdDev(games, ewma);
+  const cv = stdDev !== null && ewma > 0 ? stdDev / ewma : null;
+  const volatilityAdj = cv !== null
+    ? (cv > 0.6 ? ewma * -0.05 : cv < 0.3 ? ewma * 0.03 : 0)
+    : 0;
+
+  // Step 7 — Weighted blend (matchup removed — pure player baseline)
+  let proj = (ewma           * 0.60) +
+             (minutesAdj     * 0.20) +
+             (trendAdj       * 0.15) +
+             (volatilityAdj  * 0.05);
+
+  // Step 8 — Sanity clamp
+  const isOutlier = proj < seasonAvg * 0.75 || proj > seasonAvg * 1.35;
+  proj = clamp(proj, seasonAvg * 0.75, seasonAvg * 1.35);
+
+  return {
+    projection: parseFloat(proj.toFixed(2)),
+    ewma, stdDev, cv,
+    minutesFactor, matchupFactor, trendFactor,
+    hasMatchupData: vsAvg !== null,
+    vsOppAvg: vsAvg,
+    isOutlier,
+    diagnostics: {
+      minutesAdj: parseFloat(minutesAdj.toFixed(2)),
+      matchupAdj: parseFloat(matchupAdj.toFixed(2)),
+      trendAdj:   parseFloat(trendAdj.toFixed(2)),
+      volatilityAdj: parseFloat(volatilityAdj.toFixed(2)),
+    }
+  };
+}
+
+// ═══════════════════════════════════════════════════════
+// CALIBRATION LAYER
+// Tracks predicted probability vs actual results per bucket.
+// Adjusts future probabilities so the model learns from mistakes.
+// Storage: localStorage key 'pe_calibration'
+// ═══════════════════════════════════════════════════════
+
+const CALIBRATION_KEY = 'pe_calibration';
+const CALIBRATION_BUCKETS = [0.50,0.55,0.60,0.65,0.70,0.75,0.80,0.85,0.90];
+const MIN_BUCKET_SAMPLES = 10; // need at least 10 to trust calibration
+
+function loadCalibrationData() {
+  try {
+    const raw = localStorage.getItem(CALIBRATION_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch(e) { return {}; }
+}
+
+function saveCalibrationData(data) {
+  try { localStorage.setItem(CALIBRATION_KEY, JSON.stringify(data)); } catch(e) {}
+}
+
+// Call this when a bet result is known (win/loss)
+function recordPredictionResult(predictedProb, won) {
+  const data = loadCalibrationData();
+  const bucket = CALIBRATION_BUCKETS.reduce((prev, curr) =>
+    Math.abs(curr - predictedProb) < Math.abs(prev - predictedProb) ? curr : prev
+  );
+  const key = bucket.toFixed(2);
+  if(!data[key]) data[key] = { predictions: 0, wins: 0 };
+  data[key].predictions++;
+  if(won) data[key].wins++;
+  saveCalibrationData(data);
+}
+
+// Apply calibration to a raw probability
+function calibrateProb(rawProb) {
+  if(rawProb < 0.50) {
+    // For under side, calibrate the complement and flip back
+    const calibrated = calibrateProb(1 - rawProb);
+    return 1 - calibrated;
+  }
+  const data = loadCalibrationData();
+  const bucket = CALIBRATION_BUCKETS.reduce((prev, curr) =>
+    Math.abs(curr - rawProb) < Math.abs(prev - rawProb) ? curr : prev
+  );
+  const key = bucket.toFixed(2);
+  const entry = data[key];
+  if(!entry || entry.predictions < MIN_BUCKET_SAMPLES) return rawProb; // not enough data yet
+  const actualWinRate = entry.wins / entry.predictions;
+  // Blend: 70% calibrated, 30% raw (don't over-correct)
+  const calibrated = (rawProb * 0.30) + (actualWinRate * 0.70);
+  return Math.max(0.05, Math.min(0.95, calibrated));
+}
+
+// Get calibration stats for display in trace
+function getCalibrationStats() {
+  const data = loadCalibrationData();
+  const stats = [];
+  for(const [bucket, entry] of Object.entries(data)) {
+    if(entry.predictions >= MIN_BUCKET_SAMPLES) {
+      const actualRate = (entry.wins / entry.predictions * 100).toFixed(1);
+      stats.push(`${(parseFloat(bucket)*100).toFixed(0)}% bucket: ${actualRate}% actual (${entry.predictions} samples)`);
+    }
+  }
+  return stats;
+}
+
+// ═══════════════════════════════════════════════════════
+// CONTEXT ENGINE
+// Rule: projection = player baseline. Context = environment modifiers.
+// Context ONLY adjusts probability/EV/confidence AFTER projection is set.
+// All data sourced from real free APIs — logged in trace.
+// ═══════════════════════════════════════════════════════
+
+// Session cache for context data — one fetch per game, not per player
+const CONTEXT_CACHE = {};
+function ctxKey(...parts) { return parts.join('|'); }
+
+// ── NBA/NHL Back-to-back detection ──
+// Fetches last 3 games from ESPN schedule for a team
+async function isBackToBack(espnSport, espnLeague, teamId, gameDate) {
+  const key = ctxKey('b2b', espnSport, espnLeague, teamId);
+  if(CONTEXT_CACHE[key] !== undefined) return CONTEXT_CACHE[key];
+  try {
+    const data = await fetchWithFallback(
+      `https://site.api.espn.com/apis/site/v2/sports/${espnSport}/${espnLeague}/teams/${teamId}/schedule`
+    );
+    const events = data?.events || [];
+    // Find games sorted by date descending — check if previous game was yesterday
+    const sorted = events
+      .filter(e => e?.date)
+      .map(e => new Date(e.date))
+      .sort((a,b) => b-a);
+    const gameDay = new Date(gameDate);
+    const oneDayMs = 86400000;
+    const b2b = sorted.some(d => {
+      const diff = gameDay - d;
+      return diff > 0 && diff <= oneDayMs * 1.5; // played within ~36h
+    });
+    CONTEXT_CACHE[key] = b2b;
+    return b2b;
+  } catch(e) { CONTEXT_CACHE[key] = false; return false; }
+}
+
+// ── NBA Opponent defense (points allowed) ──
+// ESPN team stats — fetched once per opposing team per session
+async function fetchNBAOppDefense(oppTeamId) {
+  if(!oppTeamId) return null;
+  const key = ctxKey('nba_def', oppTeamId);
+  if(CONTEXT_CACHE[key] !== undefined) return CONTEXT_CACHE[key];
+  try {
+    const data = await fetchWithFallback(
+      `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/${oppTeamId}/statistics`
+    );
+    // ESPN team stats: find points allowed per game
+    const cats = data?.results?.stats?.categories || data?.stats?.splits?.categories || [];
+    let ptAllowed = null;
+    for(const cat of cats) {
+      const stats = cat?.stats || cat?.athletes?.[0]?.stats || [];
+      for(const s of stats) {
+        if((s?.name||'').toLowerCase().includes('pointsallowed') ||
+           (s?.displayName||'').toLowerCase().includes('points allowed')) {
+          ptAllowed = parseFloat(s.value || s.displayValue);
+          break;
+        }
+      }
+      if(ptAllowed !== null) break;
+    }
+    CONTEXT_CACHE[key] = ptAllowed;
+    return ptAllowed;
+  } catch(e) { CONTEXT_CACHE[key] = null; return null; }
+}
+
+// ── NBA Pace proxy (team total scores from recent games) ──
+async function fetchNBAPace(teamId) {
+  if(!teamId) return null;
+  const key = ctxKey('nba_pace', teamId);
+  if(CONTEXT_CACHE[key] !== undefined) return CONTEXT_CACHE[key];
+  try {
+    const data = await fetchWithFallback(
+      `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/${teamId}/statistics`
+    );
+    const cats = data?.results?.stats?.categories || [];
+    let pace = null;
+    for(const cat of cats) {
+      const stats = cat?.stats || [];
+      for(const s of stats) {
+        if((s?.name||'').toLowerCase() === 'avgpoints' ||
+           (s?.displayName||'').toLowerCase().includes('points per game')) {
+          pace = parseFloat(s.value || s.displayValue);
+          break;
+        }
+      }
+      if(pace !== null) break;
+    }
+    CONTEXT_CACHE[key] = pace;
+    return pace;
+  } catch(e) { CONTEXT_CACHE[key] = null; return null; }
+}
+
+// ── MLB Ballpark factors (static table) ──
+// Source: fangraphs park factors 2024 (1-year, normalized to 100)
+const MLB_PARK_FACTORS = {
+  'COL':1.18,'BOS':1.09,'TEX':1.08,'CIN':1.07,'PHI':1.06,'MIL':1.05,
+  'CHC':1.04,'NYY':1.04,'LAA':1.03,'ARI':1.02,'ATL':1.01,'HOU':1.01,
+  'STL':1.00,'MIN':1.00,'BAL':1.00,'DET':0.99,'PIT':0.99,'TOR':0.99,
+  'WSH':0.98,'KC':0.98,'CWS':0.98,'OAK':0.97,'SEA':0.97,'MIA':0.96,
+  'TB':0.96,'NYM':0.96,'CLE':0.95,'SF':0.94,'SD':0.93,'LAD':0.93,
+};
+function getParkFactor(teamAbbrev) {
+  return MLB_PARK_FACTORS[(teamAbbrev||'').toUpperCase()] || 1.0;
+}
+
+// ── MLB Handedness matchup ──
+async function fetchPlayerHandedness(mlbId) {
+  if(!mlbId) return null;
+  const key = ctxKey('hand', mlbId);
+  if(CONTEXT_CACHE[key] !== undefined) return CONTEXT_CACHE[key];
+  try {
+    const data = await fetchWithFallback(
+      `https://statsapi.mlb.com/api/v1/people/${mlbId}?fields=people,id,batSide,pitchHand`
+    );
+    const p = data?.people?.[0];
+    const result = { batSide: p?.batSide?.code, pitchHand: p?.pitchHand?.code };
+    CONTEXT_CACHE[key] = result;
+    return result;
+  } catch(e) { CONTEXT_CACHE[key] = null; return null; }
+}
+
+// ── NHL Opponent goals allowed ──
+async function fetchNHLOppDefense(oppTeamId) {
+  if(!oppTeamId) return null;
+  const key = ctxKey('nhl_def', oppTeamId);
+  if(CONTEXT_CACHE[key] !== undefined) return CONTEXT_CACHE[key];
+  try {
+    const data = await fetchWithFallback(
+      `https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams/${oppTeamId}/statistics`
+    );
+    const cats = data?.results?.stats?.categories || [];
+    let gaAllowed = null;
+    for(const cat of cats) {
+      const stats = cat?.stats || [];
+      for(const s of stats) {
+        const nm = (s?.name||s?.displayName||'').toLowerCase();
+        if(nm.includes('goalsagainst') || nm.includes('goals against') || nm === 'ga') {
+          gaAllowed = parseFloat(s.value || s.displayValue);
+          break;
+        }
+      }
+      if(gaAllowed !== null) break;
+    }
+    CONTEXT_CACHE[key] = gaAllowed;
+    return gaAllowed;
+  } catch(e) { CONTEXT_CACHE[key] = null; return null; }
+}
+
+// ── Weather (open-meteo) ──
+// Returns { windSpeed, windDir, temp, notes }
+async function fetchGameWeather(lat, lon, gameDate) {
+  if(!lat || !lon) return null;
+  const key = ctxKey('weather', lat, lon, gameDate);
+  if(CONTEXT_CACHE[key] !== undefined) return CONTEXT_CACHE[key];
+  try {
+    const dateStr = gameDate || todayStr();
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=wind_speed_10m_max,wind_direction_10m_dominant,temperature_2m_max&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&start_date=${dateStr}&end_date=${dateStr}`;
+    const data = await fetchWithFallback(url);
+    const wind  = data?.daily?.wind_speed_10m_max?.[0] || 0;
+    const dir   = data?.daily?.wind_direction_10m_dominant?.[0] || 0;
+    const temp  = data?.daily?.temperature_2m_max?.[0] || 70;
+    const result = { windSpeed: wind, windDir: dir, temp, notes: [] };
+    if(wind > 15) result.notes.push(`Wind ${wind.toFixed(0)}mph`);
+    if(temp < 50) result.notes.push(`Cold ${temp.toFixed(0)}°F`);
+    CONTEXT_CACHE[key] = result;
+    return result;
+  } catch(e) { CONTEXT_CACHE[key] = null; return null; }
+}
+
+// ── MLB Ballpark coordinates (for weather) ──
+const MLB_PARK_COORDS = {
+  'NYY':{lat:40.829,lon:-73.926},'NYM':{lat:40.757,lon:-73.846},
+  'BOS':{lat:42.346,lon:-71.097},'TOR':{lat:43.641,lon:-79.389},
+  'BAL':{lat:39.284,lon:-76.621},'TB':{lat:27.768,lon:-82.653},
+  'CLE':{lat:41.496,lon:-81.685},'DET':{lat:42.339,lon:-83.049},
+  'CWS':{lat:41.830,lon:-87.634},'MIN':{lat:44.981,lon:-93.278},
+  'KC':{lat:39.052,lon:-94.481},'HOU':{lat:29.757,lon:-95.355},
+  'TEX':{lat:32.751,lon:-97.082},'LAA':{lat:33.800,lon:-117.883},
+  'SEA':{lat:47.591,lon:-122.332},'OAK':{lat:37.752,lon:-122.201},
+  'ATL':{lat:33.891,lon:-84.468},'MIA':{lat:25.778,lon:-80.220},
+  'WSH':{lat:38.873,lon:-77.007},'PHI':{lat:39.906,lon:-75.166},
+  'NYM':{lat:40.757,lon:-73.846},'MIL':{lat:43.028,lon:-87.971},
+  'CHC':{lat:41.948,lon:-87.655},'STL':{lat:38.623,lon:-90.193},
+  'CIN':{lat:39.098,lon:-84.508},'PIT':{lat:40.447,lon:-80.006},
+  'LAD':{lat:34.074,lon:-118.240},'SF':{lat:37.778,lon:-122.389},
+  'SD':{lat:32.708,lon:-117.157},'COL':{lat:39.756,lon:-104.994},
+  'ARI':{lat:33.445,lon:-112.067},
+};
+
+// ══════════════════════════════════════════════════════
+// APPLY CONTEXT — called after projection is finalized
+// Returns { probAdjOver, probAdjUnder, confBoost, notes }
+// ══════════════════════════════════════════════════════
+async function applyContextEngine(sport, statLabel, contextData, playerMeta, team, opp, gameDate, line, baseProb) {
+  let probAdj = 0;  // cumulative adjustment to P(over)
+  let confBoost = 0;
+  const notes = [];
+  const oppNorm = (opp||'').toUpperCase().slice(0,3);
+  // Cap each individual factor at ±0.10 before adding to total
+  const addFactor = (val) => Math.max(-0.10, Math.min(0.10, val));
+
+  // ══ NBA / WNBA CONTEXT ══
+  if(sport === 'NBA' || sport === 'WNBA') {
+    // 1. Opponent defense (points allowed)
+    const oppDef = contextData.nbaOppDef;
+    if(oppDef !== null && oppDef !== undefined) {
+      // League avg ~113 pts allowed. Above = weak defense, below = strong
+      const defAdj = oppDef > 116 ? 0.05 : oppDef > 113 ? 0.02 : oppDef < 108 ? -0.05 : oppDef < 111 ? -0.02 : 0;
+      if(defAdj !== 0) {
+        probAdj += addFactor(defAdj);
+        notes.push(`Opp defense: ${oppDef.toFixed(1)} pts/g allowed → ${defAdj>0?'+':''}${(defAdj*100).toFixed(0)}% (ESPN team stats)`);
+        confBoost += 0.3;
+      }
+    }
+
+    // 2. Pace proxy (team scoring)
+    const pace = contextData.nbaPace;
+    if(pace !== null && pace !== undefined) {
+      const paceAdj = pace > 118 ? 0.03 : pace > 115 ? 0.01 : pace < 108 ? -0.03 : 0;
+      if(paceAdj !== 0) {
+        probAdj += addFactor(paceAdj);
+        notes.push(`Team pace: ${pace.toFixed(1)} pts/g → ${paceAdj>0?'+':''}${(paceAdj*100).toFixed(0)}% (ESPN)`);
+      }
+    }
+
+    // 3. Back-to-back
+    if(contextData.isB2B) {
+      probAdj -= 0.04;
+      confBoost -= 0.5;
+      notes.push(`Back-to-back game → -4% (ESPN schedule)`);
+    }
+
+    // 4. Injury: key teammate out (stored in contextData)
+    if(contextData.keyTeammateOut) {
+      probAdj += addFactor(0.07);
+      confBoost += 0.5;
+      notes.push(`Key teammate out (${contextData.keyTeammateOut}) → +7% usage boost (ESPN injuries)`);
+    }
+
+    // 5. 3PT% for threes prop
+    if(statLabel === 'Threes Made' && playerMeta.threePct !== undefined) {
+      const adj = playerMeta.threePct >= 0.39 ? 0.04 : playerMeta.threePct <= 0.34 ? -0.04 : 0;
+      if(adj !== 0) {
+        probAdj += addFactor(adj);
+        notes.push(`3PT% ${(playerMeta.threePct*100).toFixed(0)}% → ${adj>0?'+':''}${(adj*100).toFixed(0)}% (PLAYER_DB)`);
+      }
+    }
+  }
+
+  // ══ MLB CONTEXT ══
+  if(sport === 'MLB') {
+    // 1. Pitcher ERA/WHIP — probability adjustment (not projection)
+    if(contextData.pitcher?.era !== undefined) {
+      const era = parseFloat(contextData.pitcher.era);
+      if(!isNaN(era)) {
+        const eraAdj = era < 3.0 ? -0.08 : era < 3.5 ? -0.05 : era > 5.0 ? 0.08 : era > 4.5 ? 0.05 : 0;
+        if(eraAdj !== 0) {
+          probAdj += addFactor(eraAdj);
+          notes.push(`Pitcher ERA ${era.toFixed(2)} → ${eraAdj>0?'+':''}${(eraAdj*100).toFixed(0)}% (statsapi.mlb.com)`);
+        }
+        if(contextData.pitcher.whip) notes.push(`WHIP ${contextData.pitcher.whip} | K/9 ${contextData.pitcher.kPer9||'N/A'} (statsapi.mlb.com)`);
+      }
+    }
+
+    // 2. Batter vs pitcher history
+    if(contextData.bvpAdj !== undefined) {
+      probAdj += addFactor(contextData.bvpAdj);
+      if(contextData.bvpNote) notes.push(`${contextData.bvpNote} (statsapi.mlb.com)`);
+      confBoost += Math.abs(contextData.bvpAdj) > 0.05 ? 0.5 : 0.2;
+    }
+
+    // 3. Handedness matchup
+    if(contextData.handednessAdj !== undefined && contextData.handednessAdj !== 0) {
+      probAdj += addFactor(contextData.handednessAdj);
+      notes.push(`Handedness matchup → ${contextData.handednessAdj>0?'+':''}${(contextData.handednessAdj*100).toFixed(0)}% (statsapi.mlb.com)`);
+    }
+
+    // 4. Ballpark factor
+    const parkFactor = getParkFactor(team);
+    if(parkFactor !== 1.0) {
+      const parkAdj = (parkFactor - 1.0) * 0.5; // half the park effect on probability
+      probAdj += addFactor(parkAdj);
+      notes.push(`Park factor ${team}: ${parkFactor.toFixed(2)}x → ${parkAdj>0?'+':''}${(parkAdj*100).toFixed(1)}% (static table)`);
+    }
+
+    // 5. Weather
+    if(contextData.weather) {
+      const w = contextData.weather;
+      if(w.windSpeed > 10) {
+        // Wind out (180-360 or 0-30 degrees = blowing out toward OF)
+        const isWindOut = w.windDir > 270 || w.windDir < 90;
+        const windAdj = isWindOut ? 0.04 : -0.02;
+        probAdj += addFactor(windAdj);
+        notes.push(`Wind ${w.windSpeed.toFixed(0)}mph ${isWindOut?'out':'in'} → ${windAdj>0?'+':''}${(windAdj*100).toFixed(0)}% (open-meteo.com)`);
+      }
+      if(w.temp < 50) {
+        probAdj -= 0.04;
+        notes.push(`Cold ${w.temp.toFixed(0)}°F → -4% (open-meteo.com)`);
+      }
+    }
+
+    // 6. Batting order
+    if(playerMeta.batOrder) {
+      const adj = playerMeta.batOrder <= 2 ? 0.04 : playerMeta.batOrder >= 7 ? -0.04 : 0;
+      if(adj !== 0) {
+        probAdj += addFactor(adj);
+        notes.push(`Bat order ${playerMeta.batOrder} → ${adj>0?'+':''}${(adj*100).toFixed(0)}% (statsapi.mlb.com)`);
+      }
+    }
+  }
+
+  // ══ NHL CONTEXT ══
+  if(sport === 'NHL') {
+    // 1. Opponent goals allowed
+    const gaAllowed = contextData.nhlOppGA;
+    if(gaAllowed !== null && gaAllowed !== undefined) {
+      // League avg ~3.0 GA/g. Above = weak defense
+      const gaAdj = gaAllowed > 3.5 ? 0.07 : gaAllowed > 3.2 ? 0.03 : gaAllowed < 2.5 ? -0.07 : gaAllowed < 2.8 ? -0.03 : 0;
+      if(gaAdj !== 0) {
+        probAdj += addFactor(gaAdj);
+        notes.push(`Opp GA/g: ${gaAllowed.toFixed(2)} → ${gaAdj>0?'+':''}${(gaAdj*100).toFixed(0)}% (ESPN team stats)`);
+        confBoost += 0.3;
+      }
+    }
+
+    // 2. Goalie SV%
+    if(contextData.goalieSvPct !== undefined) {
+      const svp = contextData.goalieSvPct;
+      const adj = svp < 0.900 ? 0.07 : svp < 0.910 ? 0.03 : svp > 0.925 ? -0.07 : svp > 0.918 ? -0.03 : 0;
+      if(adj !== 0) {
+        probAdj += addFactor(adj);
+        notes.push(`Goalie SV% ${svp.toFixed(3)} → ${adj>0?'+':''}${(adj*100).toFixed(0)}% (ESPN player stats)`);
+        confBoost += 0.3;
+      }
+    }
+
+    // 3. Power play
+    if(playerMeta.pp === true) {
+      probAdj += addFactor(0.04);
+      notes.push(`PP unit → +4% (PLAYER_DB)`);
+    }
+
+    // 4. Back-to-back
+    if(contextData.isB2B) {
+      probAdj -= 0.05;
+      confBoost -= 0.5;
+      notes.push(`Back-to-back → -5% (ESPN schedule)`);
+    }
+  }
+
+  // ══ NFL CONTEXT ══
+  if(sport === 'NFL') {
+    // Game total from Odds API
+    if(contextData.gameTotal !== undefined) {
+      const totalAdj = contextData.gameTotal > 48 ? 0.05 : contextData.gameTotal < 40 ? -0.05 : 0;
+      if(totalAdj !== 0) {
+        probAdj += addFactor(totalAdj);
+        notes.push(`Game total ${contextData.gameTotal} → ${totalAdj>0?'+':''}${(totalAdj*100).toFixed(0)}% (Odds API)`);
+      }
+    }
+
+    // Weather for outdoor games
+    if(contextData.weather && statLabel === 'Pass Yards') {
+      if(contextData.weather.windSpeed > 15) {
+        probAdj -= 0.08;
+        notes.push(`Wind ${contextData.weather.windSpeed.toFixed(0)}mph → -8% passing (open-meteo.com)`);
+      }
+    }
+
+    // Injury impact
+    if(contextData.keyInjury) {
+      probAdj += addFactor(contextData.keyInjury > 0 ? 0.08 : -0.08);
+      notes.push(`Key injury context → ${contextData.keyInjury>0?'+':''}8% (ESPN injuries)`);
+    }
+  }
+
+  // ══ GOLF CONTEXT ══
+  if(sport === 'GOLF') {
+    if(contextData.recentForm === 'strong') { probAdj += addFactor(0.05); notes.push(`Strong recent form → +5% (ESPN)`); }
+    if(contextData.courseHistory === 'good') { probAdj += addFactor(0.07); notes.push(`Good course history → +7% (ESPN)`); }
+    if(contextData.weather?.windSpeed > 20) {
+      probAdj += addFactor(0.05); // higher variance = higher chance of outlier either way
+      confBoost -= 0.5;
+      notes.push(`Wind ${contextData.weather.windSpeed.toFixed(0)}mph → +5% variance (open-meteo.com)`);
+    }
+  }
+
+  // Cap total context shift at ±0.15 (prevents overfitting / fake edges)
+  if(Math.abs(probAdj) > 0.15) probAdj = Math.sign(probAdj) * 0.15;
+
+  const clampedProb = Math.max(0.05, Math.min(0.95, baseProb + probAdj));
+
+  return {
+    probAdjOver: clampedProb,
+    probAdjUnder: 1 - clampedProb,
+    confBoost: Math.max(-2, Math.min(2, confBoost)),
+    probShift: probAdj,
+    notes
+  };
+}
 
 // ═══════════════════════════════════════════════════════
 // BUILD SINGLE PLAYER PROP — DETERMINISTIC DATA MODEL
@@ -3623,25 +4309,40 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         traceLog('projectionEngine', `${playerName} (MLB): ESPN failed — ${e.message}`, 'warn');
       }
 
-      // Use whichever source returned more game entries
-      if(mlbApiVals.length >= espnApiVals.length && mlbApiVals.length > 0) {
+      // MLB spec: MLB Stats API only. Check cache first.
+      const snapMLBExisting = loadSnapshot(playerId, sport);
+      if(snapMLBExisting) {
+        allVals = snapMLBExisting.games; vsOppVals = mlbApiOppVals;
+        contextData._snap = snapMLBExisting;
+        traceLog('projectionEngine', `${playerName} (MLB): using cached snapshot (${snapMLBExisting.sampleSize} games)`, 'ok');
+      } else if(mlbApiVals.length > 0) {
+        const rawMLB = mlbApiVals.map(v => ({ value: v, minutes: 999, opponent: '', date: '' }));
+        const snapNew = buildSnapshot(playerId, sport, rawMLB, 'MLB Stats API');
+        if(snapNew) { saveSnapshot(snapNew); contextData._snap = snapNew; }
         allVals = mlbApiVals; vsOppVals = mlbApiOppVals;
-        traceLog('projectionEngine', `${playerName} (MLB): using MLB API (${allVals.length} games)`, 'ok');
-      } else if(espnApiVals.length > 0) {
-        allVals = espnApiVals; vsOppVals = espnApiOppVals;
-        traceLog('projectionEngine', `${playerName} (MLB): using ESPN (${allVals.length} games)`, 'ok');
+        traceLog('projectionEngine', `${playerName} (MLB): MLB Stats API — ${allVals.length} games`, 'ok');
       }
 
-      // Pitcher context, batter vs pitcher history, and weather
+      // Pitcher context, batter vs pitcher history, weather, handedness
       if(mlbApiVals.length > 0) {
-        // Opposing pitcher ERA/WHIP context
         const pitcherSource = playerMeta.opposingPitcher || (playerMeta.probablePitcherId ? { id: playerMeta.probablePitcherId, name: playerMeta.probablePitcherName } : null);
         if(pitcherSource?.id) {
           try {
             const ps = await fetchMLBPitcherStats(pitcherSource.id, season);
             if(ps) contextData.pitcher = { era:ps.era, whip:ps.whip, kPer9:ps.strikeoutsPer9Inn, name:pitcherSource.name||'TBD' };
           } catch(e) {}
-          // Batter vs pitcher history (only for batters, not pitchers)
+            // Handedness matchup
+          try {
+            const batterHand = await fetchPlayerHandedness(playerMeta.mlbId || playerId);
+            const pitcherHand = await fetchPlayerHandedness(pitcherSource.id);
+            if(batterHand?.batSide && pitcherHand?.pitchHand) {
+              // Same hand = platoon disadvantage; opposite = advantage
+              const sameHand = batterHand.batSide === pitcherHand.pitchHand;
+              contextData.handednessAdj = sameHand ? -0.03 : 0.04;
+              contextData.handednessNote = `${batterHand.batSide}HB vs ${pitcherHand.pitchHand}HP — ${sameHand ? 'platoon disadvantage' : 'platoon advantage'}`;
+            }
+          } catch(e) {}
+        // Batter vs pitcher history (only for batters, not pitchers)
           const isBatter = !['Strikeouts'].includes(statLabel);
           const batterId = playerMeta.mlbId || null;
           if(isBatter && !batterId) {
@@ -3689,130 +4390,103 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       dataPoints = allVals.length;
     }
 
-    // ── NHL: Try ESPN first (merged reg+playoffs), then NHL official API as backup ──
+    // ── NHL: ESPN only (spec rule). Snapshot cache → ESPN → skip. ──
     if(sport === 'NHL') {
-      let espnVals = [], espnOppVals = [];
-      let nhlVals = [], nhlOppVals = [];
-
-      // Source 1: ESPN — fetch regular + playoffs merged (fixes low game count in playoffs)
-      try {
-        const mergedData = await fetchESPNGameLogAllSeasonTypes('hockey', 'nhl', playerId);
-        const p = parseESPNGameLog(mergedData, statLabel, opp);
-        espnVals = p.allVals; espnOppVals = p.vsOppVals;
-        traceLog('projectionEngine', `${playerName} (NHL): ESPN merged got ${espnVals.length} games`, espnVals.length>0?'ok':'warn');
-      } catch(e) {
-        traceLog('projectionEngine', `${playerName} (NHL): ESPN failed — ${e.message}`, 'warn');
-      }
-
-      // Source 2: Official NHL API (backup — may be blocked on Safari/iPhone)
-      if(espnVals.length === 0) {
+      let snapNHL = loadSnapshot(playerId, sport);
+      if(snapNHL) {
+        traceLog('projectionEngine', `${playerName} (NHL): using cached snapshot (${snapNHL.sampleSize} games)`, 'ok');
+      } else {
         try {
-          const nhlId = playerMeta.nhlId || playerId;
-          const glData = await fetchNHLPlayerGameLog(nhlId, season + '' + (season+1));
-          const gameLog = glData?.gameLog || [];
-          const nhlStatMap = {
-            'Points': g => (g.goals||0) + (g.assists||0),
-            'Shots on Goal': g => g.shots||0,
-            'Goals': g => g.goals||0,
-            'Assists': g => g.assists||0,
-          };
-          const extractor = nhlStatMap[statLabel] || (g => (g.goals||0) + (g.assists||0));
-          for(const g of gameLog) {
-            const val = extractor(g);
-            nhlVals.push(val);
-            const gameOpp = (g.opponentAbbrev||g.opponentTeamAbbrev||'').toUpperCase();
-            if(opp && gameOpp && (gameOpp.includes(opp.slice(0,3)) || opp.includes(gameOpp.slice(0,3)))) nhlOppVals.push(val);
+          const mergedData = await fetchESPNGameLogAllSeasonTypes('hockey', 'nhl', playerId);
+          const rawGames = extractESPNRawGames(mergedData, statLabel, opp);
+          snapNHL = buildSnapshot(playerId, sport, rawGames, 'ESPN');
+          if(snapNHL) {
+            saveSnapshot(snapNHL);
+            traceLog('projectionEngine', `${playerName} (NHL): ESPN snapshot — ${snapNHL.sampleSize} games`, 'ok');
+          } else {
+            traceLog('projectionEngine', `${playerName} (NHL): ESPN returned insufficient data`, 'warn');
           }
-          if(nhlVals.length > 0) traceLog('projectionEngine', `${playerName} (NHL): NHL API backup got ${nhlVals.length} games`, 'ok');
         } catch(e) {
-          traceLog('projectionEngine', `${playerName} (NHL): NHL API also failed — ${e.message}`, 'warn');
+          traceLog('projectionEngine', `${playerName} (NHL): ESPN failed — ${e.message}`, 'warn');
         }
       }
-
-      // Use ESPN if it returned data, otherwise NHL API backup
-      if(espnVals.length > 0) {
-        allVals = espnVals; vsOppVals = espnOppVals;
-      } else if(nhlVals.length > 0) {
-        allVals = nhlVals; vsOppVals = nhlOppVals;
+      if(snapNHL) {
+        allVals = snapNHL.games;
+        vsOppVals = snapNHL.opponents
+          ? snapNHL.games.filter((_, i) => {
+              const o = (snapNHL.opponents[i]||'').toUpperCase();
+              const oppNorm = (opp||'').toUpperCase();
+              return oppNorm && (o.includes(oppNorm.slice(0,3)) || oppNorm.includes(o.slice(0,3)));
+            })
+          : [];
+        contextData._snap = snapNHL;
       }
-
+      // NHL context: opponent GA, back-to-back
+      try {
+        const oppTeamId = playerMeta?.oppTeamId || null;
+        const teamId = playerMeta?.teamId || null;
+        const [nhlGA, b2b] = await Promise.all([
+          fetchNHLOppDefense(oppTeamId),
+          teamId ? isBackToBack('hockey', 'nhl', teamId, date) : Promise.resolve(false),
+        ]);
+        contextData.nhlOppGA = nhlGA;
+        contextData.isB2B = b2b;
+      } catch(e) {}
       dataPoints = allVals.length;
     }
 
     // ── NBA / WNBA ──
-    // Source priority: ESPN (fast, no proxy) → NBA Stats via proxy (full season) → BallDontLie
+    // NBA/WNBA: ESPN only (spec rule). Snapshot cache → ESPN → skip.
     if(sport === 'NBA' || sport === 'WNBA') {
-      let espnVals = [], espnOppVals = [];
-      let bdlVals = [];
-      let nbaStatsVals = [], nbaStatsOppVals = [];
-
-      // Source 1: ESPN — try first, it's fast and requires no proxy
-      try {
-        const mergedData = await fetchESPNGameLogAllSeasonTypes(espnSport, espnLeague, playerId);
-        const parsed = parseESPNGameLog(mergedData, statLabel, opp);
-        espnVals = parsed.allVals; espnOppVals = parsed.vsOppVals;
-        traceLog('projectionEngine', `${playerName} (${sport}): ESPN got ${espnVals.length} games`, espnVals.length>0?'ok':'warn');
-      } catch(e) {
-        traceLog('projectionEngine', `${playerName} (${sport}): ESPN failed — ${e.message}`, 'warn');
-      }
-
-      // Source 2: NBA Stats API via proxy — used if ESPN returned nothing or very few games
-      // Uses nbaId from PLAYER_DB (or nbaPersonId resolved during discovery)
-      // This gives full season data (~30-82 games) vs ESPN's ~20 cap
-      if(sport === 'NBA' && espnVals.length < 10 && STATE.settings.corsProxy) {
-        const nbaId = playerMeta?.nbaPersonId || playerMeta?.nbaId || null;
-        if(nbaId) {
-          try {
-            const nbaData = await fetchNBAStatsGameLog(playerName, nbaId);
-            if(nbaData) {
-              const p = parseNBAStatsGameLog(nbaData, statLabel, opp);
-              nbaStatsVals = p.allVals; nbaStatsOppVals = p.vsOppVals;
-              traceLog('projectionEngine', `${playerName} (NBA): NBA Stats fallback got ${nbaStatsVals.length} games`, nbaStatsVals.length>0?'ok':'warn');
-            }
-          } catch(e) {
-            traceLog('projectionEngine', `${playerName} (NBA): NBA Stats fallback failed — ${e.message}`, 'warn');
+      // Try cached snapshot first
+      let snap = loadSnapshot(playerId, sport);
+      if(snap) {
+        traceLog('projectionEngine', `${playerName} (${sport}): using cached snapshot (${snap.sampleSize} games, ${snap.source})`, 'ok');
+      } else {
+        // Fetch from ESPN
+        try {
+          const mergedData = await fetchESPNGameLogAllSeasonTypes(espnSport, espnLeague, playerId);
+          // Extract raw games with minutes for snapshot
+          const rawGames = extractESPNRawGames(mergedData, statLabel, opp);
+          snap = buildSnapshot(playerId, sport, rawGames, 'ESPN');
+          if(snap) {
+            saveSnapshot(snap);
+            traceLog('projectionEngine', `${playerName} (${sport}): ESPN snapshot built — ${snap.sampleSize} games (${snap.sampleSize} passed 20-min filter)`, 'ok');
+          } else {
+            traceLog('projectionEngine', `${playerName} (${sport}): ESPN returned insufficient data`, 'warn');
           }
+        } catch(e) {
+          traceLog('projectionEngine', `${playerName} (${sport}): ESPN fetch failed — ${e.message}`, 'warn');
         }
       }
-
-      // Source 3: BallDontLie (only if key is set)
-      if(STATE.settings.balldontlieKey) {
+      if(!snap) { dataPoints = 0; }
+      else {
+        allVals    = snap.games;
+        vsOppVals  = snap.opponents
+          ? snap.games.filter((_, i) => {
+              const o = (snap.opponents[i]||'').toUpperCase();
+              const oppNorm = (opp||'').toUpperCase();
+              return oppNorm && (o.includes(oppNorm.slice(0,3)) || oppNorm.includes(o.slice(0,3)));
+            })
+          : [];
+        dataPoints = allVals.length;
+        contextData._snap = snap;
+      }
+      // NBA context: opponent defense, pace, back-to-back
+      if(sport === 'NBA') {
         try {
-          const dateFrom = new Date(); dateFrom.setDate(dateFrom.getDate()-180);
-          const dateTo = new Date();
-          const bdlData = await fetchBDLPlayerStats(playerName, sport,
-            dateFrom.toISOString().slice(0,10), dateTo.toISOString().slice(0,10));
-          if(bdlData?.games?.length > 0) {
-            const bdlStatMap = {
-              'Points':'pts','Rebounds':'reb','Assists':'ast',
-              'Threes Made':'fg3m','Steals':'stl','Blocks':'blk',
-              'Turnovers':'turnover','Minutes':'min'
-            };
-            const bdlKey = bdlStatMap[statLabel];
-            if(bdlKey) {
-              for(const g of bdlData.games) {
-                const val = parseFloat(g[bdlKey]);
-                if(!isNaN(val) && val >= 0) bdlVals.push(val);
-              }
-              if(bdlVals.length > 0) traceLog('projectionEngine', `${playerName} (${sport}): BallDontLie got ${bdlVals.length} games`, 'ok');
-            }
-          }
+          const oppTeamId = playerMeta?.oppTeamId || null;
+          const teamId = playerMeta?.teamId || null;
+          const [oppDef, pace, b2b] = await Promise.all([
+            fetchNBAOppDefense(oppTeamId),
+            fetchNBAPace(oppTeamId),
+            teamId ? isBackToBack('basketball', 'nba', teamId, date) : Promise.resolve(false),
+          ]);
+          contextData.nbaOppDef = oppDef;
+          contextData.nbaPace   = pace;
+          contextData.isB2B     = b2b;
         } catch(e) {}
       }
-
-      // Pick best source — NBA Stats wins on volume, ESPN is fine if it has enough
-      if(nbaStatsVals.length > espnVals.length) {
-        allVals = nbaStatsVals; vsOppVals = nbaStatsOppVals;
-        traceLog('projectionEngine', `${playerName} (${sport}): using NBA Stats (${allVals.length} games)`, 'ok');
-      } else if(bdlVals.length > espnVals.length) {
-        allVals = bdlVals; vsOppVals = espnOppVals;
-        traceLog('projectionEngine', `${playerName} (${sport}): using BallDontLie (${allVals.length} games)`, 'ok');
-      } else if(espnVals.length > 0) {
-        allVals = espnVals; vsOppVals = espnOppVals;
-        traceLog('projectionEngine', `${playerName} (${sport}): using ESPN (${allVals.length} games)`, 'ok');
-      }
-
-      dataPoints = allVals.length;
     }
 
     // ── NFL: ESPN game log ──
@@ -3864,10 +4538,15 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     vsOppVals = vsOppVals.filter(v => v >= minV && v <= maxV);
     dataPoints = allVals.length;
 
+    // ── TRACE FLAGS ──
+    const traceFlags = [];
+    if(dataPoints < 5)                              traceFlags.push('LOW_SAMPLE');
+    if(contextData._snap)                           traceFlags.push('CACHE_USED');
+
     // ── HARD GATE: minimum 5 valid games required ──
     if(dataPoints < 5) {
-      traceLog('projectionEngine', `${playerName} (${sport}): only ${dataPoints} games found — need at least 5 for a reliable projection — skipped`, 'fail');
-      return null;
+      traceLog('projectionEngine', `${playerName} (${sport}): [LOW_SAMPLE] only ${dataPoints} games — need ≥5 — insufficient_data`, 'fail');
+      return 'insufficient_data';
     }
 
     // ── SPORT-SPECIFIC MEANINGFUL STATS GATE ──
@@ -3895,22 +4574,44 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       }
     }
 
-    // ── CORE STAT MODEL: EWMA mean + standard deviation ──
-    const ewmaMean = computeEWMA(allVals);
-    const stdDev   = computeStdDev(allVals, ewmaMean);
-    let finalProjection = ewmaMean !== null ? parseFloat(ewmaMean.toFixed(2)) : null;
+    // ── SHARP PROJECTION ENGINE (7-step model) ──
+    // Uses snapshot if available (NBA/WNBA), otherwise raw allVals
+    const snapForProj = contextData._snap || buildSnapshot(playerId, sport,
+      allVals.map((v,i) => ({ value: v, minutes: 999, opponent: '', date: '' })), 'inline');
 
-    if(!finalProjection || finalProjection <= 0) {
-      traceLog('projectionEngine', `${playerName}: EWMA returned null/0 — skipped`, 'fail');
-      return null;
+    const sharpResult = snapForProj
+      ? computeSharpProjection(snapForProj, vsOppVals)
+      : null;
+
+    if(!sharpResult) {
+      traceLog('projectionEngine', `${playerName}: sharp projection failed — insufficient data`, 'fail');
+      return 'insufficient_data';
     }
 
-    traceLog('projectionEngine', `${playerName} (${sport}) — ${dataPoints} games used · avg projection: ${finalProjection} ${statLabel} · variability: ${stdDev?.toFixed(2) ?? 'N/A'} (lower = more consistent)`, 'ok');
+    let finalProjection = sharpResult.projection;
+    const ewmaMean      = sharpResult.ewma;
+    const stdDev        = sharpResult.stdDev;
 
-    // ── OPPONENT CONTEXT: optional 20% blend if ≥3 games vs opponent ──
-    const vsOppAvg = vsOppVals.length >= 3
-      ? vsOppVals.reduce((a,b)=>a+b,0)/vsOppVals.length
-      : null;
+    if(sharpResult.isOutlier) {
+      traceFlags.push('OUTLIER_PROJECTION');
+      traceLog('projectionEngine', `${playerName}: [OUTLIER_PROJECTION] clamped to season avg range`, 'warn');
+    }
+
+    // ── HIGH VOLATILITY guard: stdDev > mean * 1.2 ──
+    const cvCheck = sharpResult.stdDev !== null && sharpResult.ewma > 0
+      ? sharpResult.stdDev / sharpResult.ewma : 0;
+    if(cvCheck > 1.2) {
+      traceFlags.push('HIGH_VOLATILITY');
+      traceLog('projectionEngine', `${playerName}: [HIGH_VOLATILITY] stdDev (${sharpResult.stdDev?.toFixed(2)}) > mean (${sharpResult.ewma?.toFixed(2)}) × 1.2 — insufficient_data`, 'fail');
+      return 'insufficient_data';
+    }
+    if(cvCheck > 0.6) traceFlags.push('HIGH_VOLATILITY');
+
+    traceLog('projectionEngine', `${playerName} (${sport}) — ${dataPoints} games · proj: ${finalProjection} ${statLabel} · ewma: ${ewmaMean?.toFixed(2)} · stdDev: ${stdDev?.toFixed(2)} · cv: ${sharpResult.cv?.toFixed(2)}`, 'ok');
+    traceLog('projectionEngine', `${playerName} adjustments — mins: ×${sharpResult.minutesFactor?.toFixed(3)} · matchup: ×${sharpResult.matchupFactor?.toFixed(3)} · trend: ×${sharpResult.trendFactor?.toFixed(3)}`, 'ok');
+
+    // ── OPPONENT CONTEXT ──
+    const vsOppAvg = sharpResult.vsOppAvg;
 
     // ── HIT RATES (informational, using the sportsbook line) ──
     const seasonAvg = parseFloat((allVals.reduce((a,b)=>a+b,0)/allVals.length).toFixed(1));
@@ -3946,105 +4647,53 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     const thresholdInfo = getCompletenessThreshold(sport, allVals.length);
 
     // ══════════════════════════════════════════════════════
-    // CONTEXT ADJUSTMENTS — shift the EWMA mean before probability calc
-    // Each adjustment moves the mean; stdDev stays fixed (captures player volatility)
+    // CONTEXT NOTES (projection-neutral — only for display)
+    // Real context adjustments happen in probability layer below
     // ══════════════════════════════════════════════════════
     const contextNotes = [];
     let matchupNote = null;
 
-    // A: Opponent history blend (only if ≥3 games vs this opp)
+    // Opponent matchup history (baked into sharp projection)
     if(vsOppAvg !== null) {
-      finalProjection = (finalProjection * 0.80) + (vsOppAvg * 0.20);
       hasMatchupData = true;
-      matchupNote = `${vsOppVals.length} games vs ${opp}: avg ${vsOppAvg.toFixed(1)} (20% weight applied)`;
-      contextNotes.push(`Matchup blend: ${matchupNote}`);
+      matchupNote = `${vsOppVals.length} games vs ${opp}: avg ${vsOppAvg.toFixed(1)} (matchup factor ×${sharpResult.matchupFactor?.toFixed(3)})`;
+      contextNotes.push(`Matchup: ${matchupNote}`);
     }
 
-    // B: Injury reduction
-    if(injuryStatus) {
-      if(injuryStatus === 'Out') return null;
-      finalProjection *= (injuryStatus === 'Doubtful' ? 0.65 : 0.90);
-      contextNotes.push(`Injury: ${injuryStatus} — mean reduced`);
-    }
+    // Injury: Out = skip, others noted only (prob engine handles adjustments)
+    if(injuryStatus === 'Out') return null;
+    if(injuryStatus) contextNotes.push(`Injury status: ${injuryStatus}`);
 
-    // C: MLB pitcher ERA (shifts mean only)
-    if(sport === 'MLB' && contextData.pitcher?.era !== undefined) {
-      const era = parseFloat(contextData.pitcher.era);
-      if(!isNaN(era)) {
-        const adj = era < 3.50 ? 0.93 : era > 4.50 ? 1.05 : 1.0;
-        finalProjection *= adj;
-        contextNotes.push(`Pitcher ERA ${era.toFixed(2)}: ${adj !== 1.0 ? (adj < 1 ? 'tough (-7%)' : 'soft (+5%)') : 'average'}`);
-        if(contextData.pitcher.whip) contextNotes.push(`WHIP ${contextData.pitcher.whip} | K/9 ${contextData.pitcher.kPer9 || 'N/A'}`);
-      }
+    // MLB pitcher name/notes
+    if(sport === 'MLB' && contextData.pitcher?.name) {
+      if(!contextData.bvpNote && contextData.noBvpHistory) contextNotes.push(`Facing ${contextData.pitcher.name} — no H2H history`);
+      else if(!contextData.bvpNote) contextNotes.push(`Facing ${contextData.pitcher.name}`);
     } else if(sport === 'MLB') {
-      contextNotes.push(`Pitcher stats: not available`);
-    }
-
-    // D: MLB weather
-    if(sport === 'MLB' && contextData.weather) {
-      const w = contextData.weather;
-      const weatherAdj = (w.altitudeBoost || 0) + (w.windAdj || 0);
-      if(weatherAdj !== 0) finalProjection *= (1 + weatherAdj);
-      if(w.notes) contextNotes.push(`Weather: ${w.notes}`);
-    }
-
-    // E: NHL goalie SV%
-    if(sport === 'NHL' && contextData.goalieSvPct !== undefined) {
-      const svp = contextData.goalieSvPct;
-      const adj = svp < 0.900 ? 1.05 : svp > 0.920 ? 0.95 : 1.0;
-      if(adj !== 1.0) finalProjection *= adj;
-      contextNotes.push(`Goalie SV% ${svp.toFixed(3)}: ${adj > 1 ? 'weak (+5%)' : adj < 1 ? 'strong (-5%)' : 'avg'}`);
+      contextNotes.push('Pitcher stats: not available');
     }
     if(sport === 'NHL' && contextData.toiAvgL5 !== undefined) {
       contextNotes.push(`Avg TOI L5: ${contextData.toiAvgL5.toFixed(1)} min`);
     }
-    if(sport === 'NHL' && playerMeta.pp === true) {
-      finalProjection *= 1.02;
-      contextNotes.push(`PP unit player (+2%)`);
-    }
-
-    // F: NBA/WNBA 3PT% adjustment
-    if((sport === 'NBA' || sport === 'WNBA') && statLabel === 'Threes Made'
-       && playerMeta.threePct !== undefined) {
-      const adj = playerMeta.threePct >= 0.39 ? 1.04 : playerMeta.threePct <= 0.34 ? 0.96 : 1.0;
-      finalProjection *= adj;
-      contextNotes.push(`3PT% ${(playerMeta.threePct*100).toFixed(0)}%: ${adj !== 1 ? (adj > 1 ? '+4%' : '-4%') : 'avg'}`);
-    }
-
-    // G: MLB batting order
-    if(sport === 'MLB' && playerMeta.batOrder) {
-      const adj = playerMeta.batOrder <= 2 ? 1.04 : playerMeta.batOrder >= 6 ? 0.96 : 1.0;
-      finalProjection *= adj;
-      contextNotes.push(`Batting order ${playerMeta.batOrder}: ${adj !== 1 ? (adj > 1 ? 'top order (+4%)' : 'lower order (-4%)') : 'mid order'}`);
-    }
-
-    // NFL data notes
     if(sport === 'NFL' && contextData.snapShareNote) {
       contextNotes.push(`Snap share: ${contextData.snapShareNote}`);
-    }
-    // MLB batter vs pitcher history
-    if(sport === 'MLB' && contextData.bvpNote) {
-      contextNotes.push(`Batter vs pitcher: ${contextData.bvpNote}`);
-    } else if(sport === 'MLB' && contextData.pitcher?.name && contextData.noBvpHistory) {
-      contextNotes.push(`Facing ${contextData.pitcher.name} today — no head-to-head history found`);
-    } else if(sport === 'MLB' && contextData.pitcher?.name && !contextData.bvpNote) {
-      contextNotes.push(`Facing ${contextData.pitcher.name} today — head-to-head data unavailable (no MLB ID)`);
     }
 
     finalProjection = parseFloat(finalProjection.toFixed(2));
 
     // ══════════════════════════════════════════════════════
-    // PROBABILITY ENGINE (Normal distribution)
-    // Uses adjusted EWMA mean + stdDev from raw game log
+    // PROBABILITY ENGINE
+    // Step 1: base probability from normal distribution
+    // Step 2: context engine adjusts probability (not projection)
+    // Step 3: EV recalculated with adjusted probability
     // ══════════════════════════════════════════════════════
 
-    // Fallback stdDev if not computable (very small samples)
     const effectiveStdDev = (stdDev !== null && stdDev > 0) ? stdDev : finalProjection * 0.25;
 
-    const overProbRaw  = probOver(finalProjection, effectiveStdDev, line);
-    const underProbRaw = 1 - overProbRaw;
+    // Base probability from normal distribution (projection vs line)
+    const baseProbOver  = probOver(finalProjection, effectiveStdDev, line);
+    const baseProbUnder = 1 - baseProbOver;
 
-    // CV (coefficient of variation) — measures player consistency
+    // CV for volatility display
     const cv = finalProjection > 0 ? effectiveStdDev / finalProjection : null;
     const volatilityNote = cv !== null
       ? (cv < 0.20 ? `Low volatility (CV ${cv.toFixed(2)}) — consistent performer`
@@ -4052,26 +4701,89 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         : `High volatility (CV ${cv.toFixed(2)}) — confidence reduced`)
       : null;
 
-    // ══════════════════════════════════════════════════════
-    // ODDS → IMPLIED PROBABILITY
-    // Default: -110 on each side (standard prop juice) = 52.38% implied
-    // In betting mode, real book odds are in the line object.
-    // The Odds API returns American odds per side; we default to -110
-    // if not available (realistic for most prop markets).
-    // ══════════════════════════════════════════════════════
-    const overOdds  = -110; // default; Odds API over-side is already selected
+    // Apply context engine — adjusts probability based on environment
+    const ctxResult = await applyContextEngine(
+      sport, statLabel, contextData, playerMeta,
+      team, opp, date, line, baseProbOver
+    );
+
+    // Use context-adjusted probabilities
+    const overProbRaw  = ctxResult.probAdjOver;
+    const underProbRaw = ctxResult.probAdjUnder;
+
+    // CONTEXT_CONFLICT: projection says over but context pushes under (or vice versa)
+    const projSaysOver = finalProjection > (line || finalProjection);
+    const ctxSaysOver  = ctxResult.probShift >= 0;
+    if(line > 0 && projSaysOver !== ctxSaysOver && Math.abs(ctxResult.probShift) > 0.05) {
+      traceFlags.push('CONTEXT_CONFLICT');
+    }
+    if(traceFlags.length > 0) {
+      traceLog('projectionEngine', `${playerName} flags: [${traceFlags.join('] [')}]`, traceFlags.includes('HIGH_VOLATILITY') ? 'fail' : 'warn');
+    }
+
+    // Log context adjustments to trace
+    if(ctxResult.notes.length > 0) {
+      traceLog('projectionEngine', `${playerName} context (${sport}): ${ctxResult.notes.join(' · ')}`, 'ok');
+    }
+    if(ctxResult.probShift !== 0) {
+      traceLog('projectionEngine', `${playerName} prob shift: base ${(baseProbOver*100).toFixed(1)}% → adjusted ${(overProbRaw*100).toFixed(1)}% (${ctxResult.probShift>0?'+':''}${(ctxResult.probShift*100).toFixed(1)}%)`, 'ok');
+    }
+
+    // Add context notes to display
+    ctxResult.notes.forEach(n => contextNotes.push(n));
+
+    // ── ODDS → IMPLIED PROBABILITY ──
+    const overOdds  = -110;
     const underOdds = -110;
     const impliedOver  = americanToImplied(overOdds);
     const impliedUnder = americanToImplied(underOdds);
 
-    // ── EV CALCULATION ──
-    const overEV  = computeEV(overProbRaw,  impliedOver);
-    const underEV = computeEV(underProbRaw, impliedUnder);
+    // ── CALIBRATION — apply learned probability adjustment ──
+    const calProbOver  = calibrateProb(overProbRaw);
+    const calProbUnder = 1 - calProbOver;
+    const calStats = getCalibrationStats();
+    if(calStats.length > 0) {
+      traceLog('projectionEngine', `${playerName} calibration active: ${calStats[0]}`, 'ok');
+    }
+    if(calProbOver !== overProbRaw) {
+      traceLog('projectionEngine', `${playerName} calibrated: ${(overProbRaw*100).toFixed(1)}% → ${(calProbOver*100).toFixed(1)}%`, 'ok');
+    }
+
+    // ── STABILITY CHECK — if projection differs >25% from last, keep previous ──
+    const snapKey = snapshotKey(playerId, sport) + '_lastproj';
+    let stabilityFlag = false;
+    try {
+      const lastProjRaw = localStorage.getItem(snapKey);
+      if(lastProjRaw) {
+        const lastProj = parseFloat(lastProjRaw);
+        const pctChange = Math.abs(finalProjection - lastProj) / lastProj;
+        if(pctChange > 0.25) {
+          traceLog('projectionEngine', `${playerName}: [instability_detected] proj ${lastProj}→${finalProjection} (${(pctChange*100).toFixed(0)}% change) — keeping previous`, 'warn');
+          finalProjection = lastProj;
+          stabilityFlag = true;
+        }
+      }
+      localStorage.setItem(snapKey, finalProjection.toString());
+    } catch(e) {}
+
+    // ── EV recalculated with calibrated probability ──
+    const overEV  = computeEV(calProbOver,  impliedOver);
+    const underEV = computeEV(calProbUnder, impliedUnder);
     const overEVPct  = parseFloat((overEV  * 100).toFixed(1));
     const underEVPct = parseFloat((underEV * 100).toFixed(1));
 
-    // ── CONFIDENCE ──
-    const conf = computeConfidence(dataPoints, effectiveStdDev, finalProjection, hasMatchupData, !!injuryStatus);
+    // ── CONFIDENCE: rebuilt per spec ──
+    // Base from sample + volatility, boosted/penalized by context agreement
+    const baseConf = computeConfidence(dataPoints, effectiveStdDev, finalProjection, hasMatchupData, !!injuryStatus);
+    let conf = baseConf + Math.round(ctxResult.confBoost);
+    // Penalty rules
+    if(traceFlags.includes('HIGH_VOLATILITY'))   conf -= 2;
+    if(traceFlags.includes('CONTEXT_CONFLICT'))  conf -= 2;
+    if(traceFlags.includes('LOW_SAMPLE'))        conf -= 3;
+    if(stabilityFlag)                             conf -= 1;
+    // Boost for strong alignment
+    if(!traceFlags.includes('CONTEXT_CONFLICT') && Math.abs(ctxResult.probShift) > 0.05) conf += 1;
+    conf = Math.min(10, Math.max(1, conf));
 
     // ── DECISION ──
     const decision = evDecision(overEV, underEV, overProbRaw, underProbRaw, conf, hasRealLine);
