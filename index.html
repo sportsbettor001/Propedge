@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v12.3</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v12.5</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -2999,19 +2999,36 @@ async function runFetch(sportsToFetch) {
               }));
           }
 
-          // ── RANK + SELECT — starters first, then by position relevance ──
-          // No usage/vol from DB anymore — rank purely on API signals:
-          // 1) Confirmed starter flag from ESPN game summary
-          // 2) Position priority (guards/forwards over centers for points props etc.)
-          // 3) Alphabetical tiebreak
-          // No hard cap — process ALL discovered players in analysis mode.
-          // In betting mode the Odds API already caps to players with live lines.
+          // ── RANK + SELECT — by average minutes (data-driven star prioritization) ──
+          // Primary: avg minutes from ESPN ID cache snapshot (if available)
+          // Fallback: starter flag, then alphabetical
+          // Steph Curry (34 mpg) naturally ranks above Al Horford (22 mpg)
           const seen = new Set();
-          const maxPlayers = STATE.settings.analysisPlayersPerGame || 5; // analysis mode — free APIs, use higher limit
+          const maxPlayers = STATE.settings.analysisPlayersPerGame || 5;
+
+          // Get avg minutes for a player from their cached snapshot
+          const getAvgMins = (playerName) => {
+            const verifiedId = getVerifiedESPNId(playerName, null);
+            if(!verifiedId) return 0;
+            try {
+              const snap = loadSnapshot(verifiedId, sport);
+              if(snap?.minutes?.length > 0) {
+                const mins = snap.minutes.filter(m => m > 0);
+                return mins.length ? mins.reduce((a,b)=>a+b,0)/mins.length : 0;
+              }
+            } catch(e) {}
+            return 0;
+          };
+
           const ranked = candidatePool
             .filter(p => p.name && p.name.trim().length > 1)
+            .map(p => ({ ...p, _avgMins: getAvgMins(p.name) }))
             .sort((a, b) => {
+              // Primary: avg minutes descending (higher mins = more important player)
+              if(a._avgMins !== b._avgMins) return b._avgMins - a._avgMins;
+              // Secondary: confirmed starter flag
               if(a.starter !== b.starter) return a.starter ? -1 : 1;
+              // Tiebreak: alphabetical
               return a.name.localeCompare(b.name);
             })
             .filter(p => {
@@ -4013,12 +4030,15 @@ function extractESPNRawGames(gameLogData, statLabel, opp) {
           const stats = ev?.stats || [];
           if(!stats.length) continue;
           const evId     = String(ev?.eventId || ev?.id || '');
-          const val      = statIdx >= 0 ? parseFloat(stats[statIdx]) : NaN;
           const mins     = minsIdx >= 0 ? parseFloat(stats[minsIdx]) : NaN;
           const meta     = eventMeta[evId] || {};
-          if(!isNaN(val)) {
+          // Store ALL stat values indexed by position — extract per prop type later
+          const val      = statIdx >= 0 ? parseFloat(stats[statIdx]) : NaN;
+          if(!isNaN(val) || stats.length > 0) {
             results.push({
-              value: val,
+              value: val,        // primary stat (for backward compat)
+              allStats: stats,   // full stats array — other props extracted from this
+              labels: topLabels, // column labels
               minutes: mins,
               opponent: meta.opponent || '',
               date: meta.date || '',
@@ -4071,10 +4091,21 @@ function buildSnapshot(playerId, sport, rawGames, source) {
   const opponents = cleaned.map(g => g.opponent || '');
   const dates     = cleaned.map(g => g.date || '');
   const gameIds   = cleaned.map(g => g.gameId || '');
+  // Store raw game objects for multi-prop extraction
+  // Each game has allStats array + labels so any prop can be extracted later
+  const rawGameObjects = cleaned.map(g => ({
+    allStats: g.allStats || [],
+    labels:   g.labels   || [],
+    minutes:  parseFloat(g.minutes) || 0,
+    opponent: g.opponent || '',
+    date:     g.date     || '',
+    gameId:   g.gameId   || '',
+  }));
   const seasonAvg = parseFloat((games.reduce((a,b)=>a+b,0)/games.length).toFixed(2));
 
   return {
     playerId, sport, games, minutes, opponents, dates, gameIds, seasonAvg,
+    rawGameObjects, // full per-game data for multi-prop extraction
     sampleSize: games.length, source, lastUpdated: Date.now(),
     espnId: String(playerId), // stored so stale snapshots from wrong IDs can be detected
     audit: {
@@ -4098,6 +4129,44 @@ function buildSnapshot(playerId, sport, rawGames, source) {
 // Volatility affects confidence + stdDev width ONLY — never the projection mean.
 // NO clamping toward season average unless data is corrupt/invalid.
 // ═══════════════════════════════════════════════════════
+
+// Extract a specific stat column from a snapshot's rawGameObjects
+// Used when building projections for non-primary prop types (Rebounds, Assists etc)
+function extractStatFromSnapshot(snap, statLabel) {
+  if(!snap?.rawGameObjects?.length) return null;
+
+  const statAliases = {
+    'Points':       ['pts','points','PTS'],
+    'Rebounds':     ['reb','rebounds','total rebounds','REB','TREB'],
+    'Assists':      ['ast','assists','AST'],
+    'Threes Made':  ['3pm','3-pt made','3PTM','fg3m'],
+    'Steals':       ['stl','steals','STL'],
+    'Blocks':       ['blk','blocks','BLK'],
+    'Shots on Goal':['sog','shots','shotsOnGoal','SOG'],
+    'Strikeouts':   ['k','so','strikeouts','K','SO'],
+    'Hits':         ['h','hits','H'],
+    'Total Bases':  ['tb','totalBases','TB'],
+  };
+
+  const aliases = statAliases[statLabel] || [statLabel.toLowerCase()];
+  const firstGame = snap.rawGameObjects.find(g => g.labels?.length > 0 && g.allStats?.length > 0);
+  if(!firstGame) return null;
+
+  const labels = firstGame.labels;
+  let colIdx = -1;
+  for(const alias of aliases) {
+    const al = alias.toLowerCase();
+    const idx = labels.findIndex(l => l === al || l.includes(al) || al.includes(l));
+    if(idx !== -1) { colIdx = idx; break; }
+  }
+  if(colIdx < 0) return null;
+
+  const vals = snap.rawGameObjects
+    .map(g => g.allStats?.[colIdx] !== undefined ? parseFloat(g.allStats[colIdx]) : NaN)
+    .filter(v => !isNaN(v) && v >= 0);
+
+  return vals.length >= 5 ? vals : null;
+}
 
 function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
 
@@ -4906,16 +4975,22 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       }
       if(!snap) { dataPoints = 0; }
       else {
-        allVals    = snap.games;
-        vsOppVals  = snap.opponents
-          ? snap.games.filter((_, i) => {
+        // Extract correct stat column for this prop type
+        // snap.games = Points (primary). For Rebounds/Assists, extract from rawGameObjects
+        const extractedVals = extractStatFromSnapshot(snap, statLabel);
+        allVals = extractedVals || snap.games;
+        const oppNormNBA = (opp||'').toUpperCase();
+        vsOppVals = (snap.opponents && allVals === (extractedVals || snap.games))
+          ? allVals.filter((_, i) => {
               const o = (snap.opponents[i]||'').toUpperCase();
-              const oppNorm = (opp||'').toUpperCase();
-              return oppNorm && (o.includes(oppNorm.slice(0,3)) || oppNorm.includes(o.slice(0,3)));
+              return oppNormNBA && (o.includes(oppNormNBA.slice(0,3)) || oppNormNBA.includes(o.slice(0,3)));
             })
           : [];
         dataPoints = allVals.length;
         contextData._snap = snap;
+        if(extractedVals && extractedVals !== snap.games) {
+          traceLog('projectionEngine', `${playerName} (${sport}): extracted ${statLabel} column — ${extractedVals.length} games`, 'ok');
+        }
       }
       // NBA context: opponent defense, pace, back-to-back
       if(sport === 'NBA') {
@@ -5014,10 +5089,15 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         return null;
       }
     }
-    if(sport === 'NHL' && statLabel === 'Points') {
+    if(sport === 'NHL') {
       const ewmaPreview = computeEWMA(allVals);
-      if(ewmaPreview !== null && ewmaPreview < 0.15) {
-        traceLog('projectionEngine', `${playerName} (NHL): avg ${ewmaPreview?.toFixed(2)} points/game — fourth-liner or defensive player, not worth projecting — skipped`, 'fail');
+      if(statLabel === 'Points' && ewmaPreview !== null && ewmaPreview < 0.15) {
+        traceLog('projectionEngine', `${playerName} (NHL): avg ${ewmaPreview?.toFixed(2)} pts/game — low-scoring player, skipped`, 'fail');
+        return null;
+      }
+      // Shots on Goal: skip players averaging less than 1 shot per game (non-shooters)
+      if(statLabel === 'Shots on Goal' && ewmaPreview !== null && ewmaPreview < 1.0) {
+        traceLog('projectionEngine', `${playerName} (NHL): avg ${ewmaPreview?.toFixed(2)} shots/game — not a shooting player, skipped`, 'fail');
         return null;
       }
     }
