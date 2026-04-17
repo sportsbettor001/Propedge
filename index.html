@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v11.2</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v11.3</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1406,7 +1406,19 @@ async function fetchESPNGameLogAllSeasonTypes(sport, league, athleteId) {
   return { _regular: regData, _playoffs: playData, _merged: true };
 }
 async function fetchESPNInjuries(sport, league) {
-  return await fetchWithFallback(`https://sports.core.api.espn.com/v2/sports/${sport}/leagues/${league}/injuries?limit=300`);
+  // Cache injuries in memory — sports.core.api.espn.com is rate-limited
+  const key = `inj_${sport}_${league}`;
+  if(CONTEXT_CACHE[key] !== undefined) return CONTEXT_CACHE[key];
+  try {
+    const data = await fetchWithFallback(
+      `https://sports.core.api.espn.com/v2/sports/${sport}/leagues/${league}/injuries?limit=300`
+    );
+    CONTEXT_CACHE[key] = data;
+    return data;
+  } catch(e) {
+    CONTEXT_CACHE[key] = null;
+    return null;
+  }
 }
 async function searchESPNAthlete(sport, league, name) {
   return await fetchWithFallback(`${ESPN_BASE}/${sport}/${league}/athletes?limit=20&search=${encodeURIComponent(name)}`);
@@ -4069,6 +4081,7 @@ function ctxKey(...parts) { return parts.join('|'); }
 // ── NBA/NHL Back-to-back detection ──
 // Fetches last 3 games from ESPN schedule for a team
 async function isBackToBack(espnSport, espnLeague, teamId, gameDate) {
+  if(!teamId || teamId === 'null' || teamId === 'undefined') return false;
   const key = ctxKey('b2b', espnSport, espnLeague, teamId);
   if(CONTEXT_CACHE[key] !== undefined) return CONTEXT_CACHE[key];
   try {
@@ -4752,7 +4765,9 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         contextData.snapShareNote = 'UNAVAILABLE IN FREE DATA LAYER';
         contextData.targetShareNote = 'UNAVAILABLE IN FREE DATA LAYER';
       } catch(e) {}
-      if(allVals.length === 0 && playerName) {
+      // Only search if we have no data AND no valid numeric ESPN ID
+      const hasValidId = playerId && /^\d{4,}$/.test(String(playerId));
+      if(allVals.length === 0 && playerName && !hasValidId) {
         try {
           const searchData = await searchESPNAthlete(espnSport, espnLeague, playerName);
           const foundId = exactMatchESPNId(searchData, playerName);
@@ -4760,8 +4775,6 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
             const gl2 = await fetchESPNGameLog(espnSport, espnLeague, foundId);
             const p2 = parseESPNGameLog(gl2, statLabel, opp);
             if(p2.allVals.length > 0) { allVals = p2.allVals; vsOppVals = p2.vsOppVals; }
-          } else if(!foundId) {
-            traceLog('projectionEngine', `${playerName} (NFL): name search — no exact match, skipping`, 'warn');
           }
         } catch(e) {}
       }
