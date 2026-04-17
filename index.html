@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v12.11</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v12.13</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -421,24 +421,78 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           </div>
           <div class="form-group"><label class="form-label">Prop type</label>
             <select class="form-input form-select" id="c-prop">
-              <option value="Points">Points</option>
-              <option value="Rebounds">Rebounds</option>
-              <option value="Assists">Assists</option>
-              <option value="Threes Made">Threes Made</option>
-              <option value="Pts+Reb+Ast">Pts+Reb+Ast</option>
-              <option value="Hits">Hits</option>
-              <option value="Total Bases">Total Bases</option>
-              <option value="Strikeouts">Strikeouts (P)</option>
-              <option value="RBIs">RBIs</option>
-              <option value="Pass Yards">Pass Yards</option>
-              <option value="Rush Yards">Rush Yards</option>
-              <option value="Receptions">Receptions</option>
-              <option value="Shots on Goal">Shots on Goal</option>
-              <option value="Made Cut">Made Cut (Golf)</option>
-              <option value="Strokes (Round 1)">Strokes R1 (Golf)</option>
-              <option value="Strokes (Round 2)">Strokes R2 (Golf)</option>
-              <option value="Birdies or Better">Birdies or Better (Golf)</option>
-              <option value="Bogeys or Worse">Bogeys or Worse (Golf)</option>
+              <optgroup label="── NBA/WNBA ──">
+                <option value="Points">Points</option>
+                <option value="Rebounds">Rebounds</option>
+                <option value="Assists">Assists</option>
+                <option value="Points + Rebounds + Assists">PRA</option>
+                <option value="Points + Rebounds">Points + Rebounds</option>
+                <option value="Points + Assists">Points + Assists</option>
+                <option value="Assists + Rebounds">Assists + Rebounds</option>
+                <option value="Threes Made">Threes Made</option>
+                <option value="Steals">Steals</option>
+                <option value="Blocks">Blocks</option>
+                <option value="Turnovers">Turnovers</option>
+                <option value="Steals + Blocks">Steals + Blocks</option>
+                <option value="Double Double">Double Double</option>
+                <option value="Triple Double">Triple Double</option>
+              </optgroup>
+              <optgroup label="── MLB Batters ──">
+                <option value="Hits">Hits</option>
+                <option value="Total Bases">Total Bases</option>
+                <option value="Home Runs">Home Runs</option>
+                <option value="Runs">Runs</option>
+                <option value="RBIs">RBIs</option>
+                <option value="Hits + Runs + RBIs">H+R+RBI</option>
+                <option value="Singles">Singles</option>
+                <option value="Doubles">Doubles</option>
+                <option value="Stolen Bases">Stolen Bases</option>
+                <option value="Walks">Walks (Batter)</option>
+              </optgroup>
+              <optgroup label="── MLB Pitchers ──">
+                <option value="Strikeouts">Strikeouts (K)</option>
+                <option value="Total Outs">Total Outs</option>
+                <option value="Hits Allowed">Hits Allowed</option>
+                <option value="Earned Runs">Earned Runs</option>
+                <option value="Walks">Walks (BB)</option>
+                <option value="Runs First Inning">Runs First Inning</option>
+              </optgroup>
+              <optgroup label="── NFL ──">
+                <option value="Pass Yards">Pass Yards</option>
+                <option value="Passing Touchdowns">Passing TDs</option>
+                <option value="Pass Attempts">Pass Attempts</option>
+                <option value="Interceptions Thrown">INTs Thrown</option>
+                <option value="Rush Yards">Rush Yards</option>
+                <option value="Rushing Attempts">Rush Attempts</option>
+                <option value="Receiving Yards">Receiving Yards</option>
+                <option value="Receptions">Receptions</option>
+                <option value="Targets">Targets</option>
+                <option value="Receiving Touchdown">Receiving TD</option>
+                <option value="Rush + Receiving Touchdowns">Rush + Rec TDs</option>
+                <option value="Anytime Touchdown">Anytime TD</option>
+                <option value="Sacks">Sacks</option>
+                <option value="Solo Tackles">Solo Tackles</option>
+                <option value="Assisted Tackles">Assisted Tackles</option>
+                <option value="Total Tackles">Total Tackles</option>
+                <option value="FG Made">FG Made</option>
+                <option value="XP Made">XP Made</option>
+                <option value="Kicking Points">Kicking Points</option>
+              </optgroup>
+              <optgroup label="── NHL ──">
+                <option value="Shots on Goal">Shots on Goal</option>
+                <option value="Goals">Goals</option>
+                <option value="Assists">Assists</option>
+                <option value="Points">Points</option>
+                <option value="Power Play Points">Power Play Points</option>
+                <option value="Blocks">Blocks</option>
+                <option value="Saves">Saves</option>
+                <option value="Goals Against">Goals Against</option>
+              </optgroup>
+              <optgroup label="── Golf ──">
+                <option value="Strokes">Strokes</option>
+                <option value="Birdies or Better">Birdies or Better</option>
+                <option value="Bogeys or Worse">Bogeys or Worse</option>
+              </optgroup>
             </select>
           </div>
         </div>
@@ -1616,7 +1670,7 @@ async function fetchESPNTeamRoster(sport, league, teamId) {
 // Default prop type per sport — used when a player is discovered via API
 // but has no matching PLAYER_DB entry to supply a prop type
 function defaultPropForSport(sport) {
-  const d = { NBA:'Points', WNBA:'Points', MLB:'Hits', NFL:'Pass Yards', NHL:'Points', GOLF:'Strokes (Round 1)' };
+  const d = { NBA:'Points', WNBA:'Points', MLB:'Hits', NFL:'Pass Yards', NHL:'Points', GOLF:'Strokes' };
   return d[sport] || 'Points';
 }
 
@@ -2607,18 +2661,34 @@ async function runFetch(sportsToFetch) {
       NFL:'americanfootball_nfl', NHL:'icehockey_nhl', WNBA:'basketball_wnba'
     };
     const propMarketsMap = {
-      NBA:  'player_points,player_rebounds,player_assists,player_threes',
-      MLB:  'batter_hits,batter_total_bases,pitcher_strikeouts,batter_rbis',
-      NFL:  'player_pass_yds,player_rush_yds,player_reception_yds,player_receptions',
-      NHL:  'player_points,player_shots_on_goal',
-      WNBA: 'player_points,player_rebounds,player_assists'
+      NBA:  'player_points,player_rebounds,player_assists,player_threes,player_steals,player_blocks,player_turnovers,player_points_rebounds_assists,player_points_rebounds,player_points_assists,player_rebounds_assists,player_double_double,player_triple_double',
+      MLB:  'batter_hits,batter_total_bases,pitcher_strikeouts,batter_rbis,batter_runs_scored,batter_home_runs,batter_singles,batter_doubles,batter_stolen_bases,batter_walks,pitcher_hits_allowed,pitcher_earned_runs,pitcher_walks',
+      NFL:  'player_pass_yds,player_rush_yds,player_reception_yds,player_receptions,player_pass_tds,player_rush_tds,player_anytime_td,player_pass_attempts,player_rushing_attempts,player_reception_tds,player_interceptions,player_sacks,player_tackles_assists',
+      NHL:  'player_points,player_shots_on_goal,player_goals,player_assists,player_power_play_points,player_blocked_shots',
+      WNBA: 'player_points,player_rebounds,player_assists,player_threes'
     };
     const propKeyToType = {
       'player_points':'Points','player_rebounds':'Rebounds','player_assists':'Assists',
-      'player_threes':'Threes Made','batter_hits':'Hits','batter_total_bases':'Total Bases',
-      'pitcher_strikeouts':'Strikeouts','batter_rbis':'RBIs','player_pass_yds':'Pass Yards',
-      'player_rush_yds':'Rush Yards','player_reception_yds':'Receiving Yards',
-      'player_receptions':'Receptions','player_shots_on_goal':'Shots on Goal'
+      'player_threes':'Threes Made','player_steals':'Steals','player_blocks':'Blocks',
+      'player_turnovers':'Turnovers','player_steals_blocks':'Steals + Blocks',
+      'player_points_rebounds_assists':'Points + Rebounds + Assists',
+      'player_points_rebounds':'Points + Rebounds','player_points_assists':'Points + Assists',
+      'player_rebounds_assists':'Assists + Rebounds',
+      'player_double_double':'Double Double','player_triple_double':'Triple Double',
+      'batter_hits':'Hits','batter_total_bases':'Total Bases','batter_rbis':'RBIs',
+      'batter_runs_scored':'Runs','batter_home_runs':'Home Runs','batter_singles':'Singles',
+      'batter_doubles':'Doubles','batter_stolen_bases':'Stolen Bases','batter_walks':'Walks',
+      'pitcher_strikeouts':'Strikeouts','pitcher_hits_allowed':'Hits Allowed',
+      'pitcher_earned_runs':'Earned Runs','pitcher_walks':'Walks',
+      'player_pass_yds':'Pass Yards','player_rush_yds':'Rush Yards',
+      'player_reception_yds':'Receiving Yards','player_receptions':'Receptions',
+      'player_pass_tds':'Passing Touchdowns','player_rush_tds':'Rush + Receiving Touchdowns',
+      'player_anytime_td':'Anytime Touchdown','player_pass_attempts':'Pass Attempts',
+      'player_rushing_attempts':'Rushing Attempts','player_reception_tds':'Receiving Touchdown',
+      'player_interceptions':'Interceptions Thrown','player_sacks':'Sacks',
+      'player_tackles_assists':'Total Tackles',
+      'player_shots_on_goal':'Shots on Goal','player_goals':'Goals',
+      'player_power_play_points':'Power Play Points','player_blocked_shots':'Blocks',
     };
     const sportToESPN = {
       NBA:['basketball','nba'], MLB:['baseball','mlb'], NFL:['football','nfl'],
@@ -3005,9 +3075,6 @@ async function runFetch(sportsToFetch) {
               }
             }
             traceLog('playerDiscovery', `${sport} ${home}v${away} T2-Rosters: ${candidatePool.length} players`, candidatePool.length>0?'pass':'warn');
-            if(sport === 'NBA' && candidatePool.length > 0) {
-              traceLog('playerDiscovery', `${sport} ${home}v${away} full roster: ${candidatePool.map(p=>p.name).join(', ')}`, 'ok');
-            }
           }
 
           // ── TIER 3: PLAYER_DB filtered by team — last resort only ──
@@ -3094,17 +3161,29 @@ async function runFetch(sportsToFetch) {
             }
             // Generate multiple prop types per player from the same game log
             const propsForSport = {
-              NBA:   ['Points','Rebounds','Assists'],
-              WNBA:  ['Points','Rebounds','Assists'],
-              NHL:   ['Points','Shots on Goal'],
+              NBA:   ['Points','Rebounds','Assists',
+                      'Points + Rebounds + Assists','Points + Rebounds','Points + Assists','Assists + Rebounds',
+                      'Threes Made','Steals','Blocks','Turnovers','Steals + Blocks',
+                      'Double Double','Triple Double'],
+              WNBA:  ['Points','Rebounds','Assists',
+                      'Points + Rebounds + Assists','Points + Rebounds','Points + Assists','Assists + Rebounds',
+                      'Threes Made','Steals','Blocks','Turnovers',
+                      'Double Double','Triple Double'],
+              NHL:   ['Points','Goals','Assists','Shots on Goal','Power Play Points','Blocks','Saves','Goals Against'],
               MLB:   p.position === 'P'
-                       ? ['Strikeouts']
-                       : ['Hits','Total Bases'],
+                       ? ['Strikeouts','Total Outs','Hits Allowed','Earned Runs','Walks','Runs First Inning']
+                       : ['Hits','Total Bases','Home Runs','Runs','RBIs','Singles','Doubles',
+                          'Stolen Bases','Walks','Hits + Runs + RBIs'],
               NFL:   p.position === 'QB'
-                       ? ['Pass Yards']
+                       ? ['Pass Yards','Passing Touchdowns','Pass Attempts','Interceptions Thrown']
                        : p.position === 'RB'
-                         ? ['Rush Yards']
-                         : ['Receiving Yards','Receptions'],
+                         ? ['Rush Yards','Rushing Attempts','Receiving Yards','Receptions',
+                            'Rush + Receiving Touchdowns','Anytime Touchdown']
+                         : p.position === 'K'
+                           ? ['FG Made','XP Made','Kicking Points']
+                           : ['Receiving Yards','Receptions','Targets',
+                              'Receiving Touchdown','Anytime Touchdown'],
+              GOLF:  ['Strokes','Birdies or Better','Bogeys or Worse'],
             };
             const propTypes = propsForSport[sport] || [p.prop || defaultPropForSport(sport)];
             for(const propType of propTypes) {
@@ -3672,18 +3751,18 @@ const PLAYER_DB = {
     {id:'4432803',name:'Rhyne Howard',team:'ATL',prop:'Points',lineBase:16},
   ],
   GOLF: [
-    {id:'3468',name:'Scottie Scheffler',team:'PGA',prop:'Strokes (Round 1)',lineBase:67.5,sgTotal:3.8},
+    {id:'3468',name:'Scottie Scheffler',team:'PGA',prop:'Strokes',lineBase:67.5,sgTotal:3.8},
     {id:'4686885',name:'Rory McIlroy',team:'PGA',prop:'Birdies or Better',lineBase:4.5,sgTotal:3.2},
-    {id:'4686886',name:'Jon Rahm',team:'LIV',prop:'Strokes (Round 1)',lineBase:69.5,sgTotal:2.8},
+    {id:'4686886',name:'Jon Rahm',team:'LIV',prop:'Strokes',lineBase:69.5,sgTotal:2.8},
     {id:'3215',name:'Xander Schauffele',team:'PGA',prop:'Birdies or Better',lineBase:4.5,sgTotal:2.9},
-    {id:'4686887',name:'Collin Morikawa',team:'PGA',prop:'Strokes (Round 1)',lineBase:69.5,sgTotal:2.7},
+    {id:'4686887',name:'Collin Morikawa',team:'PGA',prop:'Strokes',lineBase:69.5,sgTotal:2.7},
     {id:'4686888',name:'Viktor Hovland',team:'PGA',prop:'Birdies or Better',lineBase:3.5,sgTotal:2.4},
-    {id:'4686889',name:'Ludvig Aberg',team:'PGA',prop:'Strokes (Round 1)',lineBase:69.5,sgTotal:2.6},
+    {id:'4686889',name:'Ludvig Aberg',team:'PGA',prop:'Strokes',lineBase:69.5,sgTotal:2.6},
     {id:'4686890',name:'Brooks Koepka',team:'LIV',prop:'Bogeys or Worse',lineBase:2.5,sgTotal:1.8},
     {id:'4686892',name:'Tony Finau',team:'PGA',prop:'Birdies or Better',lineBase:3.5,sgTotal:2.1},
-    {id:'4686894',name:'Tommy Fleetwood',team:'PGA',prop:'Strokes (Round 1)',lineBase:69.5,sgTotal:2.3},
+    {id:'4686894',name:'Tommy Fleetwood',team:'PGA',prop:'Strokes',lineBase:69.5,sgTotal:2.3},
     {id:'4686895',name:'Wyndham Clark',team:'PGA',prop:'Birdies or Better',lineBase:3.5,sgTotal:2.2},
-    {id:'4686896',name:'Patrick Cantlay',team:'PGA',prop:'Strokes (Round 1)',lineBase:69.5,sgTotal:2.4},
+    {id:'4686896',name:'Patrick Cantlay',team:'PGA',prop:'Strokes',lineBase:69.5,sgTotal:2.4},
     {id:'4686899',name:'Min Woo Lee',team:'PGA',prop:'Birdies or Better',lineBase:3.5,sgTotal:2.0},
     {id:'4686900',name:'Tom Kim',team:'PGA',prop:'Birdies or Better',lineBase:3.5,sgTotal:2.1},
   ]
@@ -3765,11 +3844,29 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
   const statAliases = {
     'Points':['pts','points','PTS'],'Rebounds':['reb','rebounds','total rebounds','REB','TREB'],
     'Assists':['ast','assists','AST'],'Threes Made':['3pm','threesMade','3-pt made','3pt made','3PTM'],
+    'Steals':['stl','steals','STL'],'Blocks':['blk','blocks','BLK'],'Turnovers':['to','turnovers','TOV','TO'],
     'Hits':['h','hits','H'],'Total Bases':['tb','total bases','TB'],'Strikeouts':['k','so','strikeouts','K','SO'],
-    'RBIs':['rbi','rbis','RBI'],'Pass Yards':['pyds','passingYards','passing yards','pass yds','PYDS','YDS'],
+    'RBIs':['rbi','rbis','RBI'],'Runs':['r','runs','R'],'Home Runs':['hr','homeruns','HR'],
+    'Singles':['1b','singles','single','1B'],'Doubles':['2b','doubles','double','2B'],
+    'Stolen Bases':['sb','stolenBases','SB'],'Walks':['bb','walks','baseOnBalls','BB'],
+    'Earned Runs':['er','earnedRuns','ER'],'Hits Allowed':['ha','hitsAllowed','H'],
+    'Total Outs':['outs','totalOuts','OUT'],'Runs First Inning':['r1','runsFirstInning'],
+    'Goals':['g','goals','G'],'Goals Against':['ga','goalsAgainst','GA'],
+    'Saves':['sv','saves','SV'],'Power Play Points':['ppp','powerPlayPoints','PPP'],
+    'Pass Yards':['pyds','passingYards','passing yards','pass yds','PYDS','YDS'],
     'Rush Yards':['ryds','rushingYards','rushing yards','rush yds','RYDS'],
     'Receiving Yards':['recyds','receivingYards','receiving yards','rec yds','RECYDS'],
-    'Receptions':['rec','receptions','REC'],'Shots on Goal':['sog','shots','shotsOnGoal','shots on goal','SOG']
+    'Receptions':['rec','receptions','REC'],'Shots on Goal':['sog','shots','shotsOnGoal','shots on goal','SOG'],
+    'Targets':['tgt','targets','TGT'],'Pass Attempts':['att','passAttempts','ATT'],
+    'Rushing Attempts':['ratt','rushAttempts','CAR'],'Interceptions Thrown':['int','interceptions','INT'],
+    'Passing Touchdowns':['ptd','passingTD','PATD'],'Receiving Touchdown':['rectd','receivingTD','RETD'],
+    'Rush + Receiving Touchdowns':['rrtd','rushReceivingTD'],'Anytime Touchdown':['atd','td','TD'],
+    'FG Made':['fgm','fieldGoalsMade','FGM'],'XP Made':['xpm','extraPointsMade','XPM'],
+    'Kicking Points':['kpts','kickingPoints'],'Sacks':['sk','sacks','SK'],
+    'Solo Tackles':['soloTackles','solo'],'Assisted Tackles':['assistedTackles','asst'],
+    'Total Tackles':['totalTackles','tackles','TKL'],
+    'Strokes':['strokes','score','SCORE'],'Birdies or Better':['birdies','bir'],
+    'Bogeys or Worse':['bogeys','bog'],
   };
   const getAliases = (s) => statAliases[s] || [s.toLowerCase(), s];
   const topLabels = (gameLogData?.labels || gameLogData?.names || []).map(l => (l||'').toString().toLowerCase());
@@ -4020,10 +4117,21 @@ function extractESPNRawGames(gameLogData, statLabel, opp) {
   const statAliases = {
     'Points':['pts','points','PTS'],'Rebounds':['reb','rebounds','REB'],
     'Assists':['ast','assists','AST'],'Threes Made':['3pm','3-pt made','3PTM'],
+    'Steals':['stl','steals','STL'],'Blocks':['blk','blocks','BLK'],'Turnovers':['to','turnovers','TOV'],
     'Hits':['h','hits','H'],'Total Bases':['tb','TB'],'Strikeouts':['k','so','K','SO'],
-    'RBIs':['rbi','RBI'],'Shots on Goal':['sog','shots','SOG'],
+    'RBIs':['rbi','RBI'],'Runs':['r','runs','R'],'Home Runs':['hr','HR'],
+    'Singles':['1b','1B'],'Doubles':['2b','2B'],'Stolen Bases':['sb','SB'],'Walks':['bb','BB'],
+    'Earned Runs':['er','ER'],'Hits Allowed':['ha','HA'],'Total Outs':['outs','OUT'],
+    'Goals':['g','goals','G'],'Goals Against':['ga','GA'],'Saves':['sv','SV'],
+    'Power Play Points':['ppp','PPP'],
+    'Shots on Goal':['sog','shots','SOG'],
     'Pass Yards':['pyds','YDS'],'Rush Yards':['ryds'],'Receiving Yards':['recyds'],
-    'Receptions':['rec','REC']
+    'Receptions':['rec','REC'],'Targets':['tgt','TGT'],'Pass Attempts':['att','ATT'],
+    'Rushing Attempts':['ratt','CAR'],'Interceptions Thrown':['int','INT'],
+    'Passing Touchdowns':['ptd','PATD'],'Receiving Touchdown':['rectd','RETD'],
+    'Anytime Touchdown':['td','TD'],'FG Made':['fgm','FGM'],'XP Made':['xpm','XPM'],
+    'Sacks':['sk','SK'],'Solo Tackles':['solo'],'Assisted Tackles':['asst'],
+    'Total Tackles':['tkl','TKL'],
   };
   const getAliases = s => statAliases[s] || [s.toLowerCase()];
   const raw = gameLogData?._regular || gameLogData;
@@ -4192,10 +4300,40 @@ function extractStatFromSnapshot(snap, statLabel) {
     'Threes Made':  ['3pm','3-pt made','3PTM','fg3m'],
     'Steals':       ['stl','steals','STL'],
     'Blocks':       ['blk','blocks','BLK'],
+    'Turnovers':    ['to','turnovers','TOV'],
     'Shots on Goal':['sog','shots','shotsOnGoal','SOG'],
+    'Goals':        ['g','goals','G'],
+    'Assists':      ['ast','assists','AST'],  // shared label — context-sensitive
+    'Goals Against':['ga','goalsAgainst','GA'],
+    'Saves':        ['sv','saves','SV'],
+    'Power Play Points':['ppp','powerPlayPoints','PPP'],
     'Strikeouts':   ['k','so','strikeouts','K','SO'],
     'Hits':         ['h','hits','H'],
     'Total Bases':  ['tb','totalBases','TB'],
+    'Runs':         ['r','runs','R'],
+    'RBIs':         ['rbi','rbis','RBI'],
+    'Home Runs':    ['hr','homeRuns','HR'],
+    'Singles':      ['1b','singles','1B'],
+    'Doubles':      ['2b','doubles','2B'],
+    'Stolen Bases': ['sb','stolenBases','SB'],
+    'Walks':        ['bb','walks','baseOnBalls','BB'],
+    'Earned Runs':  ['er','earnedRuns','ER'],
+    'Hits Allowed': ['ha','hitsAllowed'],
+    'Total Outs':   ['outs','totalOuts'],
+    'Pass Yards':   ['pyds','passingYards','YDS'],
+    'Rush Yards':   ['ryds','rushingYards'],
+    'Receiving Yards':['recyds','receivingYards'],
+    'Receptions':   ['rec','receptions','REC'],
+    'Targets':      ['tgt','targets','TGT'],
+    'Pass Attempts':['att','passAttempts','ATT'],
+    'Rushing Attempts':['ratt','rushAttempts','CAR'],
+    'Interceptions Thrown':['int','interceptions','INT'],
+    'Passing Touchdowns':['ptd','passingTD'],
+    'Receiving Touchdown':['rectd','receivingTD'],
+    'Sacks':        ['sk','sacks','SK'],
+    'Solo Tackles': ['solo','soloTackles'],
+    'Assisted Tackles':['asst','assistedTackles'],
+    'Total Tackles':['tkl','tackles','TKL'],
   };
 
   const aliases = statAliases[statLabel] || [statLabel.toLowerCase()];
@@ -4788,7 +4926,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     // The POST-DATA golf gate runs below after game logs are fetched.
     // ══════════════════════════════════════════════════════
     if(sport === 'GOLF') {
-      statLabel = propTypeOverride || 'Strokes (Round 1)';
+      statLabel = propTypeOverride || 'Strokes';
       // PRE-FETCH golf check: must have sgTotal baseline in DB for enrichment
       // (post-fetch gate checks actual round data count — see below)
       if(!playerMeta?.sgTotal && !playerMeta?.sgTotal === 0) {
@@ -4829,7 +4967,9 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
           const statKeyMap = {
             'Hits':'hits','Total Bases':'totalBases','RBIs':'rbi',
             'Strikeouts':'strikeOuts','Runs':'runs','Home Runs':'homeRuns',
-            'Walks':'baseOnBalls','At Bats':'atBats'
+            'Walks':'baseOnBalls','At Bats':'atBats','Singles':'singles',
+            'Doubles':'doubles','Stolen Bases':'stolenBases',
+            'Earned Runs':'earnedRuns','Hits Allowed':'hits',
           };
           const mlbStatKey = statKeyMap[statLabel];
           if(mlbStatKey) {
@@ -5099,11 +5239,33 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     // ── OUTLIER / SANE RANGE FILTER ──
     // NHL Points/Shots can legitimately be 0 in a game — floor must be 0, not 2
     const saneRanges = {
-      'Points':[0,70],       // NBA floor 0 (bench players), NHL floor 0 (scoreless games)
-      'Rebounds':[0,30],'Assists':[0,25],'Threes Made':[0,12],
-      'Hits':[0,6],'Total Bases':[0,10],'Strikeouts':[0,20],'RBIs':[0,12],
+      // NBA/WNBA
+      'Points':[0,70],'Rebounds':[0,30],'Assists':[0,25],'Threes Made':[0,12],
+      'Steals':[0,8],'Blocks':[0,8],'Turnovers':[0,12],
+      'Points + Rebounds + Assists':[0,120],'Points + Rebounds':[0,80],
+      'Points + Assists':[0,80],'Assists + Rebounds':[0,50],
+      'Double Double':[0,1],'Triple Double':[0,1],'Steals + Blocks':[0,10],
+      // MLB batters
+      'Hits':[0,6],'Total Bases':[0,12],'Home Runs':[0,4],'Runs':[0,5],
+      'RBIs':[0,8],'Singles':[0,6],'Doubles':[0,4],'Stolen Bases':[0,4],
+      'Walks':[0,4],'Hits + Runs + RBIs':[0,15],
+      // MLB pitchers
+      'Strikeouts':[0,20],'Total Outs':[0,30],'Hits Allowed':[0,12],
+      'Earned Runs':[0,8],'Runs First Inning':[0,5],
+      // NFL
       'Pass Yards':[30,650],'Rush Yards':[0,280],'Receiving Yards':[0,350],
-      'Receptions':[0,22],'Shots on Goal':[0,18]
+      'Receptions':[0,22],'Targets':[0,20],'Pass Attempts':[0,60],
+      'Rushing Attempts':[0,35],'Interceptions Thrown':[0,5],
+      'Passing Touchdowns':[0,8],'Receiving Touchdown':[0,3],
+      'Rush + Receiving Touchdowns':[0,4],'Anytime Touchdown':[0,1],
+      'FG Made':[0,6],'XP Made':[0,8],'Kicking Points':[0,25],
+      'Sacks':[0,5],'Solo Tackles':[0,15],'Assisted Tackles':[0,10],
+      'Total Tackles':[0,20],
+      // NHL
+      'Shots on Goal':[0,18],'Goals':[0,4],'Goals Against':[0,10],
+      'Saves':[0,60],'Power Play Points':[0,3],'Blocks':[0,8],
+      // Golf
+      'Strokes':[55,90],'Birdies or Better':[0,10],'Bogeys or Worse':[0,10],
     };
     const [minV, maxV] = saneRanges[statLabel] || [0, 9999];
     allVals = allVals.filter(v => v >= minV && v <= maxV);
@@ -5129,8 +5291,8 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     // This removes pitchers accidentally getting batter props and vice versa,
     // plus NHL fourth-liners who barely score.
     if(sport === 'MLB') {
-      const isPitcherProp = ['Strikeouts'].includes(statLabel);
-      const isBatterProp  = ['Hits','Total Bases','RBIs','Runs','Home Runs'].includes(statLabel);
+      const isPitcherProp = ['Strikeouts','Total Outs','Hits Allowed','Earned Runs','Walks','Runs First Inning'].includes(statLabel);
+      const isBatterProp  = ['Hits','Total Bases','RBIs','Runs','Home Runs','Singles','Doubles','Stolen Bases','Walks','Hits + Runs + RBIs'].includes(statLabel);
       const ewmaPreview = computeEWMA(allVals);
       if(isBatterProp && ewmaPreview !== null && ewmaPreview < 0.15) {
         traceLog('projectionEngine', `${playerName} (MLB): avg ${ewmaPreview?.toFixed(2)} ${statLabel}/game — too low, likely a pitcher playing as batter — skipped`, 'fail');
@@ -5147,10 +5309,115 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         traceLog('projectionEngine', `${playerName} (NHL): avg ${ewmaPreview?.toFixed(2)} pts/game — low-scoring player, skipped`, 'fail');
         return null;
       }
-      // Shots on Goal: skip players averaging less than 1 shot per game (non-shooters)
       if(statLabel === 'Shots on Goal' && ewmaPreview !== null && ewmaPreview < 1.0) {
         traceLog('projectionEngine', `${playerName} (NHL): avg ${ewmaPreview?.toFixed(2)} shots/game — not a shooting player, skipped`, 'fail');
         return null;
+      }
+      if(statLabel === 'Goals' && ewmaPreview !== null && ewmaPreview < 0.05) {
+        traceLog('projectionEngine', `${playerName} (NHL): avg ${ewmaPreview?.toFixed(2)} goals/game — skipped`, 'fail');
+        return null;
+      }
+      if(statLabel === 'Saves' && ewmaPreview !== null && ewmaPreview < 5) {
+        traceLog('projectionEngine', `${playerName} (NHL): avg ${ewmaPreview?.toFixed(2)} saves/game — not a goalie, skipped`, 'fail');
+        return null;
+      }
+      if(statLabel === 'Goals Against' && ewmaPreview !== null && ewmaPreview < 0.5) {
+        traceLog('projectionEngine', `${playerName} (NHL): avg ${ewmaPreview?.toFixed(2)} GA/game — not a goalie, skipped`, 'fail');
+        return null;
+      }
+    }
+
+    // ── COMBO PROPS — computed by summing individual component values ──
+    // These don't exist as single ESPN columns; extract each component from snapshot and sum.
+    const COMBO_COMPONENTS = {
+      'Points + Rebounds + Assists': ['Points','Rebounds','Assists'],
+      'Points + Rebounds':           ['Points','Rebounds'],
+      'Points + Assists':            ['Points','Assists'],
+      'Assists + Rebounds':          ['Assists','Rebounds'],
+      'Hits + Runs + RBIs':          ['Hits','Runs','RBIs'],
+      'Rush + Receiving Touchdowns': ['Rush Yards','Receiving Yards'], // proxy — see note below
+      'Steals + Blocks':             ['Steals','Blocks'],
+    };
+    if(COMBO_COMPONENTS[statLabel]) {
+      const components = COMBO_COMPONENTS[statLabel];
+      const snap = contextData._snap;
+      if(snap?.rawGameObjects?.length >= 5) {
+        // For each game, sum the component values
+        const comboVals = snap.rawGameObjects.map(g => {
+          let sum = 0;
+          let valid = true;
+          for(const comp of components) {
+            const extracted = extractStatFromSnapshot(snap, comp);
+            // Use per-game value via colIdx approach
+            const compAliases = {
+              'Points':['pts','PTS'],'Rebounds':['reb','REB'],'Assists':['ast','AST'],
+              'Steals':['stl','STL'],'Blocks':['blk','BLK'],
+              'Hits':['h','H'],'Runs':['r','R'],'RBIs':['rbi','RBI'],
+            };
+            const aliases = compAliases[comp] || [comp.toLowerCase()];
+            const labels = g.labels || [];
+            let colIdx = -1;
+            for(const al of aliases) {
+              const idx = labels.findIndex(l => l === al.toLowerCase() || l.includes(al.toLowerCase()) || al.toLowerCase().includes(l));
+              if(idx !== -1) { colIdx = idx; break; }
+            }
+            const v = colIdx >= 0 ? parseFloat(g.allStats?.[colIdx]) : NaN;
+            if(isNaN(v) || v < 0) { valid = false; break; }
+            sum += v;
+          }
+          return valid ? sum : NaN;
+        }).filter(v => !isNaN(v));
+        if(comboVals.length >= 5) {
+          allVals = comboVals;
+          dataPoints = comboVals.length;
+          traceLog('projectionEngine', `${playerName}: combo ${statLabel} computed — ${comboVals.length} games, avg ${(comboVals.reduce((a,b)=>a+b,0)/comboVals.length).toFixed(1)}`, 'ok');
+        }
+      }
+      if(allVals.length < 5) {
+        traceLog('projectionEngine', `${playerName}: combo ${statLabel} — insufficient component data`, 'warn');
+        return 'insufficient_data';
+      }
+    }
+
+    // ── PROBABILITY PROPS — binary outcomes projected as P(event occurs in a game) ──
+    const PROB_PROPS = {
+      'Double Double':  (snap) => {
+        // DD = at least 2 of: pts≥10, reb≥10, ast≥10, stl≥10, blk≥10
+        const p = extractStatFromSnapshot(snap,'Points')    || [];
+        const r = extractStatFromSnapshot(snap,'Rebounds')  || [];
+        const a = extractStatFromSnapshot(snap,'Assists')   || [];
+        const n = Math.min(p.length, r.length, a.length);
+        if(n < 5) return null;
+        let hits = 0;
+        for(let i=0;i<n;i++) { const cats = [p[i]>=10,r[i]>=10,a[i]>=10].filter(Boolean).length; if(cats>=2) hits++; }
+        return hits/n;
+      },
+      'Triple Double':  (snap) => {
+        const p = extractStatFromSnapshot(snap,'Points')    || [];
+        const r = extractStatFromSnapshot(snap,'Rebounds')  || [];
+        const a = extractStatFromSnapshot(snap,'Assists')   || [];
+        const n = Math.min(p.length, r.length, a.length);
+        if(n < 5) return null;
+        let hits = 0;
+        for(let i=0;i<n;i++) { const cats = [p[i]>=10,r[i]>=10,a[i]>=10].filter(Boolean).length; if(cats>=3) hits++; }
+        return hits/n;
+      },
+      'Anytime Touchdown': (snap) => {
+        // For RBs/WRs: TD in any game — use rush+receiving TD cols if available, else estimate
+        const vals = allVals; // already extracted rushing/receiving TDs or generic TD col
+        if(vals.length < 5) return null;
+        return vals.filter(v => v >= 1).length / vals.length;
+      },
+    };
+    if(PROB_PROPS[statLabel] && contextData._snap) {
+      const probResult = PROB_PROPS[statLabel](contextData._snap);
+      if(probResult !== null) {
+        // Return a special probability-only result bypassing the normal projection engine
+        traceLog('projectionEngine', `${playerName}: ${statLabel} probability = ${(probResult*100).toFixed(1)}%`, 'ok');
+        // Convert to a fake projection number (the probability itself) that the output layer can detect
+        allVals = [probResult]; // signal to downstream: this is a probability prop
+        contextData._isProbProp = true;
+        contextData._probValue = probResult;
       }
     }
 
@@ -5269,6 +5536,13 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     }
     if(sport === 'NFL' && contextData.snapShareNote) {
       contextNotes.push(`Snap share: ${contextData.snapShareNote}`);
+    }
+
+    // ── PROBABILITY PROPS: bypass normal proj/stdDev, use direct probability ──
+    if(contextData._isProbProp && contextData._probValue !== undefined) {
+      const pVal = contextData._probValue;
+      finalProjection = parseFloat((pVal * 100).toFixed(1)); // display as percentage
+      traceLog('projectionEngine', `${playerName} (${sport}) — ${statLabel} probability: ${finalProjection}%`, 'ok');
     }
 
     finalProjection = parseFloat(finalProjection.toFixed(2));
@@ -5688,12 +5962,23 @@ async function analyzePick() {
 
 function getStatIndex(sport, prop) {
   const maps = {
-    NBA:  { 'Points':13,'Rebounds':6,'Assists':8,'Threes Made':3 },
-    WNBA: { 'Points':13,'Rebounds':6,'Assists':8,'Threes Made':3 },
-    MLB:  { 'Hits':1,'Total Bases':5,'RBIs':3,'Strikeouts':9 },
-    NFL:  { 'Pass Yards':4,'Rush Yards':0,'Receptions':0 },
-    NHL:  { 'Shots on Goal':8,'Points':0 },
-    GOLF: { 'Strokes (Round 1)':1,'Strokes (Round 2)':1,'Birdies or Better':0,'Bogeys or Worse':0,'Made Cut':0 }
+    NBA:  { 'Points':13,'Rebounds':6,'Assists':8,'Threes Made':3,'Steals':4,'Blocks':5,'Turnovers':7,
+            'Points + Rebounds + Assists':13,'Points + Rebounds':13,'Points + Assists':13,'Assists + Rebounds':8,
+            'Double Double':0,'Triple Double':0,'Steals + Blocks':4 },
+    WNBA: { 'Points':13,'Rebounds':6,'Assists':8,'Threes Made':3,'Steals':4,'Blocks':5,'Turnovers':7,
+            'Double Double':0,'Triple Double':0 },
+    MLB:  { 'Hits':1,'Total Bases':5,'RBIs':3,'Strikeouts':9,'Runs':2,'Home Runs':4,
+            'Singles':1,'Doubles':2,'Stolen Bases':6,'Walks':7,'Hits + Runs + RBIs':1,
+            'Total Outs':9,'Hits Allowed':1,'Earned Runs':3,'Runs First Inning':2 },
+    NFL:  { 'Pass Yards':4,'Rush Yards':0,'Receiving Yards':0,'Receptions':0,'Targets':0,
+            'Pass Attempts':0,'Rushing Attempts':0,'Passing Touchdowns':0,
+            'Receiving Touchdown':0,'Interceptions Thrown':0,
+            'Rush + Receiving Touchdowns':0,'Anytime Touchdown':0,
+            'FG Made':0,'XP Made':0,'Kicking Points':0,
+            'Sacks':0,'Solo Tackles':0,'Assisted Tackles':0,'Total Tackles':0 },
+    NHL:  { 'Points':0,'Goals':0,'Assists':8,'Shots on Goal':8,
+            'Power Play Points':0,'Blocks':5,'Saves':0,'Goals Against':0 },
+    GOLF: { 'Strokes':1,'Birdies or Better':0,'Bogeys or Worse':0,'Made Cut':0 }
   };
   return maps[sport]?.[prop] || 0;
 }
@@ -5809,6 +6094,8 @@ function renderProps() {
 function propCardHTML(p) {
   // isAnalysis must be defined first — used throughout this function
   const isAnalysis = p.analysisMode === true;
+  const isProbProp = ['Double Double','Triple Double','Anytime Touchdown','Steals + Blocks'].includes(p.prop);
+  const projDisplay = isProbProp ? `${p.proj}%` : p.proj;
   const edgeStr = isAnalysis ? '—' : ((p.edge.val >= 0 ? '+' : '') + p.edge.val + ' (' + (p.edge.val >= 0 ? '+' : '') + p.edge.pct + '%)');
   const edgeClass = p.edge.val >= 0 ? 'green' : 'red';
   const decLow = p.decision === 'PASS' ? 'pass' : p.decision.toLowerCase();
@@ -5861,7 +6148,7 @@ function propCardHTML(p) {
     <div class="prop-numbers">
       <div class="prop-num-block"><div class="prop-num-label">Prop</div><div class="prop-num-value" style="font-size:12px;margin-top:2px">${p.prop}</div></div>
       <div class="prop-num-block"><div class="prop-num-label">Line</div><div class="prop-num-value" style="${isAnalysis?'color:var(--muted)':''}">${isAnalysis ? '—' : (p.line ?? '—')}</div></div>
-      <div class="prop-num-block"><div class="prop-num-label">Model μ</div><div class="prop-num-value ${edgeClass}">${p.proj}</div></div>
+      <div class="prop-num-block"><div class="prop-num-label">Model μ</div><div class="prop-num-value ${edgeClass}">${projDisplay}</div></div>
       ${!isAnalysis && p.overProb !== undefined ? `
       <div class="prop-num-block"><div class="prop-num-label">P(Over)</div><div class="prop-num-value" style="font-size:14px;color:${p.decision==='OVER'?'var(--accent)':'var(--muted)'}">${p.overProb}%</div></div>
       <div class="prop-num-block"><div class="prop-num-label">EV</div><div class="prop-edge-val" style="color:${(p.decision==='OVER'?p.overEV:p.underEV)>0?'var(--accent)':'var(--red)'}">+${p.decision==='OVER'?p.overEV:p.underEV}%</div></div>
