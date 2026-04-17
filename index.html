@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v10.6</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v10.8</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -3236,7 +3236,7 @@ const PLAYER_DB = {
     {id:'4066328',nbaId:1630178,name:'Tyrese Maxey',team:'PHI',prop:'Points',lineBase:25,usage:0.30,vol:'high'},
     {id:'3934672',nbaId:1630169,name:'Tyrese Haliburton',team:'IND',prop:'Points',lineBase:20,usage:0.24,vol:'med'},
     {id:'4066351',nbaId:1628384,name:'Trae Young',team:'ATL',prop:'Points',lineBase:24,usage:0.34,vol:'high'},
-    {id:'2489683',nbaId:201939,name:'Stephen Curry',team:'GSW',prop:'Points',lineBase:26,usage:0.28,vol:'high',threePct:0.42},
+    {id:'3975',nbaId:201939,name:'Stephen Curry',team:'GSW',prop:'Points',lineBase:26,usage:0.28,vol:'high',threePct:0.42},
     {id:'3992',nbaId:1626164,name:'Devin Booker',team:'PHX',prop:'Points',lineBase:26,usage:0.30,vol:'high'},
     {id:'4395628',nbaId:1630595,name:'Cade Cunningham',team:'DET',prop:'Points',lineBase:24,usage:0.29,vol:'high'},
     {id:'4431671',nbaId:1630224,name:'Jalen Green',team:'HOU',prop:'Points',lineBase:23,usage:0.28,vol:'high'},
@@ -3249,7 +3249,8 @@ const PLAYER_DB = {
     {id:'4397244',nbaId:1628969,name:'Mikal Bridges',team:'NYK',prop:'Points',lineBase:16.5,usage:0.20,vol:'med'},
     {id:'3134907',nbaId:1628404,name:'Josh Hart',team:'NYK',prop:'Rebounds',lineBase:8.5,usage:0.13,vol:'low'},
     {id:'6583',nbaId:203954,name:'Joel Embiid',team:'PHI',prop:'Points',lineBase:31,usage:0.36,vol:'high'},
-    {id:'2490149',nbaId:201142,name:'Kevin Durant',team:'PHX',prop:'Points',lineBase:26,usage:0.28,vol:'high'},
+    {id:'3202',nbaId:201142,name:'Kevin Durant',team:'PHX',prop:'Points',lineBase:26,usage:0.28,vol:'high'},
+    {id:'3012',nbaId:203076,name:'Anthony Davis',team:'LAL',prop:'Points',lineBase:26,usage:0.27,vol:'high'},
     {id:'4433245',nbaId:1641705,name:'Victor Wembanyama',team:'SAS',prop:'Points',lineBase:22,usage:0.27,vol:'high'},
     {id:'3907387',nbaId:1628389,name:'Bam Adebayo',team:'MIA',prop:'Points',lineBase:19.5,usage:0.22,vol:'med'},
     {id:'4395725',nbaId:1630596,name:'Evan Mobley',team:'CLE',prop:'Points',lineBase:18,usage:0.21,vol:'med'},
@@ -3566,6 +3567,8 @@ function loadSnapshot(playerId, sport) {
     const ttlMs = (SNAPSHOT_TTL[sport] || 6) * 3600000;
     if(Date.now() - snap.lastUpdated > ttlMs) return null; // expired
     if(!snap.games || snap.games.length < 5) return null;  // stale/invalid
+    // Reject if snapshot was built with a different ESPN ID (ID correction applied)
+    if(snap.espnId && snap.espnId !== String(playerId)) return null;
     return snap;
   } catch(e) { return null; }
 }
@@ -3808,6 +3811,7 @@ function buildSnapshot(playerId, sport, rawGames, source) {
   return {
     playerId, sport, games, minutes, opponents, dates, gameIds, seasonAvg,
     sampleSize: games.length, source, lastUpdated: Date.now(),
+    espnId: String(playerId), // stored so stale snapshots from wrong IDs can be detected
     audit: {
       rawGameCount:        audit.rawGameCount,
       filteredGameCount:   cleaned.length,
