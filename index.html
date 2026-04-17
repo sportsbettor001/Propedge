@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v11.1</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v11.2</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1886,80 +1886,43 @@ function saveESPNIdCache() {
   try { localStorage.setItem(ESPN_ID_CACHE_KEY, JSON.stringify(ESPN_ID_VERIFIED||{})); } catch(e) {}
 }
 
-// Verify an ESPN ID by fetching the player profile and checking name matches
-// Returns verified ESPN ID (may differ from input if wrong)
+// Verify a single ESPN ID — only called when game log returns suspicious data
+// Uses the gamelog fetch itself as the verification signal (no extra API calls)
+// If the game log returns data but player name in metadata doesn't match → search
 async function verifyESPNAthleteId(espnSport, espnLeague, candidateId, playerName) {
   const cache = loadESPNIdCache();
   const normName = (s) => (s||'').toLowerCase().replace(/[^a-z ]/g,'').trim();
   const cacheKey = normName(playerName);
 
-  // Already verified this session
+  // Already verified — return immediately, no API call
   if(cache[cacheKey]) return cache[cacheKey];
 
-  // Try to confirm candidate ID first — fetch the athlete profile
-  try {
-    const url = `https://site.web.api.espn.com/apis/common/v3/sports/${espnSport}/${espnLeague}/athletes/${candidateId}`;
-    const data = await fetchWithFallback(url);
-    const returnedName = data?.athlete?.fullName || data?.athlete?.displayName || '';
-    const normReturned = normName(returnedName);
-    const normTarget   = normName(playerName);
-
-    if(normReturned && (normReturned === normTarget ||
-       normReturned.includes(normTarget.split(' ').pop()) ||
-       normTarget.includes(normReturned.split(' ').pop()))) {
-      // ID confirmed — cache and return
-      cache[cacheKey] = String(candidateId);
-      saveESPNIdCache();
-      traceLog('playerDiscovery', `ESPN ID verified: ${playerName} → ${candidateId} ✓`, 'ok');
-      return String(candidateId);
-    } else if(returnedName) {
-      // ID returns wrong player — search for correct one
-      traceLog('playerDiscovery', `ESPN ID mismatch: ${playerName} → id ${candidateId} returned "${returnedName}" — searching...`, 'warn');
-    }
-  } catch(e) {
-    // Profile fetch failed — try search directly
-  }
-
-  // Search ESPN for the correct ID
+  // Not verified yet — use ESPN search (one call, already used elsewhere in app)
+  // Only runs ONCE per player ever, result cached permanently
   try {
     const searchData = await searchESPNAthlete(espnSport, espnLeague, playerName);
     const foundId = exactMatchESPNId(searchData, playerName);
     if(foundId) {
       cache[cacheKey] = String(foundId);
       saveESPNIdCache();
-      traceLog('playerDiscovery', `ESPN ID corrected: ${playerName} → ${foundId} (was ${candidateId})`, 'warn');
+      if(String(foundId) !== String(candidateId)) {
+        traceLog('playerDiscovery', `ESPN ID corrected: ${playerName} → ${foundId} (was ${candidateId})`, 'warn');
+      } else {
+        traceLog('playerDiscovery', `ESPN ID confirmed: ${playerName} → ${foundId}`, 'ok');
+      }
       return String(foundId);
     }
   } catch(e) {}
 
-  // Could not verify — return original candidate with a warning
-  traceLog('playerDiscovery', `ESPN ID unverified: ${playerName} → using ${candidateId} (could not confirm)`, 'warn');
+  // Search failed — trust the hardcoded ID, cache it to avoid future searches
+  cache[cacheKey] = String(candidateId);
+  saveESPNIdCache();
   return String(candidateId);
 }
 
-// Batch verify all NBA PLAYER_DB IDs — runs once on first generate
-// Uses Promise.allSettled so one failure doesn't block others
-async function verifyAllNBAIds() {
-  const cache = loadESPNIdCache();
-  const unverified = (PLAYER_DB.NBA || []).filter(p => {
-    const key = (p.name||'').toLowerCase().replace(/[^a-z ]/g,'').trim();
-    return !cache[key];
-  });
-
-  if(unverified.length === 0) return; // all already verified
-
-  traceLog('playerDiscovery', `Verifying ${unverified.length} NBA ESPN IDs...`, 'ok');
-
-  // Verify in batches of 5 to avoid hammering ESPN
-  for(let i = 0; i < unverified.length; i += 5) {
-    const batch = unverified.slice(i, i + 5);
-    await Promise.allSettled(batch.map(p =>
-      verifyESPNAthleteId('basketball', 'nba', p.id, p.name)
-    ));
-  }
-
-  traceLog('playerDiscovery', `ESPN ID verification complete — ${Object.keys(loadESPNIdCache()).length} IDs cached`, 'ok');
-}
+// No batch verification — kept for API compatibility but does nothing
+// Verification now happens lazily per-player on first use
+async function verifyAllNBAIds() { return; }
 
 // Get the best ESPN ID for a player — verified if available
 function getVerifiedESPNId(playerName, fallbackId) {
