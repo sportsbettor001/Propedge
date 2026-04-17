@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v12.5</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v12.6</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -3007,8 +3007,8 @@ async function runFetch(sportsToFetch) {
           const maxPlayers = STATE.settings.analysisPlayersPerGame || 5;
 
           // Get avg minutes for a player from their cached snapshot
-          const getAvgMins = (playerName) => {
-            const verifiedId = getVerifiedESPNId(playerName, null);
+          const getAvgMins = (playerName, knownId) => {
+            const verifiedId = getVerifiedESPNId(playerName, knownId || null);
             if(!verifiedId) return 0;
             try {
               const snap = loadSnapshot(verifiedId, sport);
@@ -3022,7 +3022,7 @@ async function runFetch(sportsToFetch) {
 
           const ranked = candidatePool
             .filter(p => p.name && p.name.trim().length > 1)
-            .map(p => ({ ...p, _avgMins: getAvgMins(p.name) }))
+            .map(p => ({ ...p, _avgMins: getAvgMins(p.name, p.id) }))
             .sort((a, b) => {
               // Primary: avg minutes descending (higher mins = more important player)
               if(a._avgMins !== b._avgMins) return b._avgMins - a._avgMins;
@@ -3838,7 +3838,7 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
 const SNAPSHOT_TTL = { NBA:6, NHL:6, WNBA:6, NFL:6, MLB:12, GOLF:12 };
 
 function snapshotKey(playerId, sport) {
-  return `pe_snap_${sport}_${playerId}`;
+  return `pe_snap2_${sport}_${playerId}`;
 }
 
 function loadSnapshot(playerId, sport) {
