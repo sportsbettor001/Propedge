@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v11.7</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v12.3</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1597,6 +1597,8 @@ function defaultPropForSport(sport) {
   const d = { NBA:'Points', WNBA:'Points', MLB:'Hits', NFL:'Pass Yards', NHL:'Points', GOLF:'Strokes (Round 1)' };
   return d[sport] || 'Points';
 }
+
+
 
 // ═══════════════════════════════════════════════════════
 // MLB STATS API — Official MLB public API, no key required
@@ -2953,7 +2955,8 @@ async function runFetch(sportsToFetch) {
                   id: ap.id, name: ap.name, teamAbbr: ap.teamAbbr,
                   starter: ap.starter, position: ap.position,
                   prop: db?.prop || defaultPropForSport(sport),
-                  lineBase: db?.lineBase || null, meta: db || null,
+                  lineBase: db?.lineBase || null, // no line needed in analysis mode
+                  meta: db || null,
                 });
               }
             }
@@ -2974,7 +2977,8 @@ async function runFetch(sportsToFetch) {
                 candidatePool.push({
                   id: verifiedId, name: rp.name, teamAbbr: '', starter: false, position: rp.position,
                   prop: db?.prop || defaultPropForSport(sport),
-                  lineBase: db?.lineBase || null, meta: db || null,
+                  lineBase: db?.lineBase || null, // no line needed in analysis mode
+                  meta: db || null,
                 });
               }
             }
@@ -3039,14 +3043,32 @@ async function runFetch(sportsToFetch) {
               }
               // If side unknown, skip — don't assign wrong pitcher
             }
-            playersToProcess.push({
-              name: p.name, sport, espnSport, espnLeague, gameId,
-              prop: p.prop, line: p.lineBase || 0,
-              homeTeam: home, awayTeam: away,
-              espnId: p.id || null,
-              dateTag: game._dateTag || 'today',
-              meta: { ...(p.meta || {}), opposingPitcher },
-            });
+            // Generate multiple prop types per player from the same game log
+            const propsForSport = {
+              NBA:   ['Points','Rebounds','Assists'],
+              WNBA:  ['Points','Rebounds','Assists'],
+              NHL:   ['Points','Shots on Goal'],
+              MLB:   p.position === 'P'
+                       ? ['Strikeouts']
+                       : ['Hits','Total Bases'],
+              NFL:   p.position === 'QB'
+                       ? ['Pass Yards']
+                       : p.position === 'RB'
+                         ? ['Rush Yards']
+                         : ['Receiving Yards','Receptions'],
+            };
+            const propTypes = propsForSport[sport] || [p.prop || defaultPropForSport(sport)];
+            for(const propType of propTypes) {
+              playersToProcess.push({
+                name: p.name, sport, espnSport, espnLeague, gameId,
+                prop: propType,
+                line: (p.prop === propType && p.lineBase) ? p.lineBase : 0,
+                homeTeam: home, awayTeam: away,
+                espnId: p.id || null,
+                dateTag: game._dateTag || 'today',
+                meta: { ...(p.meta || {}), opposingPitcher },
+              });
+            }
           }
         }
       }
@@ -3299,15 +3321,14 @@ async function runFetch(sportsToFetch) {
           mlbId: resolvedMlbId || null,
           nbaPersonId: player.meta?.nbaPersonId || null,
           nbaId: dbEntry?.nbaId || player.meta?.nbaPersonId || null };
-        const prop = await buildPlayerProp(
+        let prop = await buildPlayerProp(
           effectiveId, player.name, player.sport, player.espnSport, player.espnLeague,
           dbEntry?.team||player.homeTeam, opp, player.dateTag || 'today',
           injuries, propId++, player.prop, player.line, realLine, playerMetaMerged
         );
-        if(prop === 'insufficient_data' || typeof prop === 'string') {
+        if(typeof prop === 'string') {
           traceLog('outputLog', `${player.name} (${player.sport}): insufficient_data — skipped`, 'warn');
-          prop = null;
-          continue; // skip to next player — don't try to access prop properties
+          continue;
         }
         if(prop && newPropsBySport[player.sport] !== undefined) {
           newPropsBySport[player.sport].push(prop);
@@ -4633,10 +4654,9 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     let hasMatchupData = false;
     let injuryStatus = injuries[playerName.toLowerCase()] || null;
     const hasRealLine = realLine !== null && realLine > 0;
-    // In betting mode: line must be real verified sportsbook line
-    // In analysis mode: line is a reference point from DB (not used for decisions)
-    const line = hasRealLine ? parseFloat(realLine) : parseFloat(lineBaseOverride || 0);
-    // Only hard-gate on line in betting mode — analysis mode proceeds without real line
+    // Betting mode: real sportsbook line from Odds API — required for EV calc
+    // Analysis mode: no line needed — probability is based on projection consistency
+    const line = hasRealLine ? parseFloat(realLine) : 0;
     if(hasRealLine && (!line || line <= 0)) return null;
 
     // ══════════════════════════════════════════════════════
@@ -5130,16 +5150,33 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
 
     const effectiveStdDev = (stdDev !== null && stdDev > 0) ? stdDev : finalProjection * 0.25;
 
-    // Base probability from normal distribution (projection vs line)
-    const baseProbOver  = probOver(finalProjection, effectiveStdDev, line);
-    const baseProbUnder = 1 - baseProbOver;
+    // Probability calculation:
+    // BETTING MODE: P(score > sportsbook line) — standard over/under
+    // ANALYSIS MODE: P(score within ±20% of projection) — "how likely is this projection"
+    //   e.g. ANT projected 30pts: "71% chance he scores between 24-36pts"
+    let baseProbOver, baseProbUnder;
+    if(hasRealLine && line > 0) {
+      // Betting mode: compare projection to real sportsbook line
+      baseProbOver  = probOver(finalProjection, effectiveStdDev, line);
+      baseProbUnder = 1 - baseProbOver;
+    } else {
+      // Analysis mode: P(score within ±20% band around projection)
+      // This answers "how consistent is this player near this projection?"
+      const bandLow  = finalProjection * 0.80;
+      const bandHigh = finalProjection * 1.20;
+      const pHigh = probOver(finalProjection, effectiveStdDev, bandLow);  // P(score > low)
+      const pLow  = probOver(finalProjection, effectiveStdDev, bandHigh); // P(score > high)
+      baseProbOver  = Math.max(0.05, Math.min(0.95, pHigh - pLow)); // P(within band)
+      baseProbUnder = 1 - baseProbOver;
+    }
 
     // CV for volatility display
     const cv = finalProjection > 0 ? effectiveStdDev / finalProjection : null;
     const volatilityNote = cv !== null
-      ? (cv < 0.20 ? `Low volatility (CV ${cv.toFixed(2)}) — consistent performer`
-        : cv < 0.40 ? `Moderate volatility (CV ${cv.toFixed(2)})`
-        : `High volatility (CV ${cv.toFixed(2)}) — confidence reduced`)
+      ? (cv < 0.20 ? `Low volatility (CV ${cv.toFixed(2)}) — very consistent`
+        : cv < 0.40 ? `Moderate volatility (CV ${cv.toFixed(2)}) — fairly consistent`
+        : cv < 0.70 ? `High volatility (CV ${cv.toFixed(2)}) — game-to-game variance`
+        : `Very high volatility (CV ${cv.toFixed(2)}) — unpredictable`)
       : null;
 
     // Apply context engine — adjusts probability based on environment
@@ -5240,7 +5277,10 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     }
 
     traceLog('filteringLog', `${playerName} confidence ${conf}/10 · over edge: ${overEVPct}% · under edge: ${underEVPct}% · recommendation: ${decision}`, decision!=='PASS'?'pass':'ok');
-    traceLog('outputLog', `${playerName} → ${decision} | projected ${finalProjection} ${statLabel} · ${(overProbRaw*100).toFixed(1)}% chance of going OVER · edge: ${chosenEV}%`, decision!=='PASS'?'pass':'ok');
+    const probDisplay = hasRealLine
+      ? `${(overProbRaw*100).toFixed(1)}% chance of going OVER · edge: ${chosenEV}%`
+      : `${(baseProbOver*100).toFixed(1)}% probability of hitting near projection`;
+    traceLog('outputLog', `${playerName} → ${decision} | projected ${finalProjection} ${statLabel} · ${probDisplay}`, decision!=='PASS'?'pass':'ok');
 
     // ── REASONING ──
     const dataSourceLabel = sport === 'MLB' ? 'statsapi.mlb.com (official)'
@@ -5256,7 +5296,9 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       hasRealLine
         ? `Sportsbook line: ${line} (from DraftKings/FanDuel via Odds API)`
         : `No sportsbook line available — analysis mode only`,
-      `Our projection: ${finalProjection} ${statLabel.toLowerCase()} · ${(overProbRaw*100).toFixed(0)}% chance of going OVER · ${(underProbRaw*100).toFixed(0)}% chance of going UNDER`,
+      hasRealLine
+        ? `Our projection: ${finalProjection} ${statLabel.toLowerCase()} · ${(overProbRaw*100).toFixed(0)}% chance of going OVER · ${(underProbRaw*100).toFixed(0)}% chance of going UNDER`
+        : `Our projection: ${finalProjection} ${statLabel.toLowerCase()} · ${(baseProbOver*100).toFixed(0)}% probability player performs near this projection (based on consistency)`,
       hasRealLine
         ? `Betting edge: ${overEVPct > underEVPct ? 'OVER' : 'UNDER'} has a +${Math.max(overEVPct, underEVPct)}% edge vs the implied odds (sportsbooks price both sides at ~52.4% to make money)`
         : `No betting recommendation without a sportsbook line`,
