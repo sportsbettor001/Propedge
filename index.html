@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v12.6</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v12.7</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -3006,10 +3006,14 @@ async function runFetch(sportsToFetch) {
           const seen = new Set();
           const maxPlayers = STATE.settings.analysisPlayersPerGame || 5;
 
+          const minsCache = loadMinsCache();
           // Get avg minutes for a player from their cached snapshot
           const getAvgMins = (playerName, knownId) => {
             const verifiedId = getVerifiedESPNId(playerName, knownId || null);
             if(!verifiedId) return 0;
+            // Fast path: lightweight mins cache (persists across sessions/TTL)
+            if(minsCache[String(verifiedId)]) return minsCache[String(verifiedId)];
+            // Slow path: full snapshot (same session only)
             try {
               const snap = loadSnapshot(verifiedId, sport);
               if(snap?.minutes?.length > 0) {
@@ -3858,7 +3862,25 @@ function loadSnapshot(playerId, sport) {
 function saveSnapshot(snap) {
   try {
     localStorage.setItem(snapshotKey(snap.playerId, snap.sport), JSON.stringify(snap));
+    // Also write avg minutes to a lightweight persistent cache used for pre-projection ranking.
+    // This survives snapshot TTL expiry so ranking stays accurate across sessions.
+    if(snap.minutes?.length > 0) {
+      const mins = snap.minutes.filter(m => m > 0);
+      const avg  = mins.length ? parseFloat((mins.reduce((a,b)=>a+b,0)/mins.length).toFixed(1)) : 0;
+      if(avg > 0) {
+        try {
+          const raw   = localStorage.getItem('pe_mins_cache') || '{}';
+          const cache = JSON.parse(raw);
+          cache[String(snap.playerId)] = avg;
+          localStorage.setItem('pe_mins_cache', JSON.stringify(cache));
+        } catch(e) {}
+      }
+    }
   } catch(e) {} // storage full — silent fail
+}
+
+function loadMinsCache() {
+  try { return JSON.parse(localStorage.getItem('pe_mins_cache') || '{}'); } catch(e) { return {}; }
 }
 
 // ══════════════════════════════════════════════════════
@@ -4170,8 +4192,10 @@ function extractStatFromSnapshot(snap, statLabel) {
 
 function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
 
-function computeSharpProjection(snap, vsOppVals) {
-  const { games, minutes, seasonAvg } = snap;
+function computeSharpProjection(snap, vsOppVals, overrideGames) {
+  const games     = (overrideGames && overrideGames.length >= 5) ? overrideGames : snap.games;
+  const { minutes } = snap;
+  const seasonAvg   = games.reduce((a,b)=>a+b,0) / games.length;
   if(!games || games.length < 5) return null;
 
   // ── EWMA (primary signal, 70% weight) ──
@@ -5108,7 +5132,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       allVals.map((v,i) => ({ value: v, minutes: 999, opponent: '', date: '', gameId: `inline_${i}` })), 'inline');
 
     const sharpResult = snapForProj
-      ? computeSharpProjection(snapForProj, vsOppVals)
+      ? computeSharpProjection(snapForProj, vsOppVals, allVals.length >= 5 ? allVals : undefined)
       : null;
 
     if(!sharpResult) {
