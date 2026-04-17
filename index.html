@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v11.3</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v11.6</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -381,6 +381,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px">All tests route through your Cloudflare proxy if needed. MLB has open CORS and works directly.</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
         <button onclick="testApi('nba_proxy')" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.08);border:1px solid rgba(0,229,160,.3);border-radius:8px;padding:8px;color:var(--accent);cursor:pointer;grid-column:1/-1">🏀 Test NBA Proxy (LaMelo Ball game log)</button>
+        <button onclick="runNBAIdSync()" id="btn-sync-ids" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:8px;color:var(--accent);cursor:pointer;font-weight:700;grid-column:1/-1">🔄 Sync All NBA Player IDs — All 30 Teams (run once)</button>
+        <div id="sync-ids-progress" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg2);border-radius:8px;padding:10px;grid-column:1/-1"></div>
         <button onclick="testApi('mlb_schedule')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">MLB Schedule</button>
         <button onclick="testApi('mlb_player')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">MLB Player Log</button>
         <button onclick="testApi('espn_nba_sched')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">ESPN NBA Schedule</button>
@@ -703,6 +705,54 @@ function fetchWithTimeout(url, options, ms) {
     setTimeout(() => reject(new Error(`Timed out after ${ms/1000}s`)), ms)
   );
   return Promise.race([fetch(url, options), timeout]);
+}
+
+async function runNBAIdSync() {
+  const btn      = document.getElementById('btn-sync-ids');
+  const progress = document.getElementById('sync-ids-progress');
+  const cache    = loadESPNIdCache();
+  const total    = (PLAYER_DB.NBA||[]).length;
+  const cached   = (PLAYER_DB.NBA||[]).filter(p => {
+    const key = (p.name||'').toLowerCase().replace(/[^a-z ]/g,'').trim();
+    return !!cache[key];
+  }).length;
+
+  // Already have full league (>400 players) — show status
+  if(cached > 400) {
+    progress.style.display = 'block';
+    progress.innerHTML = `<div style="color:var(--accent)">✓ ${cached} NBA players already cached — full league covered.</div>
+      <div style="color:var(--muted);margin-top:4px">Use ⚙ Settings → Clear All Data to re-sync (e.g. start of new season).</div>`;
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Syncing...';
+  progress.style.display = 'block';
+
+  await syncAllNBAIds(({ done, total, current, finished, totalPlayers, corrections }) => {
+    if(finished) {
+      const corrList = (corrections||[]).slice(0,10).map(c =>
+        `<div style="color:var(--amber)">⚠ ${c.name}: DB had ${c.old} → correct is <b>${c.new}</b></div>`
+      ).join('');
+      progress.innerHTML = `
+        <div style="color:var(--accent);font-weight:700;margin-bottom:8px">
+          ✓ Sync complete — ${totalPlayers||total} active NBA players cached
+        </div>
+        <div style="color:var(--muted);margin-bottom:8px;font-size:9px">
+          All 30 team rosters pulled from ESPN. IDs stored permanently.
+        </div>
+        ${corrections?.length ? `<div style="color:var(--amber);margin-bottom:4px">${corrections.length} PLAYER_DB corrections found:</div>${corrList}` : '<div style="color:var(--accent)">✓ All PLAYER_DB IDs match ESPN rosters</div>'}`;
+      btn.textContent   = `✓ ${totalPlayers||total} Players Synced`;
+      btn.style.opacity = '0.6';
+    } else {
+      const pct = total > 0 ? Math.round(done/total*100) : 0;
+      progress.innerHTML = `
+        <div style="color:var(--accent)">Team ${done}/${total} — ${current}</div>
+        <div style="background:var(--bg3);border-radius:4px;margin-top:6px;height:4px">
+          <div style="background:var(--accent);height:4px;border-radius:4px;width:${pct}%;transition:width .3s"></div>
+        </div>`;
+    }
+  });
 }
 
 async function testApi(which) {
@@ -1937,6 +1987,88 @@ async function verifyESPNAthleteId(espnSport, espnLeague, candidateId, playerNam
 async function verifyAllNBAIds() { return; }
 
 // Get the best ESPN ID for a player — verified if available
+// All 30 NBA team IDs (ESPN)
+const NBA_TEAM_IDS = [
+  {id:'1',name:'ATL'},{id:'2',name:'BOS'},{id:'3',name:'BKN'},
+  {id:'4',name:'CHA'},{id:'5',name:'CHI'},{id:'6',name:'CLE'},
+  {id:'7',name:'DAL'},{id:'8',name:'DEN'},{id:'9',name:'DET'},
+  {id:'10',name:'GSW'},{id:'11',name:'HOU'},{id:'12',name:'IND'},
+  {id:'13',name:'LAC'},{id:'14',name:'LAL'},{id:'15',name:'MEM'},
+  {id:'16',name:'MIA'},{id:'17',name:'MIL'},{id:'18',name:'MIN'},
+  {id:'19',name:'NOP'},{id:'20',name:'NYK'},{id:'21',name:'OKC'},
+  {id:'22',name:'ORL'},{id:'23',name:'PHI'},{id:'24',name:'PHX'},
+  {id:'25',name:'POR'},{id:'26',name:'SAC'},{id:'27',name:'SAS'},
+  {id:'28',name:'TOR'},{id:'29',name:'UTA'},{id:'30',name:'WAS'},
+];
+
+// Pull every player from every NBA roster via ESPN
+// Stores: name → ESPN ID for all ~450 active players
+// Runs once, cached permanently. Clear All Data to re-run.
+async function syncAllNBAIds(onProgress) {
+  const cache = loadESPNIdCache();
+
+  // Check if already fully synced (>400 players = full league)
+  const cachedCount = Object.keys(cache).length;
+  if(cachedCount > 400) {
+    onProgress({ done: cachedCount, total: cachedCount, current: `All ${cachedCount} players already cached ✓`, finished: true });
+    return;
+  }
+
+  const teams = NBA_TEAM_IDS;
+  onProgress({ done: 0, total: teams.length, current: 'Fetching rosters...', finished: false });
+
+  let done = 0;
+  let totalPlayers = 0;
+  const corrections = [];
+
+  for(const team of teams) {
+    onProgress({ done, total: teams.length, current: `${team.name} roster...`, finished: false });
+    try {
+      const data = await fetchWithFallback(
+        `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/${team.id}/roster`
+      );
+      const athletes = data?.athletes || [];
+      // ESPN roster returns groups (guards/forwards/centers) or flat array
+      const players = athletes.flatMap(g => g?.items || (g?.id ? [g] : []));
+
+      for(const p of players) {
+        const espnId   = String(p.id || '');
+        const fullName = p.fullName || p.displayName || '';
+        if(!espnId || !fullName) continue;
+
+        const key = fullName.toLowerCase().replace(/[^a-z ]/g,'').trim();
+        if(!cache[key]) {
+          cache[key] = espnId;
+          totalPlayers++;
+        }
+
+        // Check against PLAYER_DB — log corrections
+        const dbEntry = (PLAYER_DB.NBA||[]).find(e =>
+          e.name.toLowerCase().replace(/[^a-z ]/g,'').trim() === key
+        );
+        if(dbEntry && String(dbEntry.id) !== espnId) {
+          corrections.push({ name: fullName, old: dbEntry.id, new: espnId });
+        }
+      }
+      saveESPNIdCache();
+    } catch(e) {
+      // Skip failed team — don't block rest
+    }
+    done++;
+    // Small delay between teams — be polite to ESPN
+    await new Promise(r => setTimeout(r, 200));
+  }
+
+  onProgress({
+    done: teams.length,
+    total: teams.length,
+    current: 'Done!',
+    finished: true,
+    totalPlayers: Object.keys(loadESPNIdCache()).length,
+    corrections,
+  });
+}
+
 function getVerifiedESPNId(playerName, fallbackId) {
   const cache = loadESPNIdCache();
   const key = (playerName||'').toLowerCase().replace(/[^a-z ]/g,'').trim();
@@ -3009,8 +3141,14 @@ async function runFetch(sportsToFetch) {
             if(!espnId) espnId = String(nbaPersonId);
           }
         }
-        // Step 2: ESPN name search fallback (may be CORS-blocked on Safari)
-        if(!espnId && player.name && player.espnSport && player.espnLeague) {
+        // Step 2: ESPN name search fallback — only for NBA (MLB/NHL have own IDs)
+        // Check ESPN ID cache first — avoids repeat searches across generates
+        if(!espnId && player.name && player.espnSport && player.espnLeague && player.sport === 'NBA') {
+          const cachedId = getVerifiedESPNId(player.name, null);
+          if(cachedId) {
+            espnId = cachedId;
+            traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN ID from cache → ${espnId}`, 'ok');
+          } else {
           try {
             const searchData = await searchESPNAthlete(player.espnSport, player.espnLeague, player.name);
             const athletes = searchData?.athletes || searchData?.items || [];
@@ -3022,13 +3160,19 @@ async function runFetch(sportsToFetch) {
             });
             if(exactMatch) {
               espnId = String(exactMatch.id || exactMatch.athlete?.id);
-              traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN ID via search → ${espnId}`, 'ok');
+              // Cache so we never search again for this player
+              const idCache = loadESPNIdCache();
+              const ck = (player.name||'').toLowerCase().replace(/[^a-z ]/g,'').trim();
+              idCache[ck] = espnId;
+              saveESPNIdCache();
+              traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN ID via search → ${espnId} (cached)`, 'ok');
             } else {
               traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN search — no exact match (${athletes.length} results)`, 'warn');
             }
           } catch(e) {
             traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN search failed — ${e.message}`, 'warn');
           }
+          } // end cache-miss branch
         }
 
         // For MLB: resolve MLB ID from roster if missing
@@ -4698,12 +4842,12 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     // ── NBA / WNBA ──
     // NBA/WNBA: ESPN only (spec rule). Snapshot cache → ESPN → skip.
     if(sport === 'NBA' || sport === 'WNBA') {
-      // Use verified ESPN ID — auto-corrects wrong hardcoded IDs
+      // Use verified ESPN ID from cache if available (no extra API call)
       const verifiedId = getVerifiedESPNId(playerName, playerId);
-      if(verifiedId !== String(playerId)) {
-        traceLog('projectionEngine', `${playerName}: using corrected ESPN ID ${verifiedId} (was ${playerId})`, 'warn');
-      }
       const effectivePlayerId = verifiedId || playerId;
+      if(String(effectivePlayerId) !== String(playerId)) {
+        traceLog('projectionEngine', `${playerName}: using corrected ESPN ID ${effectivePlayerId} (was ${playerId})`, 'warn');
+      }
 
       // Try cached snapshot first (must match verified ID)
       let snap = loadSnapshot(effectivePlayerId, sport);
