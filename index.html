@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v12.10</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v12.11</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -3033,25 +3033,28 @@ async function runFetch(sportsToFetch) {
 
           const minsCache = loadMinsCache();
           // Get avg minutes for a player from their cached snapshot
-          const getAvgMins = (playerName, knownId) => {
+          const getAvgMins = (playerName, knownId, meta) => {
             const verifiedId = getVerifiedESPNId(playerName, knownId || null);
-            if(!verifiedId) return 0;
-            // Fast path: lightweight mins cache (persists across sessions/TTL)
-            if(minsCache[String(verifiedId)]) return minsCache[String(verifiedId)];
-            // Slow path: full snapshot (same session only)
-            try {
-              const snap = loadSnapshot(verifiedId, sport);
-              if(snap?.minutes?.length > 0) {
-                const mins = snap.minutes.filter(m => m > 0);
-                return mins.length ? mins.reduce((a,b)=>a+b,0)/mins.length : 0;
-              }
-            } catch(e) {}
+            if(verifiedId) {
+              // Fast path: lightweight mins cache (persists across sessions/TTL)
+              if(minsCache[String(verifiedId)]) return minsCache[String(verifiedId)];
+              // Slow path: full snapshot (same session only)
+              try {
+                const snap = loadSnapshot(verifiedId, sport);
+                if(snap?.minutes?.length > 0) {
+                  const mins = snap.minutes.filter(m => m > 0);
+                  if(mins.length) return mins.reduce((a,b)=>a+b,0)/mins.length;
+                }
+              } catch(e) {}
+            }
+            // Last resort: PLAYER_DB usage as minutes proxy (usage 0.30 ≈ 30 min/g for ranking)
+            if(meta?.usage) return meta.usage * 100;
             return 0;
           };
 
           const ranked = candidatePool
             .filter(p => p.name && p.name.trim().length > 1)
-            .map(p => ({ ...p, _avgMins: getAvgMins(p.name, p.id) }))
+            .map(p => ({ ...p, _avgMins: getAvgMins(p.name, p.id, p.meta) }))
             .sort((a, b) => {
               // Primary: avg minutes descending (higher mins = more important player)
               if(a._avgMins !== b._avgMins) return b._avgMins - a._avgMins;
