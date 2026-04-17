@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v12.14</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v12.15</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1045,7 +1045,13 @@ function renderTrace() {
   }
   for(const s of TRACE_SECTIONS) {
     const entries = t[s] || [];
-    html += `<div class="trace-section"><div class="trace-section-title">${labels[s]} (${entries.length})</div><div class="trace-entries">`;
+    const sectionText = `${labels[s]}\n${'='.repeat(40)}\n` + (entries.length ? entries.map(e=>e.msg).join('\n') : 'No entries');
+    const safeSection = s;
+    html += `<div class="trace-section">`;
+    html += `<div class="trace-section-title" style="display:flex;justify-content:space-between;align-items:center">`;
+    html += `<span>${labels[s]} (${entries.length})</span>`;
+    html += `<button onclick="(function(){try{navigator.clipboard.writeText(${JSON.stringify(sectionText)}).then(()=>showToast('${labels[s]} copied','ok')).catch(()=>showToast('Copy failed','error'))}catch(e){showToast('Copy failed','error')}})()" style="font-family:var(--mono);font-size:8px;background:var(--bg2);color:var(--blue);border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer">copy</button>`;
+    html += `</div><div class="trace-entries">`;
     if(!entries.length) html += '<div class="trace-entry">No entries</div>';
     else entries.forEach(e => { html += `<div class="trace-entry ${e.level}">${e.msg}</div>`; });
     html += '</div></div>';
@@ -1140,6 +1146,17 @@ document.addEventListener('DOMContentLoaded', function() {
   renderApiStatus({});
   updateSportChipStatus();
   updateProxyBadge();
+
+  // Clean up stale MLB _lastproj_ stability anchors from before v12.15 (when all MLB props
+  // used the same Hits snapshot — now each prop has its own projection so old anchors cause false instability)
+  try {
+    const keysToDelete = [];
+    for(let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if(k && k.startsWith('pe_snap2_MLB_') && k.includes('_lastproj_')) keysToDelete.push(k);
+    }
+    keysToDelete.forEach(k => localStorage.removeItem(k));
+  } catch(e) {}
 
   // Seed mins cache from any existing snapshots (runs once, fast — only touches keys matching pe_snap2_)
   try {
@@ -3984,6 +4001,23 @@ function loadSnapshot(playerId, sport) {
   } catch(e) { return null; }
 }
 
+function loadSnapshotRaw(rawKey) {
+  try {
+    const raw = localStorage.getItem(rawKey);
+    if(!raw) return null;
+    const snap = JSON.parse(raw);
+    const sport = snap.sport || 'MLB';
+    const ttlMs = (SNAPSHOT_TTL[sport] || 6) * 3600000;
+    if(Date.now() - snap.lastUpdated > ttlMs) return null;
+    if(!snap.games || snap.games.length < 5) return null;
+    return snap;
+  } catch(e) { return null; }
+}
+
+function saveSnapshotRaw(rawKey, snap) {
+  try { localStorage.setItem(rawKey, JSON.stringify(snap)); } catch(e) {}
+}
+
 function saveSnapshot(snap) {
   try {
     localStorage.setItem(snapshotKey(snap.playerId, snap.sport), JSON.stringify(snap));
@@ -5011,9 +5045,9 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       }
 
       // MLB spec: MLB Stats API only. Cache is prop-specific to avoid cross-contamination.
-      // Hits prop uses the base snapshot key; other props use a prop-keyed snapshot.
-      const mlbSnapKey = statLabel === 'Hits' ? playerId : `${playerId}_${statLabel.replace(/\s+/g,'_')}`;
-      const snapMLBExisting = loadSnapshot(mlbSnapKey, sport);
+      // Uses pe_snap3_ prefix to invalidate old pe_snap2_ snapshots that were built from Hits only.
+      const mlbSnapKey = statLabel === 'Hits' ? `pe_snap3_MLB_${playerId}` : `pe_snap3_MLB_${playerId}_${statLabel.replace(/\s+/g,'_')}`;
+      const snapMLBExisting = loadSnapshotRaw(mlbSnapKey);
       if(snapMLBExisting && mlbApiVals.length === 0) {
         allVals = snapMLBExisting.games; vsOppVals = mlbApiOppVals;
         contextData._snap = snapMLBExisting;
@@ -5028,7 +5062,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
           gameId: `mlb_${mlbId}_${i}`, // unique per game — prevents dedup from wiping all
         }));
         const snapNew = buildSnapshot(mlbSnapKey, sport, rawMLB, 'MLB Stats API');
-        if(snapNew) { saveSnapshot(snapNew); contextData._snap = snapNew; }
+        if(snapNew) { saveSnapshotRaw(mlbSnapKey, snapNew); contextData._snap = snapNew; }
         allVals = mlbApiVals; vsOppVals = mlbApiOppVals;
         traceLog('projectionEngine', `${playerName} (MLB): MLB Stats API — ${allVals.length} games`, 'ok');
       }
@@ -5304,8 +5338,11 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     if(sport === 'MLB') {
       const isPitcherProp = ['Strikeouts','Total Outs','Hits Allowed','Earned Runs','Walks','Runs First Inning'].includes(statLabel);
       const isBatterProp  = ['Hits','Total Bases','RBIs','Runs','Home Runs','Singles','Doubles','Stolen Bases','Walks','Hits + Runs + RBIs'].includes(statLabel);
+      // Low-frequency batter stats (HR, SB, Doubles) legitimately average below 0.15 — use lower gate
+      const lowFreqBatterProps = ['Home Runs','Stolen Bases','Doubles','Walks'];
+      const batterGate = lowFreqBatterProps.includes(statLabel) ? 0.0 : 0.15; // 0.0 = no gate for low-freq
       const ewmaPreview = computeEWMA(allVals);
-      if(isBatterProp && ewmaPreview !== null && ewmaPreview < 0.15) {
+      if(isBatterProp && ewmaPreview !== null && ewmaPreview < batterGate) {
         traceLog('projectionEngine', `${playerName} (MLB): avg ${ewmaPreview?.toFixed(2)} ${statLabel}/game — too low, likely a pitcher playing as batter — skipped`, 'fail');
         return null;
       }
