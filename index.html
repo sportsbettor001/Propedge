@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v12.8</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v12.9</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -2028,6 +2028,8 @@ const NBA_TEAM_IDS = [
   {id:'25',name:'POR'},{id:'26',name:'SAC'},{id:'27',name:'SAS'},
   {id:'28',name:'TOR'},{id:'29',name:'UTA'},{id:'30',name:'WAS'},
 ];
+// Lookup: abbreviation → ESPN roster API team ID (differs from scoreboard team IDs)
+const NBA_TEAM_ID_BY_ABBR = Object.fromEntries(NBA_TEAM_IDS.map(t => [t.name, t.id]));
 
 // Pull every player from every NBA roster via ESPN
 // Stores: name → ESPN ID for all ~450 active players
@@ -2987,9 +2989,17 @@ async function runFetch(sportsToFetch) {
           // ── TIER 2: ESPN Team rosters — non-MLB only, if T1 returned nothing ──
           if(candidatePool.length === 0 && sport !== 'MLB') {
             traceLog('playerDiscovery', `${sport} ${home}v${away} T1 empty — trying T2 rosters (homeId=${homeTeamId} awayId=${awayTeamId})`, 'warn');
+            // NBA scoreboard team IDs differ from roster API team IDs — use abbr lookup
+            const resolveTeamId = (abbr, fallbackId) =>
+              (sport === 'NBA' && NBA_TEAM_ID_BY_ABBR[abbr]) ? NBA_TEAM_ID_BY_ABBR[abbr] : fallbackId;
+            const resolvedHomeId = resolveTeamId(home, homeTeamId);
+            const resolvedAwayId = resolveTeamId(away, awayTeamId);
+            if(resolvedHomeId !== homeTeamId || resolvedAwayId !== awayTeamId) {
+              traceLog('playerDiscovery', `${sport} ${home}v${away} roster IDs corrected: ${homeTeamId}→${resolvedHomeId}, ${awayTeamId}→${resolvedAwayId}`, 'warn');
+            }
             const rFetches = [];
-            if(homeTeamId) rFetches.push(fetchESPNTeamRoster(espnSport, espnLeague, homeTeamId));
-            if(awayTeamId)  rFetches.push(fetchESPNTeamRoster(espnSport, espnLeague, awayTeamId));
+            if(resolvedHomeId) rFetches.push(fetchESPNTeamRoster(espnSport, espnLeague, resolvedHomeId));
+            if(resolvedAwayId)  rFetches.push(fetchESPNTeamRoster(espnSport, espnLeague, resolvedAwayId));
             const rosters = await Promise.all(rFetches);
             for(const roster of rosters) {
               for(const rp of roster) {
