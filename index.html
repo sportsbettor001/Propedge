@@ -299,7 +299,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v10.5</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v10.6</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -3823,9 +3823,11 @@ function buildSnapshot(playerId, sport, rawGames, source) {
 }
 
 // ═══════════════════════════════════════════════════════
-// SHARP PROJECTION ENGINE (7-step model)
-// Input: validated snapshot. Output: finalProjection + diagnostics.
-// Same inputs always produce same outputs (deterministic).
+// PROJECTION ENGINE
+// Formula: (0.70 × EWMA) + (0.15 × seasonAvg) + (0.10 × oppContext) + (0.05 × minutesProxy)
+// EWMA is the primary signal. Season avg is a stabilizer only.
+// Volatility affects confidence + stdDev width ONLY — never the projection mean.
+// NO clamping toward season average unless data is corrupt/invalid.
 // ═══════════════════════════════════════════════════════
 
 function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
@@ -3834,65 +3836,68 @@ function computeSharpProjection(snap, vsOppVals) {
   const { games, minutes, seasonAvg } = snap;
   if(!games || games.length < 5) return null;
 
-  // Step 1 — data already cleaned in buildSnapshot
-
-  // Step 2 — EWMA
+  // ── EWMA (primary signal, 70% weight) ──
   const ewma = computeEWMA(games);
   if(ewma === null || ewma <= 0) return null;
 
-  // Step 3 — Minutes adjustment
-  const last10Mins = minutes.slice(0, 10);
-  const last5Mins  = minutes.slice(0, 5);
-  const avgMins      = last10Mins.length ? last10Mins.reduce((a,b)=>a+b,0)/last10Mins.length : 0;
-  const expectedMins = last5Mins.length  ? last5Mins.reduce((a,b)=>a+b,0)/last5Mins.length   : 0;
-  const minutesFactor = (avgMins > 0 && expectedMins > 0)
-    ? clamp(expectedMins / avgMins, 0.85, 1.15)
-    : 1.0;
-  const minutesAdj = ewma * minutesFactor;
-
-  // Step 4 — Matchup REMOVED from projection (moved to context layer)
-  // Projection = pure player baseline only
-  const vsAvg = null; // context engine handles matchup
-  const matchupFactor = 1.0;
-  const matchupAdj = ewma; // neutral
-
-  // Step 5 — Trend adjustment
-  const last5  = games.slice(0, 5);
-  const last10 = games.slice(0, 10);
-  const avg5  = last5.length  ? last5.reduce((a,b)=>a+b,0)/last5.length   : ewma;
-  const avg10 = last10.length ? last10.reduce((a,b)=>a+b,0)/last10.length : ewma;
-  const trendFactor = avg10 > 0 ? clamp(avg5 / avg10, 0.90, 1.10) : 1.0;
-  const trendAdj = ewma * trendFactor;
-
-  // Step 6 — Volatility adjustment
+  // ── stdDev — used ONLY for probability distribution width, NOT projection ──
   const stdDev = computeStdDev(games, ewma);
-  const cv = stdDev !== null && ewma > 0 ? stdDev / ewma : null;
-  const volatilityAdj = cv !== null
-    ? (cv > 0.6 ? ewma * -0.05 : cv < 0.3 ? ewma * 0.03 : 0)
-    : 0;
+  const cv     = stdDev !== null && ewma > 0 ? stdDev / ewma : null;
 
-  // Step 7 — Weighted blend (matchup removed — pure player baseline)
-  let proj = (ewma           * 0.60) +
-             (minutesAdj     * 0.20) +
-             (trendAdj       * 0.15) +
-             (volatilityAdj  * 0.05);
+  // ── Season baseline (15% weight — stabilizer, not regression anchor) ──
+  const baseline = seasonAvg > 0 ? seasonAvg : ewma;
 
-  // Step 8 — Sanity clamp
-  const isOutlier = proj < seasonAvg * 0.75 || proj > seasonAvg * 1.35;
-  proj = clamp(proj, seasonAvg * 0.75, seasonAvg * 1.35);
+  // ── Opponent context adjustment (10% weight) ──
+  // Additive delta from opponent history — NOT a multiplicative clamp
+  const vsAvg = vsOppVals && vsOppVals.length >= 3
+    ? vsOppVals.reduce((a,b)=>a+b,0) / vsOppVals.length
+    : null;
+  const oppDelta = vsAvg !== null ? (vsAvg - ewma) : 0;
+  // Cap opponent delta at ±20% of ewma to prevent single outlier matchups dominating
+  const oppAdj = ewma + clamp(oppDelta, ewma * -0.20, ewma * 0.20);
+
+  // ── Minutes proxy adjustment (5% weight) ──
+  // Only adjusts if there's a meaningful recent trend in playing time
+  const last10Mins = minutes.slice(0, 10).filter(m => m > 0);
+  const last5Mins  = minutes.slice(0, 5).filter(m => m > 0);
+  const avgMins    = last10Mins.length ? last10Mins.reduce((a,b)=>a+b,0)/last10Mins.length : 0;
+  const recentMins = last5Mins.length  ? last5Mins.reduce((a,b)=>a+b,0)/last5Mins.length   : 0;
+  // Additive adjustment: if getting more/less minutes recently, scale proportionally
+  // Clamped to ±10% of ewma — minutes proxy is a minor signal
+  const minsDelta    = avgMins > 0 && recentMins > 0 ? (recentMins / avgMins - 1) : 0;
+  const minutesProxy = ewma + clamp(minsDelta * ewma, ewma * -0.10, ewma * 0.10);
+
+  // ── Weighted blend ──
+  // EWMA dominates. Season avg is a light anchor. Opp context + minutes are minor.
+  let proj = (ewma        * 0.70)
+           + (baseline    * 0.15)
+           + (oppAdj      * 0.10)
+           + (minutesProxy * 0.05);
+
+  // ── Outlier detection (informational only — NO clamping) ──
+  // Flag if result is unusually far from season avg, but DO NOT modify projection.
+  // Clamping is only allowed if data integrity issues detected (corrupt/dup data).
+  const isOutlier = proj < seasonAvg * 0.70 || proj > seasonAvg * 1.40;
 
   return {
-    projection: parseFloat(proj.toFixed(2)),
-    ewma, stdDev, cv,
-    minutesFactor, matchupFactor, trendFactor,
+    projection:    parseFloat(proj.toFixed(2)),
+    ewma,
+    stdDev,
+    cv,
+    baseline,
+    vsOppAvg:      vsAvg,
     hasMatchupData: vsAvg !== null,
-    vsOppAvg: vsAvg,
+    minutesFactor: avgMins > 0 && recentMins > 0 ? recentMins / avgMins : 1.0,
+    matchupFactor: 1.0, // kept for compat — matchup is additive now
+    trendFactor:   1.0,
     isOutlier,
     diagnostics: {
-      minutesAdj: parseFloat(minutesAdj.toFixed(2)),
-      matchupAdj: parseFloat(matchupAdj.toFixed(2)),
-      trendAdj:   parseFloat(trendAdj.toFixed(2)),
-      volatilityAdj: parseFloat(volatilityAdj.toFixed(2)),
+      ewmaWeight:    parseFloat((ewma * 0.70).toFixed(2)),
+      baselineWeight:parseFloat((baseline * 0.15).toFixed(2)),
+      oppAdjWeight:  parseFloat((oppAdj * 0.10).toFixed(2)),
+      minsWeight:    parseFloat((minutesProxy * 0.05).toFixed(2)),
+      oppDelta:      parseFloat(oppDelta.toFixed(2)),
+      minsDelta:     parseFloat((minsDelta * 100).toFixed(1)),
     }
   };
 }
@@ -4752,27 +4757,36 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     const ewmaMean      = sharpResult.ewma;
     const stdDev        = sharpResult.stdDev;
 
+    // OUTLIER: flag only — do NOT clamp or suppress
+    // Per spec: volatility = uncertainty, not regression pressure
     if(sharpResult.isOutlier) {
       traceFlags.push('OUTLIER_PROJECTION');
-      traceLog('projectionEngine', `${playerName}: [OUTLIER_PROJECTION] clamped to season avg range`, 'warn');
+      traceLog('projectionEngine', `${playerName}: [OUTLIER_PROJECTION] proj ${sharpResult.projection} is outside 70-140% of seasonAvg — flagged only, not suppressed`, 'warn');
     }
 
-    // ── HIGH VOLATILITY guard: stdDev > mean * 1.2 ──
+    // HIGH_VOLATILITY: flag + reduce confidence, but do NOT block output
+    // stdDev > mean × 1.2 = very high variance. Still project, just lower confidence.
     const cvCheck = sharpResult.stdDev !== null && sharpResult.ewma > 0
       ? sharpResult.stdDev / sharpResult.ewma : 0;
     if(cvCheck > 1.2) {
       traceFlags.push('HIGH_VOLATILITY');
-      traceLog('projectionEngine', `${playerName}: [HIGH_VOLATILITY] stdDev (${sharpResult.stdDev?.toFixed(2)}) > mean (${sharpResult.ewma?.toFixed(2)}) × 1.2 — insufficient_data`, 'fail');
-      return 'insufficient_data';
+      traceLog('projectionEngine', `${playerName}: [HIGH_VOLATILITY] cv=${cvCheck.toFixed(2)} — confidence reduced, projection preserved`, 'warn');
+      // Only block if data integrity is also in question
+      if(traceFlags.includes('GAME_LOG_MISMATCH') || traceFlags.includes('SEASON_COUNT_MISMATCH')) {
+        traceLog('projectionEngine', `${playerName}: HIGH_VOLATILITY + data integrity flags — insufficient_data`, 'fail');
+        return 'insufficient_data';
+      }
+    } else if(cvCheck > 0.6) {
+      traceFlags.push('HIGH_VOLATILITY');
     }
-    if(cvCheck > 0.6) traceFlags.push('HIGH_VOLATILITY');
 
     const snapAudit = contextData._snap?.audit;
     const auditStr = snapAudit
       ? ` [raw=${snapAudit.rawGameCount} reg=${snapAudit.filteredGameCount} playIn=${snapAudit.excludedPlayInGames} dup=${snapAudit.removedDuplicates}]`
       : '';
     traceLog('projectionEngine', `${playerName} (${sport}) — ${dataPoints} games${auditStr} · proj: ${finalProjection} ${statLabel} · ewma: ${ewmaMean?.toFixed(2)} · stdDev: ${stdDev?.toFixed(2)} · cv: ${sharpResult.cv?.toFixed(2)}`, 'ok');
-    traceLog('projectionEngine', `${playerName} adjustments — mins: ×${sharpResult.minutesFactor?.toFixed(3)} · trend: ×${sharpResult.trendFactor?.toFixed(3)} · vol: ${sharpResult.volatilityAdj?.toFixed(3)}`, 'ok');
+    const d = sharpResult.diagnostics || {};
+    traceLog('projectionEngine', `${playerName} weights — ewma:${d.ewmaWeight} base:${d.baselineWeight} opp:${d.oppAdjWeight} mins:${d.minsWeight} | oppDelta:${d.oppDelta>0?'+':''}${d.oppDelta} minsTrend:${d.minsDelta>0?'+':''}${d.minsDelta}%`, 'ok');
 
     // ── OPPONENT CONTEXT ──
     const vsOppAvg = sharpResult.vsOppAvg;
