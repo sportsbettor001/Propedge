@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v13.4</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v13.6</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1149,7 +1149,7 @@ document.addEventListener('DOMContentLoaded', function() {
   updateSportChipStatus();
   updateProxyBadge();
 
-  // Clear all _lastproj_ stability anchors on v13.4 startup
+  // Clear all _lastproj_ stability anchors on v13.6 startup
   // These anchors lock in stale projections from previous buggy versions — safer to reset
   try {
     const keysToDelete = [];
@@ -4313,11 +4313,21 @@ function extractStatFromSnapshot(snap, statLabel) {
   }
   if(colIdx < 0) return null;
 
-  const vals = snap.rawGameObjects
-    .map(g => g.allStats?.[colIdx] !== undefined ? parseFloat(g.allStats[colIdx]) : NaN)
-    .filter(v => !isNaN(v) && v >= 0);
+  // Build aligned (value, opponent, gameIdx) — preserving index into snap.opponents
+  const aligned = snap.rawGameObjects
+    .map((g, i) => ({
+      val: g.allStats?.[colIdx] !== undefined ? parseFloat(g.allStats[colIdx]) : NaN,
+      opp: (snap.opponents?.[i] || '').toUpperCase(),
+      idx: i
+    }))
+    .filter(r => !isNaN(r.val) && r.val >= 0);
 
-  return vals.length >= 5 ? vals : null;
+  if(aligned.length < 5) return null;
+
+  // Return vals array but attach aligned opponents for vsOppVals computation
+  const vals = aligned.map(r => r.val);
+  vals._opponents = aligned.map(r => r.opp); // attached for alignment
+  return vals;
 }
 
 function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
@@ -5185,9 +5195,12 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         const extractedVals = extractStatFromSnapshot(snap, statLabel);
         allVals = extractedVals || snap.games;
         const oppNormNBA = (opp||'').toUpperCase();
-        vsOppVals = (snap.opponents && allVals === (extractedVals || snap.games))
+        // Use aligned opponents attached by extractStatFromSnapshot if available
+        // This prevents index mismatch when extracted vals have fewer entries than snap.opponents
+        const opponentsForFilter = extractedVals?._opponents || snap.opponents;
+        vsOppVals = (opponentsForFilter && allVals.length === opponentsForFilter.length)
           ? allVals.filter((_, i) => {
-              const o = (snap.opponents[i]||'').toUpperCase();
+              const o = (opponentsForFilter[i]||'').toUpperCase();
               return oppNormNBA && (o.includes(oppNormNBA.slice(0,3)) || oppNormNBA.includes(o.slice(0,3)));
             })
           : [];
@@ -5382,11 +5395,21 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
               'Hits':['h','H'],'Runs':['r','R'],'RBIs':['rbi','RBI'],
             };
             const aliases = compAliases[comp] || [comp.toLowerCase()];
-            const labels = g.labels || [];
+            const labels = g.labels?.map(l => (l||'').toString().toLowerCase()) || [];
             let colIdx = -1;
+            // Pass 1: exact match
             for(const al of aliases) {
-              const idx = labels.findIndex(l => l === al.toLowerCase() || l.includes(al.toLowerCase()) || al.toLowerCase().includes(l));
+              const idx = labels.findIndex(l => l === al.toLowerCase());
               if(idx !== -1) { colIdx = idx; break; }
+            }
+            // Pass 2: partial match (3+ chars only)
+            if(colIdx < 0) {
+              for(const al of aliases) {
+                if(al.length >= 3) {
+                  const idx = labels.findIndex(l => l.includes(al.toLowerCase()));
+                  if(idx !== -1) { colIdx = idx; break; }
+                }
+              }
             }
             const v = colIdx >= 0 ? parseFloat(g.allStats?.[colIdx]) : NaN;
             if(isNaN(v) || v < 0) { valid = false; break; }
@@ -5462,23 +5485,72 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       const isB2B = contextData.isB2B || false;
       const spread = contextData.gameSpread || null;
       projectedMinutes = computeMinutesProjection(snapForProj.minutes, isB2B, spread);
-      if(projectedMinutes && allVals.length >= 5) {
-        perMinData = computePerMinuteRate(allVals, snapForProj.minutes);
-        if(perMinData && perMinData.ewmaRate > 0) {
-          // Blend 70% EWMA per-min rate + 30% season per-min rate
-          let blendedRate = (perMinData.ewmaRate * 0.70) + (perMinData.seasonRate * 0.30);
-          // Apply context rate adjustment (defense, pace, usage, teammate injury)
-          // Context adjustments flow into per_minute_rate — not probability
-          const rateAdj = contextData._rateAdj || 0;
-          if(rateAdj !== 0) {
-            blendedRate *= (1 + rateAdj);
-            traceLog('projectionEngine', `${playerName}: context rate adj ×${(1+rateAdj).toFixed(3)} → blended rate ${blendedRate.toFixed(4)}/min`, 'ok');
+      if(projectedMinutes) {
+        // Build aligned (stat, minutes) pairs from rawGameObjects to avoid index mismatch
+        // extractStatFromSnapshot may return fewer values than snap.minutes if some games
+        // had missing columns — this caused massive misalignment in the old approach
+        const snap = snapForProj;
+        let alignedStats = [];
+        let alignedMins = [];
+        if(snap?.rawGameObjects?.length >= 5) {
+          // Get stat column index from first game that has labels
+          const firstGame = snap.rawGameObjects.find(g => g.labels?.length > 0 && g.allStats?.length > 0);
+          if(firstGame) {
+            const statAliasMap = {
+              'Points':['pts','PTS'],'Rebounds':['reb','REB'],'Assists':['ast','AST'],
+              'Threes Made':['3pm','fg3m','3-pt made','3PTM'],'Steals':['stl','STL'],
+              'Blocks':['blk','BLK'],'Turnovers':['to','TOV'],
+            };
+            const aliases = statAliasMap[statLabel] || [statLabel.toLowerCase()];
+            const labels = firstGame.labels.map(l => (l||'').toString().toLowerCase());
+            let colIdx = -1;
+            // Exact match first
+            for(const a of aliases) {
+              const idx = labels.findIndex(l => l === a.toLowerCase());
+              if(idx !== -1) { colIdx = idx; break; }
+            }
+            // Partial match (3+ chars)
+            if(colIdx < 0) {
+              for(const a of aliases) {
+                if(a.length >= 3) {
+                  const idx = labels.findIndex(l => l.includes(a.toLowerCase()));
+                  if(idx !== -1) { colIdx = idx; break; }
+                }
+              }
+            }
+            if(colIdx >= 0) {
+              for(const g of snap.rawGameObjects) {
+                const mins = parseFloat(g.minutes);
+                const val  = parseFloat(g.allStats?.[colIdx]);
+                if(mins >= 10 && !isNaN(val) && val >= 0) {
+                  alignedStats.push(val);
+                  alignedMins.push(mins);
+                }
+              }
+            }
           }
-          // Apply any additional minutes adjustment from context
-          const minsAdj = contextData._minsAdj || 0;
-          if(minsAdj !== 0) projectedMinutes = Math.max(20, projectedMinutes * (1 + minsAdj));
-          minutesBasedProjection = parseFloat((blendedRate * projectedMinutes).toFixed(2));
-          traceLog('projectionEngine', `${playerName}: per-min model — ${projectedMinutes}min × ${blendedRate.toFixed(4)}/min = ${minutesBasedProjection} ${statLabel}`, 'ok');
+        }
+        // Fallback: use allVals + snap.minutes only if lengths match exactly
+        if(alignedStats.length < 5 && allVals.length === snap?.minutes?.length) {
+          alignedStats = allVals;
+          alignedMins  = snap.minutes;
+        }
+        if(alignedStats.length >= 5) {
+          perMinData = computePerMinuteRate(alignedStats, alignedMins);
+          if(perMinData && perMinData.ewmaRate > 0) {
+            let blendedRate = (perMinData.ewmaRate * 0.70) + (perMinData.seasonRate * 0.30);
+            const rateAdj = contextData._rateAdj || 0;
+            if(rateAdj !== 0) {
+              blendedRate *= (1 + rateAdj);
+              traceLog('projectionEngine', `${playerName}: context rate adj ×${(1+rateAdj).toFixed(3)} → blended rate ${blendedRate.toFixed(4)}/min`, 'ok');
+            }
+            const minsAdj = contextData._minsAdj || 0;
+            if(minsAdj !== 0) projectedMinutes = Math.max(20, projectedMinutes * (1 + minsAdj));
+            minutesBasedProjection = parseFloat((blendedRate * projectedMinutes).toFixed(2));
+            traceLog('projectionEngine', `${playerName}: per-min model — ${projectedMinutes}min × ${blendedRate.toFixed(4)}/min = ${minutesBasedProjection} ${statLabel} (${alignedStats.length} aligned games)`, 'ok');
+          }
+        } else {
+          traceLog('projectionEngine', `${playerName}: per-min model skipped — insufficient aligned (stat,mins) pairs (${alignedStats.length})`, 'warn');
         }
       }
     }
