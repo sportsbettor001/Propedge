@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v13.6</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v13.9</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -469,6 +469,24 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         <button onclick="checkApiStatus('nba_proxy')" class="api-status-btn api-status-btn-accent" id="apibtn-nba_proxy" style="grid-column:1/-1">🏀 NBA Proxy (stats.nba.com)</button>
       </div>
       <div id="api-status-results" style="margin-bottom:14px"></div>
+
+      <div class="section-title" style="margin-top:4px">Raw API Inspector</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px">Fetch a live response and expose the exact structure — labels, categories, column layout</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+        <button onclick="inspectRawApi('nba_gamelog')" class="api-status-btn">🏀 NBA Gamelog<br><span style="font-size:8px;opacity:.7">Jokic · all columns</span></button>
+        <button onclick="inspectRawApi('nba_threes')" class="api-status-btn">🏀 NBA Threes<br><span style="font-size:8px;opacity:.7">Curry · fg3m lookup</span></button>
+        <button onclick="inspectRawApi('nfl_gamelog')" class="api-status-btn">🏈 NFL Gamelog<br><span style="font-size:8px;opacity:.7">CMC · categories</span></button>
+        <button onclick="inspectRawApi('mlb_gamelog')" class="api-status-btn">⚾ MLB Gamelog<br><span style="font-size:8px;opacity:.7">Judge · stat keys</span></button>
+        <button onclick="inspectRawApi('nhl_gamelog')" class="api-status-btn">🏒 NHL Gamelog<br><span style="font-size:8px;opacity:.7">McDavid · fields</span></button>
+        <button onclick="inspectRawApi('espn_labels')" class="api-status-btn">📋 ESPN Labels<br><span style="font-size:8px;opacity:.7">Raw topLabels dump</span></button>
+      </div>
+      <div id="raw-api-output" style="display:none;margin-bottom:14px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;overflow-x:auto">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span id="raw-api-title" style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--accent)"></span>
+          <button onclick="copyRawApiOutput()" style="font-family:var(--mono);font-size:9px;background:var(--bg2);border:1px solid rgba(0,229,160,.3);border-radius:5px;padding:2px 8px;color:var(--accent);cursor:pointer">⎘ copy</button>
+        </div>
+        <pre id="raw-api-content" style="font-family:var(--mono);font-size:9px;color:var(--text);white-space:pre-wrap;word-break:break-all;margin:0;max-height:400px;overflow-y:auto"></pre>
+      </div>
       <button onclick="runNBAIdSync()" id="btn-sync-ids" style="width:100%;font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700;margin-bottom:14px">🔄 Sync All NBA Player IDs — All 30 Teams (run once)</button>
       <div id="sync-ids-progress" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg2);border-radius:8px;padding:10px;margin-bottom:14px"></div>
 
@@ -920,6 +938,245 @@ async function checkApiStatus(which) {
 
   const today = todayStr();
   const tests = {
+    espn:  { label:'ESPN', url:`https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${today.replace(/-/g,'')}`, check: d => (d?.events !== undefined), detail: d => `${d?.events?.length ?? 0} games today` },
+    mlb:   { label:'MLB API', url:`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}`, check: d => (d?.dates !== undefined), detail: d => `${d?.dates?.[0]?.games?.length ?? 0} games today` },
+    nhl:   { label:'NHL API', url:`https://api-web.nhle.com/v1/schedule/${today}`, check: d => (d?.gameWeek !== undefined || d?.games !== undefined), detail: d => `${(d?.gameWeek?.[0]?.games || d?.games || []).length} games today` },
+    odds:  { label:'Odds API', url: STATE.settings.oddsApiKey ? `https://api.the-odds-api.com/v4/sports?apiKey=${STATE.settings.oddsApiKey}` : null, check: d => Array.isArray(d), detail: d => `${d?.length ?? 0} sports available` },
+  };
+
+  if(which === 'nba_proxy') {
+    if(!STATE.settings.corsProxy) {
+      if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' fail'; btn.textContent = '🏀 NBA Proxy — No URL set'; }
+      if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:rgba(255,77,106,.06);border:1px solid var(--red);border-radius:8px">No Cloudflare proxy URL in ⚙ Settings</div>`;
+      return;
+    }
+    if(btn) btn.textContent = '⟳ Testing proxy...';
+    try {
+      const nbaUrl = `https://stats.nba.com/stats/playergamelogs?PlayerID=1630163&Season=${getNBASeason()}&SeasonType=Regular+Season&LeagueID=00`;
+      const data = await fetchWithFallback(nbaUrl);
+      const rows = data?.resultSets?.[0]?.rowSet || [];
+      if(rows.length > 0) {
+        if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' ok'; btn.textContent = `🏀 NBA Proxy ✓ — ${rows.length} games`; }
+        if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--accent);padding:8px;background:rgba(0,229,160,.06);border:1px solid var(--accent);border-radius:8px">✓ NBA proxy working · ${rows.length} game logs returned</div>`;
+      } else {
+        if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' fail'; btn.textContent = '🏀 NBA Proxy ✗ — empty'; }
+      }
+    } catch(e) {
+      if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' fail'; btn.textContent = '🏀 NBA Proxy ✗'; }
+      if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:rgba(255,77,106,.06);border:1px solid var(--red);border-radius:8px">✗ ${e.message}</div>`;
+    }
+    return;
+  }
+
+  const test = tests[which];
+  if(!test) return;
+  if(!test.url) {
+    if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' fail'; btn.textContent = `${test.label} — No key`; }
+    if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:rgba(255,181,71,.06);border:1px solid var(--amber);border-radius:8px">⚠ Add Odds API key in ⚙ Settings to test</div>`;
+    return;
+  }
+  try {
+    const t0 = Date.now();
+    const data = await fetchWithFallback(test.url);
+    const ms = Date.now() - t0;
+    const up = test.check(data);
+    const detail = up ? test.detail(data) : 'unexpected response';
+    if(btn) {
+      btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + (up ? ' ok' : ' fail');
+      btn.textContent = `${test.label} ${up ? '✓' : '✗'} ${ms}ms`;
+    }
+    if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:${up?'var(--accent)':'var(--red)'};padding:8px;background:${up?'rgba(0,229,160,.06)':'rgba(255,77,106,.06)'};border:1px solid ${up?'var(--accent)':'var(--red)'};border-radius:8px">${up?'✓':'✗'} ${test.label} — ${detail} · ${ms}ms</div>`;
+  } catch(e) {
+    if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' fail'; btn.textContent = `${test.label} ✗ down`; }
+    if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:rgba(255,77,106,.06);border:1px solid var(--red);border-radius:8px">✗ ${test.label} unreachable — ${e.message}</div>`;
+  }
+}
+
+async function inspectRawApi(which) {
+  const out = document.getElementById('raw-api-output');
+  const title = document.getElementById('raw-api-title');
+  const content = document.getElementById('raw-api-content');
+  out.style.display = 'block';
+  title.textContent = '⟳ Fetching...';
+  content.textContent = '';
+
+  const configs = {
+    nba_gamelog: {
+      label: 'NBA Gamelog — Jokic (3112335) · Points',
+      url: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/3112335/gamelog',
+      parse: inspectESPNGamelog
+    },
+    nba_threes: {
+      label: 'NBA Gamelog — Curry (3975) · fg3m lookup',
+      url: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/3975/gamelog',
+      parse: d => inspectESPNGamelog(d, 'Threes Made')
+    },
+    nfl_gamelog: {
+      label: 'NFL Gamelog — CMC (3054211) · Rush Yards',
+      url: 'https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/3054211/gamelog',
+      parse: inspectESPNGamelog
+    },
+    mlb_gamelog: {
+      label: 'MLB Gamelog — Judge (592450) · game log splits',
+      url: 'https://statsapi.mlb.com/api/v1/people/592450/stats?stats=gameLog&season=2025&group=hitting',
+      parse: inspectMLBGamelog
+    },
+    nhl_gamelog: {
+      label: 'NHL Gamelog — McDavid (8478402) · game log',
+      url: 'https://api-web.nhle.com/v1/player/8478402/game-log/20242025/2',
+      parse: inspectNHLGamelog
+    },
+    espn_labels: {
+      label: 'ESPN Labels dump — LeBron (1966) · raw structure',
+      url: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/1966/gamelog',
+      parse: d => inspectESPNGamelog(d, null, true)
+    },
+  };
+
+  const cfg = configs[which];
+  if(!cfg) return;
+  title.textContent = cfg.label;
+
+  try {
+    const data = await fetchWithFallback(cfg.url);
+    const result = cfg.parse(data);
+    content.textContent = result;
+  } catch(e) {
+    content.textContent = '✗ Fetch failed: ' + e.message;
+  }
+}
+
+function inspectESPNGamelog(data, targetStat, fullDump) {
+  const lines = [];
+  const topLabels = (data?.labels || data?.names || []).map(l => (l||'').toString().toLowerCase());
+  lines.push(`ROOT topLabels (${topLabels.length}): [${topLabels.join(', ')}]`);
+  lines.push('');
+
+  const seasonTypes = data?.seasonTypes || [];
+  lines.push(`Season types found: ${seasonTypes.length}`);
+  seasonTypes.forEach((st, si) => {
+    lines.push(`  [${si}] "${st?.displayName}" id=${st?.id} categories=${st?.categories?.length}`);
+    (st?.categories || []).forEach((cat, ci) => {
+      const catLabels = (cat?.labels || cat?.names || []).map(l => (l||'').toLowerCase());
+      const evRaw = cat?.events || {};
+      const evArr = Array.isArray(evRaw) ? evRaw : Object.values(evRaw);
+      lines.push(`    Category[${ci}]: labels=${catLabels.length > 0 ? '['+catLabels.join(',')+']' : '(none — uses root)'} events=${evArr.length}`);
+      // Show first game stats
+      if(evArr.length > 0) {
+        const ev = evArr[0];
+        const stats = ev?.stats || ev?.statistics || [];
+        lines.push(`      First game stats (${stats.length} cols): [${stats.slice(0,15).join(', ')}${stats.length>15?'...':''}]`);
+        // Map labels to values for first game
+        const labelsToUse = catLabels.length > 0 ? catLabels : topLabels;
+        if(labelsToUse.length > 0 && stats.length > 0) {
+          const mapped = labelsToUse.slice(0,stats.length).map((l,i) => `${l}=${stats[i]}`).join(', ');
+          lines.push(`      Mapped: ${mapped.slice(0,200)}`);
+        }
+      }
+    });
+  });
+
+  // If a target stat was requested, show exactly where it's found
+  if(targetStat) {
+    lines.push('');
+    lines.push(`--- Stat lookup: "${targetStat}" ---`);
+    const statAliasMap = {
+      'Points':['pts','PTS'],'Rebounds':['reb','REB','totalRebounds'],'Assists':['ast','AST'],
+      'Threes Made':['3pm','fg3m','3-pt made','3PTM','fg3','fg3made'],
+      'Steals':['stl','STL'],'Blocks':['blk','BLK'],'Turnovers':['to','TOV','turnovers'],
+    };
+    const aliases = statAliasMap[targetStat] || [targetStat.toLowerCase()];
+    lines.push(`Aliases searched: [${aliases.join(', ')}]`);
+
+    // Search in topLabels
+    let foundIdx = -1;
+    for(const a of aliases) {
+      const idx = topLabels.findIndex(l => l === a.toLowerCase());
+      if(idx !== -1) { foundIdx = idx; lines.push(`Exact match in topLabels: "${a}" at index ${idx}`); break; }
+    }
+    if(foundIdx < 0) {
+      for(const a of aliases) {
+        if(a.length >= 3) {
+          const idx = topLabels.findIndex(l => l.includes(a.toLowerCase()));
+          if(idx !== -1) { foundIdx = idx; lines.push(`Partial match in topLabels: "${a}" at index ${idx}`); break; }
+        }
+      }
+    }
+    if(foundIdx < 0) lines.push(`✗ NOT FOUND in topLabels — per-min model will skip this stat`);
+
+    // Show actual values at that index across first 5 games in each category
+    if(foundIdx >= 0) {
+      seasonTypes.forEach((st, si) => {
+        (st?.categories || []).forEach((cat, ci) => {
+          const evRaw = cat?.events || {};
+          const evArr = Array.isArray(evRaw) ? evRaw : Object.values(evRaw);
+          const sample = evArr.slice(0,5).map(ev => {
+            const s = ev?.stats || [];
+            return s[foundIdx] ?? 'n/a';
+          });
+          lines.push(`  st[${si}] cat[${ci}] col[${foundIdx}] values: [${sample.join(', ')}]`);
+        });
+      });
+    }
+  }
+
+  // Full dump of root events structure
+  const rootEvObj = data?.events || {};
+  const rootEvArr = Array.isArray(rootEvObj) ? rootEvObj : Object.values(rootEvObj);
+  lines.push('');
+  lines.push(`Root events object: ${Array.isArray(rootEvObj) ? 'Array' : 'Object'} with ${rootEvArr.length} entries`);
+  if(rootEvArr.length > 0) {
+    lines.push(`First root event keys: [${Object.keys(rootEvArr[0]).join(', ')}]`);
+  }
+
+  if(fullDump && data) {
+    lines.push('');
+    lines.push('--- FULL ROOT KEYS ---');
+    lines.push(Object.keys(data).join(', '));
+    lines.push('');
+    lines.push('--- FIRST SEASON TYPE FULL ---');
+    if(seasonTypes[0]) lines.push(JSON.stringify(seasonTypes[0], null, 2).slice(0, 3000));
+  }
+
+  return lines.join('\n');
+}
+
+function inspectMLBGamelog(data) {
+  const lines = [];
+  const stats = data?.stats || [];
+  lines.push(`MLB Stats groups: ${stats.length}`);
+  stats.forEach((grp, i) => {
+    lines.push(`  [${i}] type="${grp?.type}" group="${grp?.group?.displayName}" splits=${grp?.splits?.length}`);
+    const split = grp?.splits?.[0];
+    if(split) {
+      lines.push(`  First split keys: [${Object.keys(split?.stat || {}).join(', ')}]`);
+      lines.push(`  Sample: ${JSON.stringify(split?.stat).slice(0,200)}`);
+    }
+  });
+  return lines.join('\n');
+}
+
+function inspectNHLGamelog(data) {
+  const lines = [];
+  const gl = data?.gameLog || [];
+  lines.push(`NHL gameLog entries: ${gl.length}`);
+  if(gl.length > 0) {
+    lines.push(`First game keys: [${Object.keys(gl[0]).join(', ')}]`);
+    lines.push(`First game: ${JSON.stringify(gl[0]).slice(0,300)}`);
+  }
+  return lines.join('\n');
+}
+
+function copyRawApiOutput() {
+  const content = document.getElementById('raw-api-content')?.textContent || '';
+  navigator.clipboard.writeText(content).then(() => showToast('Copied', 'ok')).catch(() => showToast('Copy failed', 'error'));
+}
+  const btn = document.getElementById(`apibtn-${which}`);
+  const resultsEl = document.getElementById('api-status-results');
+  if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' checking'; btn.textContent = '⟳ Checking...'; }
+
+  const today = todayStr();
+  const tests = {
     espn:      { label:'ESPN', url:`https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${today.replace(/-/g,'')}`, check: d => (d?.events !== undefined), detail: d => `${d?.events?.length ?? 0} games today` },
     mlb:       { label:'MLB API', url:`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}`, check: d => (d?.dates !== undefined), detail: d => `${d?.dates?.[0]?.games?.length ?? 0} games today` },
     nhl:       { label:'NHL API', url:`https://api-web.nhle.com/v1/schedule/${today}`, check: d => (d?.gameWeek !== undefined || d?.games !== undefined), detail: d => `${(d?.gameWeek?.[0]?.games || d?.games || []).length} games today` },
@@ -1149,7 +1406,7 @@ document.addEventListener('DOMContentLoaded', function() {
   updateSportChipStatus();
   updateProxyBadge();
 
-  // Clear all _lastproj_ stability anchors on v13.6 startup
+  // Clear all _lastproj_ stability anchors on v13.9 startup
   // These anchors lock in stale projections from previous buggy versions — safer to reset
   try {
     const keysToDelete = [];
@@ -3819,6 +4076,7 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
   };
   const statIdx = findIdx(statLabel);
   const allGames = [];
+  const seenIds = new Set();
 
   if(topLabels.length > 0 && gameLogData?.seasonTypes?.length > 0) {
     for(const st of (gameLogData.seasonTypes || [])) {
@@ -3836,12 +4094,13 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
       if(stName.includes('preseason') || stName.includes('pre-season')) continue;
       // Filter to allowed season type if specified
       if(allowedSeasonType === 'regular') {
-        // Only accept regular season — skip playoff/postseason entries
         if(stName.includes('playoff') || stName.includes('post') || stName.includes('play-in')) continue;
       } else if(allowedSeasonType === 'playoff') {
-        // Only accept playoff/play-in — skip regular season entries
         if(!stName.includes('playoff') && !stName.includes('post') && !stName.includes('play-in')) continue;
       }
+      // Deduplicate by eventId — multiple categories per season type each repeat the same games
+      // but with different stat arrays. Only keep one entry per game (first valid one).
+      const eventBest = {};
       for(const cat of (st?.categories || [])) {
         const eventsRaw = cat?.events || {};
         const events = Array.isArray(eventsRaw) ? eventsRaw : Object.values(eventsRaw);
@@ -3849,8 +4108,16 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
           const stats = ev?.stats || ev?.statistics || [];
           if(!stats.length) continue;
           const evId = String(ev?.eventId || ev?.id || '');
-          allGames.push({ stats, opp: oppByEventId[evId] || '' });
+          const val = statIdx >= 0 ? parseFloat(stats[statIdx]) : NaN;
+          if(!eventBest[evId] || (!isNaN(val) && isNaN(parseFloat(eventBest[evId].stats[statIdx])))) {
+            eventBest[evId] = { stats, opp: oppByEventId[evId] || '' };
+          }
         }
+      }
+      for(const [evId, entry] of Object.entries(eventBest)) {
+        if(seenIds.has(evId)) continue;
+        seenIds.add(evId);
+        allGames.push(entry);
       }
     }
     if(allGames.length > 0) {
@@ -4117,6 +4384,7 @@ function extractESPNRawGames(gameLogData, statLabel, opp) {
   const statIdx = findIdx(statLabel);
 
   const results = [];
+  const seenEventIds = new Set(); // deduplicate — one entry per game
 
   if(topLabels.length > 0 && raw?.seasonTypes?.length > 0) {
     for(const st of raw.seasonTypes || []) {
@@ -4135,30 +4403,48 @@ function extractESPNRawGames(gameLogData, statLabel, opp) {
 
       if(seasonType === 'preseason') continue; // always skip
 
+      // Each category has a different stat array for the same game.
+      // We must only keep the category whose topLabels match — i.e. the one
+      // that has the primary stat (statIdx) at the correct column position.
+      // Strategy: collect all categories per event, pick the one where stats[statIdx] is valid.
+      // Build eventId → best stats array map first, then emit one result per event.
+      const eventBestStats = {}; // eventId → { stats, meta }
       for(const cat of st.categories || []) {
+        const catLabels = (cat?.labels || cat?.names || topLabels).map(l => (l||'').toLowerCase());
+        const catStatIdx = statIdx; // use the index from topLabels (same category structure assumed)
         const eventsRaw = cat?.events || {};
         const events = Array.isArray(eventsRaw) ? eventsRaw : Object.values(eventsRaw);
         for(const ev of events) {
           const stats = ev?.stats || [];
           if(!stats.length) continue;
-          const evId     = String(ev?.eventId || ev?.id || '');
-          const mins     = minsIdx >= 0 ? parseFloat(stats[minsIdx]) : NaN;
-          const meta     = eventMeta[evId] || {};
-          // Store ALL stat values indexed by position — extract per prop type later
-          const val      = statIdx >= 0 ? parseFloat(stats[statIdx]) : NaN;
-          if(!isNaN(val) || stats.length > 0) {
-            results.push({
-              value: val,        // primary stat (for backward compat)
-              allStats: stats,   // full stats array — other props extracted from this
-              labels: topLabels, // column labels
-              minutes: mins,
-              opponent: meta.opponent || '',
-              date: meta.date || '',
-              gameId: evId,
-              seasonType,
-              atVs: meta.atVs || '',
-            });
+          const evId = String(ev?.eventId || ev?.id || '');
+          const mins = minsIdx >= 0 ? parseFloat(stats[minsIdx]) : NaN;
+          const val  = catStatIdx >= 0 ? parseFloat(stats[catStatIdx]) : NaN;
+          const meta = eventMeta[evId] || {};
+          // Keep this entry if it has a valid primary stat value, or if we haven't seen this event yet
+          if(!eventBestStats[evId] || (!isNaN(val) && isNaN(parseFloat(eventBestStats[evId].stats[catStatIdx])))) {
+            eventBestStats[evId] = { stats, mins, meta, seasonType };
           }
+        }
+      }
+      // Emit one result per event
+      for(const [evId, entry] of Object.entries(eventBestStats)) {
+        if(seenEventIds.has(evId)) continue;
+        seenEventIds.add(evId);
+        const { stats, mins, meta, seasonType: st2 } = entry;
+        const val = statIdx >= 0 ? parseFloat(stats[statIdx]) : NaN;
+        if(!isNaN(val) || stats.length > 0) {
+          results.push({
+            value:    val,
+            allStats: stats,
+            labels:   topLabels,
+            minutes:  isNaN(mins) ? 0 : mins,
+            opponent: meta.opponent || '',
+            date:     meta.date || '',
+            gameId:   evId,
+            seasonType: st2,
+            atVs:     meta.atVs || '',
+          });
         }
       }
     }
