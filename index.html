@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v13.0</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v13.4</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -730,7 +730,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
     <button class="modal-btn" onclick="saveSettings()">Save Settings</button>
     <button class="modal-close" onclick="closeSettings()">Close</button>
-    <button class="modal-close" onclick="revertToDefaults()" style="color:var(--amber);border-color:rgba(255,181,71,.3);margin-top:6px">↺ Clear API keys</button>
+    <button class="modal-close" onclick="revertToDefaults()" style="color:var(--amber);border-color:rgba(255,181,71,.3);margin-top:6px">↺ Clear API keys & revert defaults</button>
     <button class="modal-close" onclick="clearAllData()" style="color:var(--red);border-color:rgba(255,77,106,.3);margin-top:6px">⚠ Clear all data</button>
   </div>
 </div>
@@ -1149,7 +1149,7 @@ document.addEventListener('DOMContentLoaded', function() {
   updateSportChipStatus();
   updateProxyBadge();
 
-  // Clear all _lastproj_ stability anchors on v13.0 startup
+  // Clear all _lastproj_ stability anchors on v13.4 startup
   // These anchors lock in stale projections from previous buggy versions — safer to reset
   try {
     const keysToDelete = [];
@@ -2194,10 +2194,45 @@ function normCDF(x) {
   return x >= 0 ? cdf : 1 - cdf;
 }
 
-// P(stat > line) — continuous normal distribution
-function probOver(mean, stdDev, line) {
-  if(!stdDev || stdDev <= 0) return mean > line ? 0.85 : 0.15;
-  const z = (line - mean) / stdDev;
+// Poisson CDF: P(X <= k) where lambda = mean
+function poissonCDF(lambda, k) {
+  if(lambda <= 0) return k >= 0 ? 1 : 0;
+  let sum = 0, term = Math.exp(-lambda);
+  for(let i = 0; i <= Math.floor(k); i++) {
+    sum += term;
+    term *= lambda / (i + 1);
+  }
+  return Math.min(1, sum);
+}
+
+// Distribution selector based on stat type
+// Returns { dist: 'normal'|'poisson', stdDevMultiplier }
+function getDistributionProfile(statLabel, sport) {
+  // Low-count integer stats → Poisson
+  const poissonStats = ['Home Runs','Stolen Bases','Goals','Goals Against','Saves',
+                        'Blocks','FG Made','XP Made','Birdies or Better','Bogeys or Worse'];
+  if(poissonStats.includes(statLabel)) return { dist: 'poisson', stdDevMult: 1.0 };
+  // Volatile combo/high-variance → normal + inflate stdDev
+  const highVariance = ['Points + Rebounds + Assists','Points + Rebounds','Points + Assists',
+                        'Assists + Rebounds','Steals','Turnovers','Receptions','Targets'];
+  if(highVariance.includes(statLabel)) return { dist: 'normal', stdDevMult: 1.15 };
+  // Default: normal with slight inflation for right-skewed stats
+  if(['Rebounds','Assists','Strikeouts','RBIs','Shots on Goal'].includes(statLabel))
+    return { dist: 'normal', stdDevMult: 1.10 };
+  return { dist: 'normal', stdDevMult: 1.0 };
+}
+
+// P(stat > line) — selects distribution based on stat type
+function probOver(mean, stdDev, line, statLabel, sport) {
+  const profile = (statLabel && sport) ? getDistributionProfile(statLabel, sport) : { dist:'normal', stdDevMult:1.0 };
+  if(profile.dist === 'poisson') {
+    // P(X > line) = 1 - P(X <= floor(line))
+    return 1 - poissonCDF(mean, Math.floor(line));
+  }
+  // Normal distribution with optional stdDev inflation
+  const effectiveSd = (stdDev || mean * 0.4) * profile.stdDevMult;
+  if(!effectiveSd || effectiveSd <= 0) return mean > line ? 0.85 : 0.15;
+  const z = (line - mean) / effectiveSd;
   return 1 - normCDF(z);
 }
 
@@ -2209,10 +2244,15 @@ function americanToImplied(americanOdds) {
 }
 
 // ── 5. EXPECTED VALUE ──
-// edge = model_probability - implied_probability
-// EV% = edge * 100 (as a percentage)
-function computeEV(modelProb, impliedProb) {
-  return modelProb - impliedProb; // raw decimal edge
+// True Kelly-style EV: (P_win × payout) - (P_loss × risk)
+// For American odds: payout = 100/|odds| for favorites, odds/100 for underdogs
+// This correctly handles -115, -130, +120 etc. instead of assuming -110
+function computeEV(modelProb, impliedProb, americanOdds) {
+  // If no odds provided, fall back to edge = modelProb - impliedProb (equivalent at -110)
+  if(!americanOdds || americanOdds === -110) return modelProb - impliedProb;
+  // Payout per unit risked
+  const payout = americanOdds < 0 ? 100 / Math.abs(americanOdds) : americanOdds / 100;
+  return (modelProb * payout) - ((1 - modelProb) * 1);
 }
 
 // ── 6. CONFIDENCE — volatility-aware ──
@@ -2629,10 +2669,14 @@ async function runFetch(sportsToFetch) {
               // Determine today vs tomorrow from event start time
               const eventDate = event.commence_time ? localDateStr(new Date(event.commence_time)) : todayStr();
               const dateTag = eventDate === tomorrowStr() ? 'tomorrow' : 'today';
+              // Also find the Under outcome for this market to get its odds
+              const underOutcome = market.outcomes.find(o => o.name === 'Under' && o.description === outcome.description);
               allPlayersWithLines.push({
                 name: outcome.description, sport,
                 espnSport: sportToESPN[sport]?.[0], espnLeague: sportToESPN[sport]?.[1],
                 prop: propType, line: parseFloat(outcome.point),
+                overOdds:  outcome.price ?? -110,
+                underOdds: underOutcome?.price ?? -110,
                 homeTeam, awayTeam, eventId: event.id, dateTag
               });
               oddsApiWorking = true;
@@ -3312,7 +3356,9 @@ async function runFetch(sportsToFetch) {
         // Merge mlbId into playerMeta so buildPlayerProp can use it for MLB API fetch
         const playerMetaMerged = { ...(dbEntry||{}), ...(player.meta||{}),
           mlbId: resolvedMlbId || null,
-          nbaId: dbEntry?.nbaId || null };
+          nbaId: dbEntry?.nbaId || null,
+          overOdds:  player.overOdds  ?? -110,
+          underOdds: player.underOdds ?? -110 };
         let prop = await buildPlayerProp(
           effectiveId, player.name, player.sport, player.espnSport, player.espnLeague,
           dbEntry?.team||player.homeTeam, opp, player.dateTag || 'today',
@@ -4349,6 +4395,77 @@ function computeSharpProjection(snap, vsOppVals, overrideGames) {
 }
 
 // ═══════════════════════════════════════════════════════
+// MINUTES PROJECTION MODEL
+// For NBA/WNBA: projects tonight's minutes using EWMA of last 10 games
+// Used to compute per-minute rate then scale to final projection
+// ═══════════════════════════════════════════════════════
+function computeMinutesProjection(minutesArray, isB2B, spread) {
+  if(!minutesArray || minutesArray.length === 0) return null;
+  const validMins = minutesArray.filter(m => m > 0 && m <= 48);
+  if(validMins.length < 3) return null;
+
+  // EWMA of last 10 minutes (α=0.30 — slightly more responsive than stat EWMA)
+  const last10 = validMins.slice(0, 10);
+  let ewmaMins = last10[last10.length - 1];
+  for(let i = last10.length - 2; i >= 0; i--) {
+    ewmaMins = 0.30 * last10[i] + 0.70 * ewmaMins;
+  }
+
+  // Season average minutes as anchor
+  const seasonAvgMins = validMins.reduce((a,b)=>a+b,0) / validMins.length;
+
+  // Blend: 70% EWMA, 30% season avg
+  let projMins = (ewmaMins * 0.70) + (seasonAvgMins * 0.30);
+
+  // Back-to-back fatigue: -4% minutes
+  if(isB2B) projMins *= 0.96;
+
+  // Blowout risk: large spread games → star players sit late
+  // spread > 10: -3%, spread > 15: -6%
+  if(spread && Math.abs(spread) > 15) projMins *= 0.94;
+  else if(spread && Math.abs(spread) > 10) projMins *= 0.97;
+
+  // Hard caps: NBA stars rarely play <28 or >40 minutes
+  projMins = Math.max(20, Math.min(40, projMins));
+
+  return parseFloat(projMins.toFixed(1));
+}
+
+// Compute per-minute rate from game values and minutes
+// Returns { perMinRate, stdDevPerMin, sampleSize }
+function computePerMinuteRate(gameValues, minutesArray, alpha = 0.28) {
+  if(!gameValues || !minutesArray || gameValues.length < 3) return null;
+  const perMinRates = [];
+  for(let i = 0; i < Math.min(gameValues.length, minutesArray.length); i++) {
+    const mins = minutesArray[i];
+    const val  = gameValues[i];
+    if(mins >= 10 && val !== null && !isNaN(val)) {
+      perMinRates.push(val / mins);
+    }
+  }
+  if(perMinRates.length < 3) return null;
+
+  // EWMA of per-minute rates
+  let ewmaRate = perMinRates[perMinRates.length - 1];
+  for(let i = perMinRates.length - 2; i >= 0; i--) {
+    ewmaRate = alpha * perMinRates[i] + (1 - alpha) * ewmaRate;
+  }
+  const seasonRate = perMinRates.reduce((a,b)=>a+b,0) / perMinRates.length;
+
+  // stdDev of per-minute rates (for variance-based stdDev)
+  const mean = seasonRate;
+  const variance = perMinRates.reduce((s,r)=>s+Math.pow(r-mean,2),0)/(perMinRates.length-1);
+  const stdDevRate = Math.sqrt(variance);
+
+  return {
+    ewmaRate: parseFloat(ewmaRate.toFixed(4)),
+    seasonRate: parseFloat(seasonRate.toFixed(4)),
+    stdDevRate: parseFloat(stdDevRate.toFixed(4)),
+    sampleSize: perMinRates.length,
+  };
+}
+
+// ═══════════════════════════════════════════════════════
 // CALIBRATION LAYER
 // Tracks predicted probability vs actual results per bucket.
 // Adjusts future probabilities so the model learns from mistakes.
@@ -4565,49 +4682,68 @@ async function applyContextEngine(sport, statLabel, contextData, playerMeta, tea
   const addFactor = (val) => Math.max(-0.10, Math.min(0.10, val));
 
   // ══ NBA / WNBA CONTEXT ══
+  // Per spec: ALL adjustments affect projected_minutes or per_minute_rate
+  // NO direct probability adjustments for NBA
   if(sport === 'NBA' || sport === 'WNBA') {
-    // 1. Opponent defense (points allowed)
+    // 1. Opponent defense → affects per_minute_rate (efficiency)
     const oppDef = contextData.nbaOppDef;
     if(oppDef !== null && oppDef !== undefined) {
-      // League avg ~113 pts allowed. Above = weak defense, below = strong
-      const defAdj = oppDef > 116 ? 0.05 : oppDef > 113 ? 0.02 : oppDef < 108 ? -0.05 : oppDef < 111 ? -0.02 : 0;
-      if(defAdj !== 0) {
-        probAdj += addFactor(defAdj);
-        notes.push(`Opp defense: ${oppDef.toFixed(1)} pts/g allowed → ${defAdj>0?'+':''}${(defAdj*100).toFixed(0)}% (ESPN team stats)`);
+      // League avg ~113 pts allowed. Affects scoring efficiency → per-min rate
+      const defRateAdj = oppDef > 116 ? 0.04 : oppDef > 113 ? 0.02 : oppDef < 108 ? -0.04 : oppDef < 111 ? -0.02 : 0;
+      if(defRateAdj !== 0) {
+        contextData._rateAdj = (contextData._rateAdj || 0) + defRateAdj;
+        notes.push(`Opp defense: ${oppDef.toFixed(1)} pts/g → rate ×${(1+defRateAdj).toFixed(2)} (ESPN team stats)`);
         confBoost += 0.3;
       }
     }
 
-    // 2. Pace proxy (team scoring)
+    // 2. Pace → affects per_minute_rate (more possessions = slightly higher rate)
     const pace = contextData.nbaPace;
     if(pace !== null && pace !== undefined) {
-      const paceAdj = pace > 118 ? 0.03 : pace > 115 ? 0.01 : pace < 108 ? -0.03 : 0;
-      if(paceAdj !== 0) {
-        probAdj += addFactor(paceAdj);
-        notes.push(`Team pace: ${pace.toFixed(1)} pts/g → ${paceAdj>0?'+':''}${(paceAdj*100).toFixed(0)}% (ESPN)`);
+      const paceRateAdj = pace > 118 ? 0.02 : pace > 115 ? 0.01 : pace < 108 ? -0.02 : 0;
+      if(paceRateAdj !== 0) {
+        contextData._rateAdj = (contextData._rateAdj || 0) + paceRateAdj;
+        notes.push(`Team pace: ${pace.toFixed(1)} pts/g → rate ×${(1+paceRateAdj).toFixed(2)} (ESPN)`);
       }
     }
 
-    // 3. Back-to-back
+    // 3. Back-to-back → affects projected_minutes (handled in computeMinutesProjection)
     if(contextData.isB2B) {
-      probAdj -= 0.04;
+      contextData._minsAdj = (contextData._minsAdj || 0) - 0.04; // flag for minutes model
       confBoost -= 0.5;
-      notes.push(`Back-to-back game → -4% (ESPN schedule)`);
+      notes.push(`Back-to-back → -4% minutes (ESPN schedule)`);
     }
 
-    // 4. Injury: key teammate out (stored in contextData)
+    // 4. Injury: key teammate out → dynamic usage boost based on player role + absence severity
     if(contextData.keyTeammateOut) {
-      probAdj += addFactor(0.07);
+      // Role-based scaling: stars absorb more usage when a teammate is out
+      const usage = playerMeta.usage || 0.22; // default to average usage
+      const isstar = usage >= 0.28;
+      const isRole = usage <= 0.18;
+      // Absence severity: stored in contextData.teammateAbsenceSeverity ('major'|'minor'|'moderate')
+      const severity = contextData.teammateAbsenceSeverity || 'moderate';
+      let usageBoost;
+      if(severity === 'major') {
+        // Starting ball-handler / high-usage player out
+        usageBoost = isstar ? 0.10 : isRole ? 0.03 : 0.07;
+      } else if(severity === 'minor') {
+        // Bench/role player out — minimal ripple effect
+        usageBoost = isstar ? 0.03 : isRole ? 0.01 : 0.02;
+      } else {
+        // Moderate: starter but not ball-dominant
+        usageBoost = isstar ? 0.07 : isRole ? 0.02 : 0.05;
+      }
+      contextData._rateAdj = (contextData._rateAdj || 0) + usageBoost;
       confBoost += 0.5;
-      notes.push(`Key teammate out (${contextData.keyTeammateOut}) → +7% usage boost (ESPN injuries)`);
+      notes.push(`${contextData.keyTeammateOut} out (${severity}) → rate +${(usageBoost*100).toFixed(0)}% usage (role: ${isstar?'star':isRole?'role':'starter'}, usage=${(usage*100).toFixed(0)}%)`);
     }
 
-    // 5. 3PT% for threes prop
+    // 5. 3PT% for threes prop → affects per_minute_rate only
     if(statLabel === 'Threes Made' && playerMeta.threePct !== undefined) {
       const adj = playerMeta.threePct >= 0.39 ? 0.04 : playerMeta.threePct <= 0.34 ? -0.04 : 0;
       if(adj !== 0) {
-        probAdj += addFactor(adj);
-        notes.push(`3PT% ${(playerMeta.threePct*100).toFixed(0)}% → ${adj>0?'+':''}${(adj*100).toFixed(0)}% (PLAYER_DB)`);
+        contextData._rateAdj = (contextData._rateAdj || 0) + adj;
+        notes.push(`3PT% ${(playerMeta.threePct*100).toFixed(0)}% → rate ×${(1+adj).toFixed(2)} (PLAYER_DB)`);
       }
     }
   }
@@ -4776,9 +4912,12 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     let hasMatchupData = false;
     let injuryStatus = injuries[playerName.toLowerCase()] || null;
     const hasRealLine = realLine !== null && realLine > 0;
-    // Betting mode: real sportsbook line from Odds API — required for EV calc
-    // Analysis mode: no line needed — probability is based on projection consistency
-    const line = hasRealLine ? parseFloat(realLine) : 0;
+    // Betting mode: real sportsbook line from Odds API
+    // Analysis mode: use lineBase from PLAYER_DB as estimated line for probability calc
+    // lineBase is labeled as estimated — no EV is computed, but we can still show P(Over lineBase)
+    const lineBase = lineBaseOverride || playerMeta?.lineBase || null;
+    const line = hasRealLine ? parseFloat(realLine) : (lineBase ? parseFloat(lineBase) : 0);
+    const hasEstimatedLine = !hasRealLine && lineBase && lineBase > 0;
     if(hasRealLine && (!line || line <= 0)) return null;
 
     // ══════════════════════════════════════════════════════
@@ -5215,6 +5354,17 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       'Rush + Receiving Touchdowns': ['Rush Yards','Receiving Yards'], // proxy — see note below
       'Steals + Blocks':             ['Steals','Blocks'],
     };
+    // Combo prop correlation flag — PRA/PR/PA components are positively correlated
+    // (good game → points AND rebounds AND assists all tend to be high together)
+    // This correlation means combined variance > sum of independent variances
+    const COMBO_CORRELATION_MULT = {
+      'Points + Rebounds + Assists': 1.20, // strong positive correlation
+      'Points + Rebounds':           1.12,
+      'Points + Assists':            1.15,
+      'Assists + Rebounds':          1.08,
+      'Hits + Runs + RBIs':          1.18, // MLB: hits drives runs and RBIs
+      'Steals + Blocks':             1.05, // weak correlation
+    };
     if(COMBO_COMPONENTS[statLabel]) {
       const components = COMBO_COMPONENTS[statLabel];
       const snap = contextData._snap;
@@ -5299,9 +5449,39 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     }
 
     // ── SHARP PROJECTION ENGINE (7-step model) ──
-    // Uses snapshot if available (NBA/WNBA), otherwise raw allVals
+    // For NBA/WNBA with sufficient minutes data: use minutes × per_minute_rate
+    // For all other sports: use EWMA of raw game values
     const snapForProj = contextData._snap || buildSnapshot(playerId, sport,
       allVals.map((v,i) => ({ value: v, minutes: 999, opponent: '', date: '', gameId: `inline_${i}` })), 'inline');
+
+    // ── MINUTES × PER-MINUTE MODEL (NBA/WNBA only) ──
+    let minutesBasedProjection = null;
+    let projectedMinutes = null;
+    let perMinData = null;
+    if((sport === 'NBA' || sport === 'WNBA') && snapForProj?.minutes?.length >= 5) {
+      const isB2B = contextData.isB2B || false;
+      const spread = contextData.gameSpread || null;
+      projectedMinutes = computeMinutesProjection(snapForProj.minutes, isB2B, spread);
+      if(projectedMinutes && allVals.length >= 5) {
+        perMinData = computePerMinuteRate(allVals, snapForProj.minutes);
+        if(perMinData && perMinData.ewmaRate > 0) {
+          // Blend 70% EWMA per-min rate + 30% season per-min rate
+          let blendedRate = (perMinData.ewmaRate * 0.70) + (perMinData.seasonRate * 0.30);
+          // Apply context rate adjustment (defense, pace, usage, teammate injury)
+          // Context adjustments flow into per_minute_rate — not probability
+          const rateAdj = contextData._rateAdj || 0;
+          if(rateAdj !== 0) {
+            blendedRate *= (1 + rateAdj);
+            traceLog('projectionEngine', `${playerName}: context rate adj ×${(1+rateAdj).toFixed(3)} → blended rate ${blendedRate.toFixed(4)}/min`, 'ok');
+          }
+          // Apply any additional minutes adjustment from context
+          const minsAdj = contextData._minsAdj || 0;
+          if(minsAdj !== 0) projectedMinutes = Math.max(20, projectedMinutes * (1 + minsAdj));
+          minutesBasedProjection = parseFloat((blendedRate * projectedMinutes).toFixed(2));
+          traceLog('projectionEngine', `${playerName}: per-min model — ${projectedMinutes}min × ${blendedRate.toFixed(4)}/min = ${minutesBasedProjection} ${statLabel}`, 'ok');
+        }
+      }
+    }
 
     const sharpResult = snapForProj
       ? computeSharpProjection(snapForProj, vsOppVals, allVals.length >= 5 ? allVals : undefined)
@@ -5314,7 +5494,50 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
 
     let finalProjection = sharpResult.projection;
     const ewmaMean      = sharpResult.ewma;
-    const stdDev        = sharpResult.stdDev;
+
+    // For NBA/WNBA: minutes × per-minute rate IS the projection when data is sufficient
+    // Fallback to EWMA only if minutes data is insufficient (< 8 samples)
+    if(minutesBasedProjection !== null && perMinData && perMinData.sampleSize >= 8) {
+      traceLog('projectionEngine', `${playerName}: using minutes-model projection ${minutesBasedProjection} (EWMA fallback was ${finalProjection})`, 'ok');
+      finalProjection = minutesBasedProjection;
+    } else if(minutesBasedProjection !== null && perMinData) {
+      // Low sample: blend 40% minutes-model + 60% EWMA (trust EWMA more when few per-min samples)
+      const blended = (minutesBasedProjection * 0.40) + (finalProjection * 0.60);
+      traceLog('projectionEngine', `${playerName}: low-sample blend — 40% min-model(${minutesBasedProjection}) + 60% EWMA(${finalProjection}) = ${blended.toFixed(2)}`, 'ok');
+      finalProjection = parseFloat(blended.toFixed(2));
+    }
+
+    // StdDev: variance-based from per-minute data + minutes uncertainty component
+    let stdDev = sharpResult.stdDev;
+    if(perMinData && projectedMinutes) {
+      const profile = getDistributionProfile(statLabel, sport);
+      // Component 1: stat variance from per-minute production
+      const sdFromPerMin = perMinData.stdDevRate * projectedMinutes;
+      // Component 2: minutes uncertainty contribution
+      // Stable rotation → tight (±2min). Blowout risk → wider (±5min). Volatile role → ±4min
+      const spread = contextData.gameSpread || 0;
+      const minsUncertainty = Math.abs(spread) > 15 ? 5.0   // blowout → high mins variance
+                            : Math.abs(spread) > 10 ? 3.5
+                            : contextData.isB2B         ? 3.0   // B2B → less predictable
+                            : (playerMeta.vol === 'high') ? 4.0  // volatile player
+                            : 2.0;                               // stable rotation
+      // Minutes uncertainty adds variance: dStat/dMins × minsUncertainty
+      const perMinRate = perMinData ? ((perMinData.ewmaRate*0.70)+(perMinData.seasonRate*0.30)) : 0;
+      const sdFromMinsUncertainty = perMinRate * minsUncertainty;
+      // Combine in quadrature (independent sources of variance)
+      const combinedSd = Math.sqrt(Math.pow(sdFromPerMin, 2) + Math.pow(sdFromMinsUncertainty, 2));
+      if(combinedSd > 0) {
+        stdDev = combinedSd * profile.stdDevMult;
+        traceLog('projectionEngine', `${playerName}: stdDev = √(${sdFromPerMin.toFixed(2)}²+${sdFromMinsUncertainty.toFixed(2)}²) × ${profile.stdDevMult} = ${stdDev.toFixed(2)} (mins uncertainty: ±${minsUncertainty}min)`, 'ok');
+      }
+    }
+
+    // Apply combo correlation inflation if applicable
+    const comboCorrelationMult = COMBO_CORRELATION_MULT[statLabel] || 1.0;
+    if(comboCorrelationMult > 1.0 && stdDev) {
+      stdDev = stdDev * comboCorrelationMult;
+      traceLog('projectionEngine', `${playerName}: combo correlation (${statLabel}) → stdDev ×${comboCorrelationMult} = ${stdDev.toFixed(2)}`, 'ok');
+    }
 
     // OUTLIER: flag only — do NOT clamp or suppress
     // Per spec: volatility = uncertainty, not regression pressure
@@ -5440,7 +5663,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     let baseProbOver, baseProbUnder;
     if(hasRealLine && line > 0) {
       // Betting mode: compare projection to real sportsbook line
-      baseProbOver  = probOver(finalProjection, effectiveStdDev, line);
+      baseProbOver  = probOver(finalProjection, effectiveStdDev, line, statLabel, sport);
       baseProbUnder = 1 - baseProbOver;
     } else {
       // Analysis mode: P(score within ±20% band around projection)
@@ -5493,9 +5716,9 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     // Add context notes to display
     ctxResult.notes.forEach(n => contextNotes.push(n));
 
-    // ── ODDS → IMPLIED PROBABILITY ──
-    const overOdds  = -110;
-    const underOdds = -110;
+    // ── ODDS → IMPLIED PROBABILITY (use real sportsbook odds if available) ──
+    const overOdds  = (hasRealLine && playerMeta.overOdds)  ? playerMeta.overOdds  : -110;
+    const underOdds = (hasRealLine && playerMeta.underOdds) ? playerMeta.underOdds : -110;
     const impliedOver  = americanToImplied(overOdds);
     const impliedUnder = americanToImplied(underOdds);
 
@@ -5527,9 +5750,23 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       localStorage.setItem(snapKey, finalProjection.toString());
     } catch(e) {}
 
+    // ── MARKET MOVEMENT CONFIDENCE PENALTY ──
+    // If the line moved toward our projection since open, the market already priced it in
+    // clvEntry = opening/estimated line; if it moved >1pt toward our number → reduce conf
+    if(hasRealLine && playerMeta.openingLine && playerMeta.openingLine !== line) {
+      const lineMove = playerMeta.openingLine - line; // positive = line moved down
+      const projAbove = finalProjection > line; // we like OVER
+      const movedTowardUs = (projAbove && lineMove < 0) || (!projAbove && lineMove > 0);
+      if(movedTowardUs && Math.abs(lineMove) >= 1.0) {
+        traceLog('projectionEngine', `${playerName}: line moved ${lineMove > 0 ? '+' : ''}${lineMove.toFixed(1)} toward model — market already pricing this in, conf -1`, 'warn');
+        // Will be applied to conf below
+        contextData._marketMoveAdj = -1;
+      }
+    }
+
     // ── EV recalculated with calibrated probability ──
-    const overEV  = computeEV(calProbOver,  impliedOver);
-    const underEV = computeEV(calProbUnder, impliedUnder);
+    const overEV  = computeEV(calProbOver,  impliedOver,  overOdds);
+    const underEV = computeEV(calProbUnder, impliedUnder, underOdds);
     const overEVPct  = parseFloat((overEV  * 100).toFixed(1));
     const underEVPct = parseFloat((underEV * 100).toFixed(1));
 
@@ -5542,12 +5779,62 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     if(traceFlags.includes('CONTEXT_CONFLICT'))  conf -= 2;
     if(traceFlags.includes('LOW_SAMPLE'))        conf -= 3;
     if(stabilityFlag)                             conf -= 1;
+    if(contextData._marketMoveAdj)                conf += contextData._marketMoveAdj; // market move penalty
     // Boost for strong alignment
     if(!traceFlags.includes('CONTEXT_CONFLICT') && Math.abs(ctxResult.probShift) > 0.05) conf += 1;
     conf = Math.min(10, Math.max(1, conf));
 
     // ── DECISION ──
     const decision = evDecision(overEV, underEV, overProbRaw, underProbRaw, conf, hasRealLine);
+
+    // ── EDGE TIER — classify strength of edge ──
+    // STRONG BET: EV > 5%, conf >= 6, stable minutes
+    // SMALL EDGE: EV 2-5% or conf 4-5
+    // NO PLAY: EV < 2% or no real line
+    // FADE: model strongly disagrees with line direction
+    const chosenEVForTier = decision === 'OVER' ? overEVPct : decision === 'UNDER' ? underEVPct : 0;
+
+    // ── VARIANCE-ADJUSTED EDGE FILTER ──
+    // A projection edge is only meaningful relative to the uncertainty (stdDev)
+    // Small differences are noise when variance is high
+    const projLineDiff = Math.abs(finalProjection - line);
+    const varianceAdjEdge = effectiveStdDev > 0 ? projLineDiff / effectiveStdDev : 0;
+    // Need at least 0.30σ separation to consider it a meaningful edge
+    // High-variance props (CV > 0.6) require 0.40σ
+    const cvForEdge = effectiveStdDev > 0 && finalProjection > 0 ? effectiveStdDev / finalProjection : 0;
+    const minSigmaRequired = cvForEdge > 0.6 ? 0.40 : 0.30;
+    const hasVarianceAdjEdge = varianceAdjEdge >= minSigmaRequired;
+
+    // Market efficiency check: projection within 3% of line AND weak sigma separation → NO PLAY
+    const marketEfficiencyThreshold = 0.03;
+    const projVsLineRatio = (line && line > 0) ? projLineDiff / line : 1;
+    const marketEfficient = (projVsLineRatio < marketEfficiencyThreshold || !hasVarianceAdjEdge) && hasRealLine;
+    if(marketEfficient && decision !== 'PASS') {
+      traceLog('projectionEngine', `${playerName}: variance-adj edge ${varianceAdjEdge.toFixed(2)}σ < ${minSigmaRequired}σ required (cv=${cv.toFixed(2)}) → NO PLAY`, 'warn');
+    }
+
+    // Minutes stability check for edge discipline
+    const minsStable = projectedMinutes !== null
+      ? (Math.abs(projectedMinutes - (snapForProj?.minutes?.[0] || projectedMinutes)) / projectedMinutes < 0.15)
+      : true; // non-NBA sports: assume stable
+
+    let edgeTier = 'NO PLAY';
+    if(hasRealLine && decision !== 'PASS' && !marketEfficient && minsStable) {
+      // STRONG BET: needs EV>5%, conf≥6, AND meaningful sigma separation
+      if(chosenEVForTier >= 5 && conf >= 6 && varianceAdjEdge >= 0.40) edgeTier = 'STRONG BET';
+      // SMALL EDGE: EV>2% with adequate sigma separation
+      else if(chosenEVForTier >= 2 && hasVarianceAdjEdge) edgeTier = 'SMALL EDGE';
+      else edgeTier = 'NO PLAY';
+    } else if(hasRealLine && decision !== 'PASS' && !marketEfficient && !minsStable) {
+      // Has edge but minutes are volatile — downgrade
+      if(chosenEVForTier >= 5 && conf >= 6) edgeTier = 'SMALL EDGE'; // downgraded
+      else edgeTier = 'NO PLAY';
+      traceLog('projectionEngine', `${playerName}: minutes unstable — edge downgraded`, 'warn');
+    } else if(hasRealLine) {
+      const projVsLine = finalProjection && line ? finalProjection / line : 1;
+      if(projVsLine < 0.80 || projVsLine > 1.25) edgeTier = 'FADE';
+    }
+    traceLog('projectionEngine', `${playerName}: edge analysis — ${varianceAdjEdge.toFixed(2)}σ separation, EV ${chosenEVForTier}%, mins stable:${minsStable} → ${edgeTier}`, edgeTier==='STRONG BET'||edgeTier==='SMALL EDGE'?'pass':edgeTier==='NO PLAY'?'ok':'warn');
     const chosenEV  = decision === 'OVER' ? overEVPct : decision === 'UNDER' ? underEVPct : 0;
     const chosenProb = decision === 'OVER' ? overProbRaw : decision === 'UNDER' ? underProbRaw : 0.5;
     const winProb   = winProbDisplay(chosenProb);
@@ -5600,6 +5887,8 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     );
 
     const isAnalysisProp = !hasRealLine;
+    // For analysis mode with estimated line: compute probability but mark clearly as estimated
+    // EV is NOT computed for estimated lines — market efficiency unknown
     // Edge stored as legacy format for display compatibility
     const edgeForDisplay = { val: parseFloat((finalProjection - line).toFixed(2)), pct: parseFloat(((finalProjection - line) / (line || 1) * 100).toFixed(1)) };
     const safeEdge     = isAnalysisProp ? { val: 0, pct: 0 } : edgeForDisplay;
@@ -5617,8 +5906,17 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       // EV fields (new in v4)
       overProb: parseFloat((overProbRaw*100).toFixed(1)),
       underProb: parseFloat((underProbRaw*100).toFixed(1)),
-      overEV: overEVPct, underEV: underEVPct,
+      overEV: isAnalysisProp ? 0 : overEVPct,
+      underEV: isAnalysisProp ? 0 : underEVPct,
+      hasEstimatedLine: hasEstimatedLine || false,
       modelMean: finalProjection, modelStdDev: parseFloat(effectiveStdDev.toFixed(2)),
+      // Sharp model fields
+      edgeTier,
+      projectedMinutes: projectedMinutes ?? null,
+      perMinRate: perMinData ? parseFloat(((perMinData.ewmaRate*0.70+perMinData.seasonRate*0.30)).toFixed(4)) : null,
+      distProfile: getDistributionProfile(statLabel, sport).dist,
+      overOdds: hasRealLine ? overOdds : null,
+      underOdds: hasRealLine ? underOdds : null,
       dataSource:{gamelog:dataPoints, hasRealLine, espnId:playerId, completenessBreakdown: completeness.breakdown},
       clvEntry: isAnalysisProp ? null : line, clvClose:null, timestamp:Date.now()
     };
@@ -5796,11 +6094,11 @@ async function analyzePick() {
     if(!projection) { showToast('Insufficient data', 'error'); isAnalyzing = false; btn.disabled = false; btnText.textContent = 'Analyze This Pick'; return; }
 
     const sd = computeStdDev(cleanVals, projection) || projection * 0.25;
-    const ovP = probOver(projection, sd, line);
+    const ovP = probOver(projection, sd, line, prop, sport);
     const unP = 1 - ovP;
     const impOv = americanToImplied(-110);
-    const evOv  = parseFloat((computeEV(ovP, impOv) * 100).toFixed(1));
-    const evUn  = parseFloat((computeEV(unP, impOv) * 100).toFixed(1));
+    const evOv  = parseFloat((computeEV(ovP, impOv, -110) * 100).toFixed(1));
+    const evUn  = parseFloat((computeEV(unP, impOv, -110) * 100).toFixed(1));
     const conf  = computeConfidence(cleanVals.length, sd, projection, false, false);
     // Check Pick = manually entered line, not verified — display results but note it
     const minEVPct = (STATE.settings.minEdge ?? 5) / 100;
@@ -6061,8 +6359,10 @@ function propCardHTML(p) {
   // Analysis view banner: show proj vs sportsbook line comparison when forcing analysis on betting props
   const analysisWarningHTML = forceAnalysis
     ? `<div style="font-family:var(--mono);font-size:9px;color:var(--amber);background:rgba(255,181,71,.06);border:1px solid rgba(255,181,71,.15);border-radius:6px;padding:5px 9px;margin-bottom:6px">📊 ANALYSIS VIEW · Line: ${p.line ?? '—'} · Proj: ${projDisplay} · Model prob: ${p.overProb ?? '—'}% OVER · ${p.underProb !== undefined ? (100 - p.overProb) : '—'}% UNDER</div>`
+    : isAnalysis && p.hasEstimatedLine
+    ? `<div style="font-family:var(--mono);font-size:9px;color:var(--amber);background:rgba(255,181,71,.06);border:1px solid rgba(255,181,71,.15);border-radius:6px;padding:5px 9px;margin-bottom:6px">📊 ANALYSIS MODE · Estimated line ${p.line ?? '—'} · P(Over) ${p.overProb}% — no live odds, EV not computed</div>`
     : isAnalysis
-    ? `<div style="font-family:var(--mono);font-size:9px;color:var(--amber);background:rgba(255,181,71,.06);border:1px solid rgba(255,181,71,.15);border-radius:6px;padding:5px 9px;margin-bottom:6px">⚠ NO MARKET DATA — ANALYSIS MODE ONLY. No betting recommendation.</div>`
+    ? `<div style="font-family:var(--mono);font-size:9px;color:var(--amber);background:rgba(255,181,71,.06);border:1px solid rgba(255,181,71,.15);border-radius:6px;padding:5px 9px;margin-bottom:6px">⚠ NO MARKET DATA — ANALYSIS MODE. No sportsbook line available.</div>`
     : '';
   const narrativeHTML = p.narrative ? `<div class="prop-narrative ${forceAnalysis ? (p.proj > (p.line||p.lineBase||p.proj) ? 'over' : 'under') : (isAnalysis ? 'pass' : decLow)}">${p.narrative}</div>` : '';
 
@@ -6102,9 +6402,12 @@ function propCardHTML(p) {
       <div class="decision-badge ${decBadgeClass}">${decBadgeLabel}</div>
       <div class="conf-block"><div class="conf-dots">${dots}</div><div class="conf-text">${p.conf}/10 · ${p.winProb}% prob</div></div>
     </div>
+    ${p.edgeTier && p.edgeTier !== 'NO PLAY' && !forceAnalysis && !isAnalysis ? `<div style="font-family:var(--mono);font-size:9px;margin-top:5px;padding:3px 8px;border-radius:5px;display:inline-block;${p.edgeTier==='STRONG BET'?'background:rgba(0,229,160,.12);color:var(--accent);border:1px solid rgba(0,229,160,.3)':p.edgeTier==='SMALL EDGE'?'background:rgba(255,181,71,.08);color:var(--amber);border:1px solid rgba(255,181,71,.25)':p.edgeTier==='FADE'?'background:rgba(255,77,106,.08);color:var(--red);border:1px solid rgba(255,77,106,.25)':''}">⚡ ${p.edgeTier}${p.overOdds && p.overOdds !== -110 ? ` · ${p.decision==='OVER'?p.overOdds:p.underOdds}` : ''}</div>` : ''}
     <button class="expand-btn" onclick="toggleReasoning(${p.id})">▾ full data breakdown</button>
     <div class="reasoning ${isExpanded ? 'open' : ''}" id="reasoning-${p.id}">
       ${reasoningHTML}
+      ${p.projectedMinutes ? `<div class="reasoning-line" style="color:var(--blue)">📐 Projected minutes: ${p.projectedMinutes} min · Per-min rate: ${p.perMinRate ?? '—'} · Distribution: ${p.distProfile ?? 'normal'}</div>` : ''}
+      ${p.overOdds && p.overOdds !== -110 ? `<div class="reasoning-line" style="color:var(--muted)">📊 Real odds — Over: ${p.overOdds} · Under: ${p.underOdds ?? '—'}</div>` : ''}
       <div class="data-source-line">📡 ${dataLabel}${isAnalysis && !forceAnalysis ? ' · ANALYSIS MODE — no market data' : p.dataSource?.hasRealLine ? ' · ✓ Live sportsbook line' : ' · Estimated line — add Odds API key'} · completeness ${completenessScore !== null ? completenessScore + '%' : 'N/A'}</div>
     </div>
     ${(!forceAnalysis && p.decision !== 'PASS') ? `<button class="add-slip-btn ${inSlip ? 'added' : ''}" id="slip-btn-${p.id}" onclick="toggleSlip(${p.id})">${inSlip ? '✓ Added to slip' : '+ Add to slip'}</button>` : ''}
