@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v13.9</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v14.1</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1171,6 +1171,8 @@ function copyRawApiOutput() {
   const content = document.getElementById('raw-api-content')?.textContent || '';
   navigator.clipboard.writeText(content).then(() => showToast('Copied', 'ok')).catch(() => showToast('Copy failed', 'error'));
 }
+
+async function checkApiStatus(which) {
   const btn = document.getElementById(`apibtn-${which}`);
   const resultsEl = document.getElementById('api-status-results');
   if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' checking'; btn.textContent = '⟳ Checking...'; }
@@ -1406,7 +1408,7 @@ document.addEventListener('DOMContentLoaded', function() {
   updateSportChipStatus();
   updateProxyBadge();
 
-  // Clear all _lastproj_ stability anchors on v13.9 startup
+  // Clear all _lastproj_ stability anchors on v14.1 startup
   // These anchors lock in stale projections from previous buggy versions — safer to reset
   try {
     const keysToDelete = [];
@@ -6005,8 +6007,19 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
 
     finalProjection = parseFloat(finalProjection.toFixed(2));
 
-    // ══════════════════════════════════════════════════════
-    // PROBABILITY ENGINE
+    // ── PROJECTION SANITY CAP ──
+    // If the final projection is outside the physically possible range for this stat,
+    // the column lookup was wrong — fall back to EWMA and log loudly
+    const [projMinV, projMaxV] = saneRanges[statLabel] || [0, 9999];
+    if(finalProjection > projMaxV || finalProjection < projMinV) {
+      const badProj = finalProjection;
+      finalProjection = parseFloat((sharpResult.ewma || sharpResult.projection).toFixed(2));
+      traceLog('projectionEngine', `${playerName}: SANITY CAP — ${statLabel} proj ${badProj} outside [${projMinV},${projMaxV}] → fell back to EWMA ${finalProjection}`, 'fail');
+      traceFlags.push('SANITY_CAPPED');
+      // Also clear minutesBasedProjection so stdDev falls back to raw
+      projectedMinutes = null;
+      perMinData = null;
+    }
     // Step 1: base probability from normal distribution
     // Step 2: context engine adjusts probability (not projection)
     // Step 3: EV recalculated with adjusted probability
@@ -6136,6 +6149,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     if(traceFlags.includes('HIGH_VOLATILITY'))   conf -= 2;
     if(traceFlags.includes('CONTEXT_CONFLICT'))  conf -= 2;
     if(traceFlags.includes('LOW_SAMPLE'))        conf -= 3;
+    if(traceFlags.includes('SANITY_CAPPED'))     conf -= 3; // column extraction failed, EWMA fallback
     if(stabilityFlag)                             conf -= 1;
     if(contextData._marketMoveAdj)                conf += contextData._marketMoveAdj; // market move penalty
     // Boost for strong alignment
