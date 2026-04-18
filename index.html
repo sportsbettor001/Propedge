@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v14.1</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v14.2</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1082,7 +1082,7 @@ function inspectESPNGamelog(data, targetStat, fullDump) {
     lines.push(`--- Stat lookup: "${targetStat}" ---`);
     const statAliasMap = {
       'Points':['pts','PTS'],'Rebounds':['reb','REB','totalRebounds'],'Assists':['ast','AST'],
-      'Threes Made':['3pm','fg3m','3-pt made','3PTM','fg3','fg3made'],
+      'Threes Made':['3pt','3pm','fg3m','3-pt made','3PTM','fg3','fg3made'],
       'Steals':['stl','STL'],'Blocks':['blk','BLK'],'Turnovers':['to','TOV','turnovers'],
     };
     const aliases = statAliasMap[targetStat] || [targetStat.toLowerCase()];
@@ -1408,7 +1408,7 @@ document.addEventListener('DOMContentLoaded', function() {
   updateSportChipStatus();
   updateProxyBadge();
 
-  // Clear all _lastproj_ stability anchors on v14.1 startup
+  // Clear all _lastproj_ stability anchors on v14.2 startup
   // These anchors lock in stale projections from previous buggy versions — safer to reset
   try {
     const keysToDelete = [];
@@ -4020,7 +4020,7 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
 
   const statAliases = {
     'Points':['pts','points','PTS'],'Rebounds':['reb','rebounds','total rebounds','REB','TREB'],
-    'Assists':['ast','assists','AST'],'Threes Made':['3pm','threesMade','3-pt made','3pt made','3PTM'],
+    'Assists':['ast','assists','AST'],'Threes Made':['3pt','3pm','threesMade','3-pt made','3pt made','3PTM'],
     'Steals':['stl','steals','STL'],'Blocks':['blk','blocks','BLK'],'Turnovers':['to','turnovers','TOV','TO'],
     'Hits':['h','hits','H'],'Total Bases':['tb','total bases','TB'],'Strikeouts':['k','so','strikeouts','K','SO'],
     'RBIs':['rbi','rbis','RBI'],'Runs':['r','runs','R'],'Home Runs':['hr','homeruns','HR'],
@@ -4110,8 +4110,8 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
           const stats = ev?.stats || ev?.statistics || [];
           if(!stats.length) continue;
           const evId = String(ev?.eventId || ev?.id || '');
-          const val = statIdx >= 0 ? parseFloat(stats[statIdx]) : NaN;
-          if(!eventBest[evId] || (!isNaN(val) && isNaN(parseFloat(eventBest[evId].stats[statIdx])))) {
+          const val = statIdx >= 0 ? parseStatVal(stats[statIdx]) : NaN;
+          if(!eventBest[evId] || (!isNaN(val) && isNaN(parseStatVal(eventBest[evId].stats[statIdx])))) {
             eventBest[evId] = { stats, opp: oppByEventId[evId] || '' };
           }
         }
@@ -4125,11 +4125,11 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
     if(allGames.length > 0) {
       const oppNorm = opp?.toUpperCase() || '';
       const allVals = allGames
-        .map(g => statIdx >= 0 ? parseFloat(g.stats[statIdx]) : null)
+        .map(g => statIdx >= 0 ? parseStatVal(g.stats[statIdx]) : null)
         .filter(v => v !== null && !isNaN(v) && v >= 0);
       const vsOppVals = allGames
         .filter(g => oppNorm && g.opp && (g.opp.includes(oppNorm.slice(0,3)) || oppNorm.includes(g.opp.slice(0,3))))
-        .map(g => statIdx >= 0 ? parseFloat(g.stats[statIdx]) : null)
+        .map(g => statIdx >= 0 ? parseStatVal(g.stats[statIdx]) : null)
         .filter(v => v !== null && !isNaN(v) && v >= 0);
       return { allVals, vsOppVals };
     }
@@ -4145,11 +4145,11 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
   }
   const oppNorm = opp?.toUpperCase() || '';
   const allVals = legacyGames
-    .map(g => statIdx >= 0 ? parseFloat(g.stats[statIdx]) : null)
+    .map(g => statIdx >= 0 ? parseStatVal(g.stats[statIdx]) : null)
     .filter(v => v !== null && !isNaN(v) && v >= 0);
   const vsOppVals = legacyGames
     .filter(g => oppNorm && g.opp && (g.opp.includes(oppNorm.slice(0,3)) || oppNorm.includes(g.opp.slice(0,3))))
-    .map(g => statIdx >= 0 ? parseFloat(g.stats[statIdx]) : null)
+    .map(g => statIdx >= 0 ? parseStatVal(g.stats[statIdx]) : null)
     .filter(v => v !== null && !isNaN(v) && v >= 0);
   return { allVals, vsOppVals };
 }
@@ -4330,7 +4330,7 @@ function normalizeGameLogs(rawGames, sport, includePlayoffs = false) {
 function extractESPNRawGames(gameLogData, statLabel, opp) {
   const statAliases = {
     'Points':['pts','points','PTS'],'Rebounds':['reb','rebounds','REB'],
-    'Assists':['ast','assists','AST'],'Threes Made':['3pm','3-pt made','3PTM'],
+    'Assists':['ast','assists','AST'],'Threes Made':['3pt','3pm','3-pt made','3PTM'],
     'Steals':['stl','steals','STL'],'Blocks':['blk','blocks','BLK'],'Turnovers':['to','turnovers','TOV'],
     'Hits':['h','hits','H'],'Total Bases':['tb','TB'],'Strikeouts':['k','so','K','SO'],
     'RBIs':['rbi','RBI'],'Runs':['r','runs','R'],'Home Runs':['hr','HR'],
@@ -4421,10 +4421,10 @@ function extractESPNRawGames(gameLogData, statLabel, opp) {
           if(!stats.length) continue;
           const evId = String(ev?.eventId || ev?.id || '');
           const mins = minsIdx >= 0 ? parseFloat(stats[minsIdx]) : NaN;
-          const val  = catStatIdx >= 0 ? parseFloat(stats[catStatIdx]) : NaN;
+          const val  = catStatIdx >= 0 ? parseStatVal(stats[catStatIdx]) : NaN;
           const meta = eventMeta[evId] || {};
           // Keep this entry if it has a valid primary stat value, or if we haven't seen this event yet
-          if(!eventBestStats[evId] || (!isNaN(val) && isNaN(parseFloat(eventBestStats[evId].stats[catStatIdx])))) {
+          if(!eventBestStats[evId] || (!isNaN(val) && isNaN(parseStatVal(eventBestStats[evId].stats[catStatIdx])))) {
             eventBestStats[evId] = { stats, mins, meta, seasonType };
           }
         }
@@ -4434,7 +4434,7 @@ function extractESPNRawGames(gameLogData, statLabel, opp) {
         if(seenEventIds.has(evId)) continue;
         seenEventIds.add(evId);
         const { stats, mins, meta, seasonType: st2 } = entry;
-        const val = statIdx >= 0 ? parseFloat(stats[statIdx]) : NaN;
+        const val = statIdx >= 0 ? parseStatVal(stats[statIdx]) : NaN;
         if(!isNaN(val) || stats.length > 0) {
           results.push({
             value:    val,
@@ -4539,7 +4539,7 @@ function extractStatFromSnapshot(snap, statLabel) {
     'Points':       ['pts','points','PTS'],
     'Rebounds':     ['reb','rebounds','total rebounds','REB','TREB'],
     'Assists':      ['ast','assists','AST'],
-    'Threes Made':  ['3pm','3-pt made','3PTM','fg3m'],
+    'Threes Made':  ['3pt','3pm','3-pt made','3PTM','fg3m'],
     'Steals':       ['stl','steals','STL'],
     'Blocks':       ['blk','blocks','BLK'],
     'Turnovers':    ['to','turnovers','TOV'],
@@ -4604,7 +4604,7 @@ function extractStatFromSnapshot(snap, statLabel) {
   // Build aligned (value, opponent, gameIdx) — preserving index into snap.opponents
   const aligned = snap.rawGameObjects
     .map((g, i) => ({
-      val: g.allStats?.[colIdx] !== undefined ? parseFloat(g.allStats[colIdx]) : NaN,
+      val: g.allStats?.[colIdx] !== undefined ? parseStatVal(g.allStats[colIdx]) : NaN,
       opp: (snap.opponents?.[i] || '').toUpperCase(),
       idx: i
     }))
@@ -4616,6 +4616,17 @@ function extractStatFromSnapshot(snap, statLabel) {
   const vals = aligned.map(r => r.val);
   vals._opponents = aligned.map(r => r.opp); // attached for alignment
   return vals;
+}
+
+// Parse ESPN stat value — handles both plain numbers and "X-Y" made-attempted strings
+// e.g. "3-10" → 3 (made count), "25.0" → 25, 17 → 17
+function parseStatVal(v) {
+  if(v === null || v === undefined) return NaN;
+  const s = String(v).trim();
+  // "X-Y" format (made-attempted): return made count
+  const dashMatch = s.match(/^(\d+)-(\d+)$/);
+  if(dashMatch) return parseFloat(dashMatch[1]);
+  return parseFloat(s);
 }
 
 function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
@@ -5699,7 +5710,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
                 }
               }
             }
-            const v = colIdx >= 0 ? parseFloat(g.allStats?.[colIdx]) : NaN;
+            const v = colIdx >= 0 ? parseStatVal(g.allStats?.[colIdx]) : NaN;
             if(isNaN(v) || v < 0) { valid = false; break; }
             sum += v;
           }
@@ -5786,7 +5797,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
           if(firstGame) {
             const statAliasMap = {
               'Points':['pts','PTS'],'Rebounds':['reb','REB'],'Assists':['ast','AST'],
-              'Threes Made':['3pm','fg3m','3-pt made','3PTM'],'Steals':['stl','STL'],
+              'Threes Made':['3pt','3pm','fg3m','3-pt made','3PTM'],'Steals':['stl','STL'],
               'Blocks':['blk','BLK'],'Turnovers':['to','TOV'],
             };
             const aliases = statAliasMap[statLabel] || [statLabel.toLowerCase()];
@@ -5809,7 +5820,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
             if(colIdx >= 0) {
               for(const g of snap.rawGameObjects) {
                 const mins = parseFloat(g.minutes);
-                const val  = parseFloat(g.allStats?.[colIdx]);
+                const val  = parseStatVal(g.allStats?.[colIdx]);
                 if(mins >= 10 && !isNaN(val) && val >= 0) {
                   alignedStats.push(val);
                   alignedMins.push(mins);
