@@ -46,19 +46,28 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 /* SETTINGS MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:flex-end}
 .modal-overlay.open{display:flex}
-.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:24px 24px 0 0;padding:24px 20px calc(env(safe-area-inset-bottom)+24px);width:100%;max-height:85vh;overflow-y:auto;animation:slideUp .3s cubic-bezier(.34,1.56,.64,1)}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:24px 24px 0 0;padding:24px 20px calc(env(safe-area-inset-bottom)+24px);width:100%;max-height:88vh;overflow-y:auto;overflow-x:hidden;animation:slideUp .3s cubic-bezier(.34,1.56,.64,1);box-sizing:border-box}
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
 .modal-title{font-size:18px;font-weight:800;margin-bottom:6px}
 .modal-sub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:20px;line-height:1.6}
-.setting-group{margin-bottom:18px}
-.setting-label{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:block}
-.setting-input{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:11px 14px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;-webkit-appearance:none}
+.setting-card{background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:12px}
+.setting-card-title{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
+.setting-group{margin-bottom:14px}
+.setting-group:last-child{margin-bottom:0}
+.setting-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.setting-label{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:6px;display:block;white-space:normal;word-break:break-word;line-height:1.4}
+.setting-input{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:11px 14px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;-webkit-appearance:none;box-sizing:border-box}
 .setting-input:focus{border-color:var(--accent)}
-.setting-hint{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:5px;line-height:1.5}
+.setting-hint{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:5px;line-height:1.5;white-space:normal;word-break:break-word}
 .setting-hint a{color:var(--blue);text-decoration:none}
-.modal-btn{width:100%;padding:14px;background:var(--accent);color:#000;font-family:var(--sans);font-size:14px;font-weight:700;border:none;border-radius:14px;cursor:pointer;margin-top:8px;transition:all .15s}
+.modal-btn{width:100%;padding:14px;background:var(--accent);color:#000;font-family:var(--sans);font-size:14px;font-weight:700;border:none;border-radius:14px;cursor:pointer;margin-top:8px;transition:all .15s;box-sizing:border-box}
 .modal-btn:active{transform:scale(.97)}
-.modal-close{width:100%;padding:12px;background:transparent;color:var(--muted);font-family:var(--mono);font-size:13px;border:1px solid var(--border);border-radius:14px;cursor:pointer;margin-top:8px}
+.api-status-btn{font-family:var(--mono);font-size:11px;padding:10px 8px;background:var(--bg2);border:1px solid var(--border2);border-radius:10px;color:var(--text);cursor:pointer;text-align:center;transition:all .15s}
+.api-status-btn-accent{background:rgba(0,229,160,.08);border-color:rgba(0,229,160,.3);color:var(--accent)}
+.api-status-btn.checking{color:var(--amber);border-color:var(--amber)}
+.api-status-btn.ok{color:var(--accent);border-color:var(--accent);background:rgba(0,229,160,.06)}
+.api-status-btn.fail{color:var(--red);border-color:var(--red);background:rgba(255,77,106,.06)}
+.modal-close{width:100%;padding:12px;background:transparent;color:var(--muted);font-family:var(--mono);font-size:13px;border:1px solid var(--border);border-radius:14px;cursor:pointer;margin-top:8px;box-sizing:border-box}
 .modal-section{font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin:18px 0 10px;padding-top:18px;border-top:1px solid var(--border)}
 
 /* METRIC CARDS */
@@ -301,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v12.24</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v13.0</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -450,21 +459,18 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
     <!-- TRACE TAB -->
     <div id="tab-trace" class="page">
-      <div class="section-title">API Test</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px">Tap each to test the API connection live from your device</div>
-      <div id="api-test-results" style="margin-bottom:14px"></div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px">All tests route through your Cloudflare proxy if needed. MLB has open CORS and works directly.</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
-        <button onclick="testApi('nba_proxy')" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.08);border:1px solid rgba(0,229,160,.3);border-radius:8px;padding:8px;color:var(--accent);cursor:pointer;grid-column:1/-1">🏀 Test NBA Proxy (LaMelo Ball game log)</button>
-        <button onclick="runNBAIdSync()" id="btn-sync-ids" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:8px;color:var(--accent);cursor:pointer;font-weight:700;grid-column:1/-1">🔄 Sync All NBA Player IDs — All 30 Teams (run once)</button>
-        <div id="sync-ids-progress" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg2);border-radius:8px;padding:10px;grid-column:1/-1"></div>
-        <button onclick="testApi('mlb_schedule')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">MLB Schedule</button>
-        <button onclick="testApi('mlb_player')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">MLB Player Log</button>
-        <button onclick="testApi('espn_nba_sched')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">ESPN NBA Schedule</button>
-        <button onclick="testApi('espn_nhl_sched')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">ESPN NHL Schedule</button>
-        <button onclick="testApi('nba_gamelog')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">ESPN NBA Gamelog</button>
-        <button onclick="testApi('espn_nhl_player')" style="font-family:var(--mono);font-size:10px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--text);cursor:pointer">ESPN NHL Player</button>
+      <div class="section-title">API Status</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:10px">Tap to check if each data source is reachable from your device</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+        <button onclick="checkApiStatus('espn')" class="api-status-btn" id="apibtn-espn">ESPN</button>
+        <button onclick="checkApiStatus('mlb')" class="api-status-btn" id="apibtn-mlb">MLB API</button>
+        <button onclick="checkApiStatus('nhl')" class="api-status-btn" id="apibtn-nhl">NHL API</button>
+        <button onclick="checkApiStatus('odds')" class="api-status-btn" id="apibtn-odds">Odds API</button>
+        <button onclick="checkApiStatus('nba_proxy')" class="api-status-btn api-status-btn-accent" id="apibtn-nba_proxy" style="grid-column:1/-1">🏀 NBA Proxy (stats.nba.com)</button>
       </div>
+      <div id="api-status-results" style="margin-bottom:14px"></div>
+      <button onclick="runNBAIdSync()" id="btn-sync-ids" style="width:100%;font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700;margin-bottom:14px">🔄 Sync All NBA Player IDs — All 30 Teams (run once)</button>
+      <div id="sync-ids-progress" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg2);border-radius:8px;padding:10px;margin-bottom:14px"></div>
 
       <div class="section-title">Slate</div>
       <div id="slate-log-panel" style="margin-bottom:14px"></div>
@@ -631,96 +637,101 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <!-- SETTINGS MODAL -->
 <div class="modal-overlay" id="settings-modal" onclick="handleModalClick(event)">
   <div class="modal">
-    <div class="modal-title">Settings & API Keys</div>
-    <div class="modal-sub">Connect real data sources for live projections. All keys stored locally on your device only.<br/><br/>⚡ <strong>Min edge & confidence</strong> apply instantly — no re-fetch needed.</div>
+    <div class="modal-title">⚙ Settings</div>
+    <div class="modal-sub">All keys stored locally on your device only. ⚡ Filter thresholds apply instantly.</div>
 
-    <div class="modal-section">Odds API (Sportsbook Lines)</div>
-    <div class="setting-group">
-      <label class="setting-label">The Odds API Key</label>
-      <input class="setting-input" id="s-odds-key" placeholder="Paste your API key here" autocorrect="off" autocapitalize="none"/>
-      <div class="setting-hint">Free tier: 500 req/month. Get your key at <a href="https://the-odds-api.com" onclick="openLink('https://the-odds-api.com')">the-odds-api.com</a> — takes 60 seconds, no credit card.</div>
-    </div>
-
-    <div class="modal-section">Data Sources</div>
-    <div class="setting-group">
-      <label class="setting-label">MLB Stats API — statsapi.mlb.com</label>
-      <div class="setting-hint" style="color:var(--accent)">✓ Official MLB API — no key needed. Provides pitcher ERA/WHIP, batter game logs, probable starters, schedules.</div>
-    </div>
-    <div class="setting-group">
-      <label class="setting-label">NHL API — api-web.nhle.com</label>
-      <div class="setting-hint" style="color:var(--accent)">✓ Official NHL API — no key needed. Provides player game logs, goalie SV%/GAA, TOI, line assignments.</div>
-    </div>
-    <div class="setting-group">
-      <label class="setting-label">Open-Meteo Weather API — outdoor sports (MLB)</label>
-      <div class="setting-hint" style="color:var(--accent)">✓ No key needed — open-source, backed by national weather services. Wind, temp, humidity for MLB venues.</div>
-    </div>
-    <div class="setting-group">
-      <label class="setting-label">ESPN API — NBA/NFL/WNBA schedules & injuries</label>
-      <div class="setting-hint" style="color:var(--amber)">⚠ Unofficial endpoint — works today, no SLA. Used for NBA/NFL game logs and injury reports.</div>
+    <!-- Sportsbook Lines -->
+    <div class="setting-card">
+      <div class="setting-card-title">📊 Sportsbook Lines — Odds API</div>
+      <div class="setting-group">
+        <label class="setting-label">API Key</label>
+        <input class="setting-input" id="s-odds-key" placeholder="Paste your Odds API key" autocorrect="off" autocapitalize="none"/>
+        <div class="setting-hint">Free tier: 500 req/month · <a href="https://the-odds-api.com" onclick="openLink('https://the-odds-api.com')">the-odds-api.com</a> — 60 seconds, no credit card</div>
+      </div>
     </div>
 
-    <div class="modal-section">Cloudflare Proxy (NBA full season data)</div>
-    <div class="setting-group">
-      <label class="setting-label">Cloudflare Worker URL</label>
-      <input class="setting-input" id="s-cors-proxy" placeholder="https://your-worker.your-name.workers.dev" autocorrect="off" autocapitalize="none"/>
-      <div class="setting-hint">Your personal Cloudflare Worker URL. Enables full NBA season game logs via stats.nba.com. Free to set up — see instructions in the app.</div>
-    </div>
-    <div class="setting-group">
-      <label class="setting-label">Proxy Secret Token</label>
-      <input class="setting-input" id="s-proxy-token" placeholder="The secret you set in your Worker code" autocorrect="off" autocapitalize="none"/>
-      <div class="setting-hint">The token you put in your Worker code (ALLOWED_TOKEN). Keeps your proxy private.</div>
-    </div>
-
-    <div class="modal-section">Betting Mode Engine (Odds API)</div>
-    <div class="setting-group">
-      <label class="setting-label">Games per sport (default: 2 — protects API quota)</label>
-      <input class="setting-input" id="s-games-per-sport" type="number" placeholder="2" min="1" max="8" inputmode="numeric"/>
-      <div class="setting-hint">⚠ Keep low to protect your 500 req/month Odds API quota. Requires re-fetch.</div>
-    </div>
-    <div class="setting-group">
-      <label class="setting-label">Players per game (default: 3)</label>
-      <input class="setting-input" id="s-players-per-game" type="number" placeholder="3" min="1" max="10" inputmode="numeric"/>
-      <div class="setting-hint">⚠ Requires re-fetch to take effect.</div>
+    <!-- Cloudflare Proxy -->
+    <div class="setting-card">
+      <div class="setting-card-title">🔀 Cloudflare Proxy — NBA Full Season Data</div>
+      <div class="setting-group">
+        <label class="setting-label">Worker URL</label>
+        <input class="setting-input" id="s-cors-proxy" placeholder="https://your-worker.your-name.workers.dev" autocorrect="off" autocapitalize="none"/>
+        <div class="setting-hint">Enables full NBA season logs via stats.nba.com. Free to set up.</div>
+      </div>
+      <div class="setting-group">
+        <label class="setting-label">Secret Token</label>
+        <input class="setting-input" id="s-proxy-token" placeholder="Your ALLOWED_TOKEN value" autocorrect="off" autocapitalize="none"/>
+        <div class="setting-hint">The token in your Worker code — keeps your proxy private.</div>
+      </div>
     </div>
 
-    <div class="modal-section">Analysis Mode Engine (free APIs — no quota)</div>
-    <div class="setting-group">
-      <label class="setting-label">Games per sport (default: 4 — free, use more)</label>
-      <input class="setting-input" id="s-analysis-games" type="number" placeholder="4" min="1" max="12" inputmode="numeric"/>
-      <div class="setting-hint">No API cost — ESPN/NHL/MLB are free. Higher = more coverage. Requires re-fetch.</div>
+    <!-- Betting Mode -->
+    <div class="setting-card">
+      <div class="setting-card-title">📈 Betting Mode</div>
+      <div class="setting-row">
+        <div class="setting-group">
+          <label class="setting-label">Games per sport</label>
+          <input class="setting-input" id="s-games-per-sport" type="number" placeholder="2" min="1" max="8" inputmode="numeric"/>
+          <div class="setting-hint">Protects Odds API quota (500/mo)</div>
+        </div>
+        <div class="setting-group">
+          <label class="setting-label">Players per game</label>
+          <input class="setting-input" id="s-players-per-game" type="number" placeholder="3" min="1" max="10" inputmode="numeric"/>
+          <div class="setting-hint">Re-fetch required</div>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-group">
+          <label class="setting-label">Min edge % (OVER/UNDER)</label>
+          <input class="setting-input" id="s-betting-min-edge" type="number" placeholder="5" min="0" max="20" inputmode="decimal"/>
+          <div class="setting-hint">⚡ Instant</div>
+        </div>
+        <div class="setting-group">
+          <label class="setting-label">Min confidence</label>
+          <input class="setting-input" id="s-betting-min-conf" type="number" placeholder="4" min="1" max="10" inputmode="numeric"/>
+          <div class="setting-hint">⚡ Instant</div>
+        </div>
+      </div>
     </div>
-    <div class="setting-group">
-      <label class="setting-label">Players per game (default: 5)</label>
-      <input class="setting-input" id="s-analysis-players" type="number" placeholder="5" min="1" max="15" inputmode="numeric"/>
-      <div class="setting-hint">No API cost — more players = better slate coverage. Requires re-fetch.</div>
+
+    <!-- Analysis Mode -->
+    <div class="setting-card">
+      <div class="setting-card-title">🔬 Analysis Mode</div>
+      <div class="setting-row">
+        <div class="setting-group">
+          <label class="setting-label">Games per sport</label>
+          <input class="setting-input" id="s-analysis-games" type="number" placeholder="4" min="1" max="12" inputmode="numeric"/>
+          <div class="setting-hint">Free APIs, no quota</div>
+        </div>
+        <div class="setting-group">
+          <label class="setting-label">Players per game</label>
+          <input class="setting-input" id="s-analysis-players" type="number" placeholder="5" min="1" max="15" inputmode="numeric"/>
+          <div class="setting-hint">Re-fetch required</div>
+        </div>
+      </div>
+      <div class="setting-group">
+        <label class="setting-label">Min confidence to show</label>
+        <input class="setting-input" id="s-analysis-min-conf" type="number" placeholder="1" min="1" max="10" inputmode="numeric"/>
+        <div class="setting-hint">⚡ Instant · No edge filter in analysis view — shows all projections above this level</div>
+      </div>
     </div>
-    <div class="setting-group">
-      <label class="setting-label">Min edge % to show OVER/UNDER (default: 5)</label>
-      <input class="setting-input" id="s-min-edge" type="number" placeholder="5" min="0" max="20" inputmode="decimal"/>
-      <div class="setting-hint">⚡ Applied instantly — filters your loaded props without re-fetching.</div>
-    </div>
-    <div class="setting-group">
-      <label class="setting-label">Min confidence to show (default: 6)</label>
-      <input class="setting-input" id="s-min-conf" type="number" placeholder="6" min="1" max="10" inputmode="numeric"/>
-      <div class="setting-hint">⚡ Applied instantly — filters your loaded props without re-fetching.</div>
+
+    <!-- Data Sources (read-only info) -->
+    <div class="setting-card">
+      <div class="setting-card-title">✓ Free Data Sources (no key needed)</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.8">
+        <div><span style="color:var(--accent)">MLB</span> statsapi.mlb.com — game logs, ERA/WHIP, starters</div>
+        <div><span style="color:var(--accent)">NHL</span> api-web.nhle.com — logs, SV%, GAA, TOI</div>
+        <div><span style="color:var(--accent)">NBA/NFL/WNBA</span> ESPN unofficial API — game logs, injuries</div>
+        <div><span style="color:var(--accent)">Weather</span> open-meteo.com — wind/temp for MLB venues</div>
+        <div style="color:var(--amber);margin-top:4px">⚠ ESPN endpoint is unofficial — no SLA</div>
+      </div>
     </div>
 
     <button class="modal-btn" onclick="saveSettings()">Save Settings</button>
     <button class="modal-close" onclick="closeSettings()">Close</button>
-    <button class="modal-close" onclick="revertToDefaults()" style="color:var(--amber);border-color:rgba(255,181,71,.3);margin-top:6px">↺ Revert keys to defaults</button>
-    <button class="modal-close" onclick="clearAllData()" style="color:var(--red);border-color:rgba(255,77,106,.3);margin-top:6px">⚠ Clear all data & localStorage</button>
-
-    <div class="modal-section">About the engine</div>
-    <div class="setting-hint" style="margin-top:8px">
-      <strong>Data sources by sport:</strong><br/>
-      • MLB: statsapi.mlb.com (official, no key) — batter game logs, pitcher ERA/WHIP, probable starters<br/>
-      • MLB weather: open-meteo.com (no key) — wind, temp, precipitation at stadium<br/>
-      • NHL: api-web.nhle.com (official, no key) — player game logs, goalie SV%/GAA, TOI<br/>
-      • NBA/WNBA: ESPN game logs (70+ games)<br/>
-      • NFL: ESPN game logs (snap/target share unavailable free)<br/>
-      • Sportsbook lines: The Odds API (free key from the-odds-api.com)<br/><br/>
-      Model uses EWMA mean + normal distribution to compute P(Over) and P(Under), then compares against implied probability from sportsbook odds to find +EV edges. Minimum 5 valid games required. No randomness. All data stored locally on your device.
-    </div>
+    <button class="modal-close" onclick="revertToDefaults()" style="color:var(--amber);border-color:rgba(255,181,71,.3);margin-top:6px">↺ Clear API keys</button>
+    <button class="modal-close" onclick="clearAllData()" style="color:var(--red);border-color:rgba(255,77,106,.3);margin-top:6px">⚠ Clear all data</button>
   </div>
 </div>
 
@@ -746,6 +757,8 @@ let STATE = loadState() || {
   // sportCache: per-sport prop storage with timestamps
   // { NBA: { props: [...], fetchedAt: 1234567890, propCount: 45 }, ... }
   sportCache: {},
+  bettingCache: {},  // props generated with real sportsbook lines
+  analysisCache: {}, // props generated without lines (projection-only)
   slateLog: null, // stores last fetch result: games detected, players selected per game
   trace: null,   // full pipeline trace log — cleared and rebuilt on every run
   slip: [],
@@ -757,6 +770,9 @@ let STATE = loadState() || {
     proxyToken: '',
     minEdge: 5,
     minConf: 4,
+    bettingMinEdge: 5,
+    bettingMinConf: 4,
+    analysisMinConf: 1,
     gamesPerSport: 2,
     playersPerGame: 3,
     analysisGamesPerSport: 4,
@@ -769,6 +785,8 @@ let STATE = loadState() || {
 // Legacy migration: if old state had STATE.props, migrate to sportCache
 if(STATE.props && Array.isArray(STATE.props) && STATE.props.length > 0 && !STATE.sportCache) {
   STATE.sportCache = {};
+  STATE.bettingCache = {};
+  STATE.analysisCache = {};
   const bySport = {};
   STATE.props.forEach(p => {
     if(!bySport[p.sport]) bySport[p.sport] = [];
@@ -781,8 +799,10 @@ if(STATE.props && Array.isArray(STATE.props) && STATE.props.length > 0 && !STATE
 }
 
 // Ensure settings object has all keys
-STATE.settings = Object.assign({ oddsApiKey:'', corsProxy:'', proxyToken:'', minEdge:5, minConf:4, gamesPerSport:2, playersPerGame:3, analysisGamesPerSport:4, analysisPlayersPerGame:5 }, STATE.settings || {});
+STATE.settings = Object.assign({ oddsApiKey:'', corsProxy:'', proxyToken:'', minEdge:5, minConf:4, bettingMinEdge:5, bettingMinConf:4, analysisMinConf:1, gamesPerSport:2, playersPerGame:3, analysisGamesPerSport:4, analysisPlayersPerGame:5 }, STATE.settings || {});
 if(!STATE.sportCache) STATE.sportCache = {};
+if(!STATE.bettingCache) STATE.bettingCache = {};
+if(!STATE.analysisCache) STATE.analysisCache = {};
 
 // ═══════════════════════════════════════════════════════
 // TRACE ENGINE — full pipeline observability, never affects logic
@@ -893,225 +913,65 @@ async function runNBAIdSync() {
   });
 }
 
-async function testApi(which) {
-  const el = document.getElementById('api-test-results');
+async function checkApiStatus(which) {
+  const btn = document.getElementById(`apibtn-${which}`);
+  const resultsEl = document.getElementById('api-status-results');
+  if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' checking'; btn.textContent = '⟳ Checking...'; }
+
   const today = todayStr();
-
-  // NBA directory test — special case using proxy directly
-  if(which === 'nba_proxy') {
-    el.innerHTML = '<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:var(--bg2);border-radius:8px">⟳ Testing NBA proxy (LaMelo Ball game log)...</div>';
-    let secs = 0;
-    const ticker = setInterval(() => { secs++; el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:var(--bg2);border-radius:8px">⟳ Testing proxy... ${secs}s</div>`; }, 1000);
-    try {
-      if(!STATE.settings.corsProxy) throw new Error('No proxy URL set in ⚙ Settings');
-      const nbaUrl = `https://stats.nba.com/stats/playergamelogs?PlayerID=1630163&Season=${getNBASeason()}&SeasonType=Regular+Season&LeagueID=00`;
-      const data = await fetchWithFallback(nbaUrl);
-      clearInterval(ticker);
-      const rows = data?.resultSets?.[0]?.rowSet || [];
-      const headers = data?.resultSets?.[0]?.headers || [];
-      const ptsIdx = headers.indexOf('PTS');
-      const sample = rows.slice(0,5).map(r => r[ptsIdx]).join(', ');
-      if(rows.length > 0) {
-        el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--accent);padding:8px;background:var(--bg2);border-radius:8px">✓ NBA proxy working in ${secs}s!<br/>LaMelo Ball: ${rows.length} games · Last 5 pts: ${sample}</div>`;
-      } else {
-        el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:var(--bg2);border-radius:8px">✗ Proxy returned empty data after ${secs}s<br/>Keys: ${Object.keys(data||{}).join(',')}</div>`;
-      }
-    } catch(e) {
-      clearInterval(ticker);
-      el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:var(--bg2);border-radius:8px;word-break:break-all">✗ Failed after ${secs}s: ${e.message}</div>`;
-    }
-    return;
-  }
-
-  if(which === 'nba_directory') {
-    el.innerHTML = '<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:var(--bg2);border-radius:8px">⟳ Calling proxy... (may take 10-25s on first attempt)</div>';
-    // Show elapsed seconds while waiting
-    let secs = 0;
-    const ticker = setInterval(() => {
-      secs++;
-      el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:var(--bg2);border-radius:8px">⟳ Calling proxy... ${secs}s elapsed</div>`;
-    }, 1000);
-    try {
-      // Test proxy by fetching a small NBA schedule endpoint
-      const season = getNBASeason();
-      const testUrl = `https://stats.nba.com/stats/playerindex?Season=${season}&LeagueID=00&Historical=0`;
-      const proxy = STATE.settings.corsProxy.trim();
-      const token = STATE.settings.proxyToken || '';
-      const proxyUrl = `${proxy}?url=${encodeURIComponent(testUrl)}`;
-      const res = await fetchWithTimeout(proxyUrl, token ? { headers: { 'x-proxy-auth': token } } : {}, 15000);
-      clearInterval(ticker);
-      if(res.ok) {
-        const data = await res.json();
-        const rows = data?.resultSets?.[0]?.rowSet || [];
-        if(rows.length > 0) {
-          el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--accent);padding:8px;background:var(--bg2);border-radius:8px">✓ Proxy working in ${secs}s — ${rows.length} players returned from stats.nba.com</div>`;
-        } else {
-          el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:var(--bg2);border-radius:8px">✗ Proxy returned empty data<br/>Check your proxy URL and token in ⚙ Settings</div>`;
-        }
-      } else {
-        el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:var(--bg2);border-radius:8px">✗ Proxy HTTP ${res.status} after ${secs}s</div>`;
-      }
-    } catch(e) {
-      clearInterval(ticker);
-      el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:var(--bg2);border-radius:8px;word-break:break-all">✗ Error after ${secs}s:<br/>${e.message}</div>`;
-    }
-    return;
-  }
-
-  // Helper: fetch via proxy if available, else direct
-  // On iPhone Safari direct cross-origin calls are blocked — proxy fixes this
-  async function safeFetch(url) {
-    const proxy = STATE.settings.corsProxy?.trim();
-    const token = STATE.settings.proxyToken || '';
-    // Try direct first (works for MLB API which has open CORS)
-    try {
-      const r = await fetch(url);
-      if(r.ok) return r.json();
-    } catch(e) {}
-    // Fall back to proxy
-    if(proxy) {
-      const proxyUrl = `${proxy}?url=${encodeURIComponent(url)}`;
-      const hdrs = token ? { 'x-proxy-auth': token } : {};
-      const r = await fetch(proxyUrl, { headers: hdrs });
-      if(!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    }
-    throw new Error('Load failed — set up Cloudflare proxy in ⚙ Settings for full access');
-  }
-
   const tests = {
-    'nhl_schedule': {
-      label: 'NHL Schedule (api-web.nhle.com)',
-      url: `https://api-web.nhle.com/v1/schedule/${today}`,
-      parse: d => {
-        const games = d?.gameWeek?.[0]?.games || d?.games || [];
-        return games.length > 0
-          ? `✅ ${games.length} games: ${games.map(g=>g.awayTeam?.abbrev+'v'+g.homeTeam?.abbrev).join(', ')}`
-          : `⚠ 0 games returned (off-day or wrong date format)`;
-      }
-    },
-    'nhl_player': {
-      label: 'NHL Player Log - Auston Matthews (8479318)',
-      url: 'https://api-web.nhle.com/v1/player/8479318/game-log/20242025/2',
-      parse: d => {
-        const gl = d?.gameLog || [];
-        return gl.length > 0
-          ? `✅ ${gl.length} games. Last: ${gl[gl.length-1]?.goals}G ${gl[gl.length-1]?.assists}A`
-          : `❌ No game log data`;
-      }
-    },
-    'mlb_schedule': {
-      label: 'MLB Schedule (statsapi.mlb.com)',
-      url: `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}`,
-      parse: d => {
-        const games = d?.dates?.[0]?.games||[];
-        if(!games.length) return `⚠ 0 games`;
-        const g0=games[0];
-        const away=g0?.teams?.away?.team?.abbreviation||g0?.teams?.away?.team?.teamCode||g0?.teams?.away?.team?.name||'?';
-        const home=g0?.teams?.home?.team?.abbreviation||g0?.teams?.home?.team?.teamCode||g0?.teams?.home?.team?.name||'?';
-        const teamKeys=Object.keys(g0?.teams?.away?.team||{}).slice(0,5).join(',');
-        return `✅ ${games.length} games. First:${away}v${home}. TeamKeys:${teamKeys}`;
-      }
-    },
-    'mlb_player': {
-      label: 'MLB Player Log - Aaron Judge (592450)',
-      url: 'https://statsapi.mlb.com/api/v1/people/592450/stats?stats=gameLog&season=2025&group=hitting',
-      parse: d => {
-        const splits = d?.stats?.[0]?.splits || [];
-        return splits.length > 0
-          ? `✅ ${splits.length} games. Last: ${JSON.stringify(splits[splits.length-1]?.stat).slice(0,80)}`
-          : `❌ No splits data`;
-      }
-    },
-    'nba_gamelog': {
-      label: 'ESPN NBA GameLog - Luka Doncic (3136193)',
-      url: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/3136193/gamelog',
-      parse: d => {
-        const keys = Object.keys(d||{});
-        const st = d?.seasonTypes||[];
-        const cats = st[0]?.categories||[];
-        const evts = cats[0]?.events||d?.events||[];
-        const labels = cats[0]?.labels||cats[0]?.names||d?.labels||[];
-        const firstStat = evts[0]?.stats||evts[0]?.statistics||[];
-        return `${evts.length>0?'✅':'❌'} ${evts.length} games. Keys:${keys.slice(0,4).join(',')}. Labels[0]:${labels[0]}. Categories:${cats.map(c=>c.name||c.displayName||'?').join('|')}. Stats:${firstStat.length}`;
-      }
-    },
-    'espn_nba_sched': {
-      label: 'ESPN NBA Schedule (tries play-in + playoff + default)',
-      url: `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${today.replace(/-/g,'')}&groups=50`,
-      parse: d => {
-        const events = d?.events || [];
-        return events.length > 0 ? `✅ ${events.length} games: ${events.slice(0,3).map(e=>e.shortName).join(', ')}` : `⚠ 0 events`;
-      }
-    },
-    'espn_nhl_sched': {
-      label: 'ESPN NHL Schedule',
-      url: `https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard?dates=${today.replace(/-/g,'')}`,
-      parse: d => {
-        const events = d?.events || [];
-        if(!events.length) return `⚠ 0 NHL games today. Keys: ${Object.keys(d||{}).join(',')}`;
-        return `✅ ${events.length} games: ${events.slice(0,3).map(e=>e.shortName||e.name).join(', ')}`;
-      }
-    },
-    'espn_nhl_player': {
-      label: 'ESPN NHL Player - Connor McDavid (3895074)',
-      url: 'https://site.web.api.espn.com/apis/common/v3/sports/hockey/nhl/athletes/3895074/gamelog',
-      parse: d => {
-        const keys = Object.keys(d||{});
-        const labels = d?.labels||d?.names||[];
-        const evObj = d?.events||{};
-        const evArr = Array.isArray(evObj)?evObj:Object.values(evObj);
-        const firstEv = evArr[0];
-        const stats = firstEv?.stats||firstEv?.statistics||[];
-        return `Keys:${keys.join(',')} | Labels[0]:${labels[0]} | Events:${evArr.length} | Stats[0]:${stats[0]}`;
-      }
-    },
-    'mlb_gamelog_raw': {
-      label: 'MLB Gamelog raw - Aaron Judge (592450)',
-      url: 'https://statsapi.mlb.com/api/v1/people/592450/stats?stats=gameLog&season=2025&group=hitting',
-      parse: d => {
-        const splits = d?.stats?.[0]?.splits||[];
-        if(!splits.length) return `❌ No splits. Keys: ${Object.keys(d||{}).join(',')}`;
-        const s0 = splits[0];
-        const statKeys = Object.keys(s0?.stat||{}).join(',');
-        return `✅ ${splits.length} games. StatKeys: ${statKeys.slice(0,100)}`;
-      }
-    },
-    'nba_gamelog_raw': {
-      label: 'NBA Gamelog raw - Luka (3136193)',
-      url: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/3136193/gamelog',
-      parse: d => {
-        const keys = Object.keys(d||{});
-        const evObj = d?.events||{};
-        const evArr = Array.isArray(evObj)?evObj:Object.values(evObj);
-        const labels = d?.labels||d?.names||[];
-        const firstEv = evArr[0];
-        const stats = firstEv?.stats||[];
-        const opp = firstEv?.opponent?.abbreviation||firstEv?.opponent?.shortDisplayName||JSON.stringify(firstEv?.opponent||{}).slice(0,40);
-        return `Keys:${keys.join(',')} | Labels:${labels.slice(0,4).join('|')} | Events:${evArr.length} | Stats:${JSON.stringify(stats).slice(0,60)} | Opp:${opp}`;
-      }
-    }
+    espn:      { label:'ESPN', url:`https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${today.replace(/-/g,'')}`, check: d => (d?.events !== undefined), detail: d => `${d?.events?.length ?? 0} games today` },
+    mlb:       { label:'MLB API', url:`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}`, check: d => (d?.dates !== undefined), detail: d => `${d?.dates?.[0]?.games?.length ?? 0} games today` },
+    nhl:       { label:'NHL API', url:`https://api-web.nhle.com/v1/schedule/${today}`, check: d => (d?.gameWeek !== undefined || d?.games !== undefined), detail: d => `${(d?.gameWeek?.[0]?.games || d?.games || []).length} games today` },
+    odds:      { label:'Odds API', url: STATE.settings.oddsApiKey ? `https://api.the-odds-api.com/v4/sports?apiKey=${STATE.settings.oddsApiKey}` : null, check: d => Array.isArray(d), detail: d => `${d?.length ?? 0} sports available` },
   };
 
-  const t = tests[which];
-  if(!t) return;
+  if(which === 'nba_proxy') {
+    if(!STATE.settings.corsProxy) {
+      if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' fail'; btn.textContent = '🏀 NBA Proxy — No URL set'; }
+      if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:rgba(255,77,106,.06);border:1px solid var(--red);border-radius:8px">No Cloudflare proxy URL in ⚙ Settings</div>`;
+      return;
+    }
+    if(btn) btn.textContent = '⟳ Testing proxy...';
+    try {
+      const nbaUrl = `https://stats.nba.com/stats/playergamelogs?PlayerID=1630163&Season=${getNBASeason()}&SeasonType=Regular+Season&LeagueID=00`;
+      const data = await fetchWithFallback(nbaUrl);
+      const rows = data?.resultSets?.[0]?.rowSet || [];
+      if(rows.length > 0) {
+        if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' ok'; btn.textContent = `🏀 NBA Proxy ✓ — ${rows.length} games`; }
+        if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--accent);padding:8px;background:rgba(0,229,160,.06);border:1px solid var(--accent);border-radius:8px">✓ NBA proxy working · ${rows.length} game logs returned</div>`;
+      } else {
+        if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' fail'; btn.textContent = '🏀 NBA Proxy ✗ — empty'; }
+      }
+    } catch(e) {
+      if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' fail'; btn.textContent = '🏀 NBA Proxy ✗'; }
+      if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:rgba(255,77,106,.06);border:1px solid var(--red);border-radius:8px">✗ ${e.message}</div>`;
+    }
+    return;
+  }
 
-  el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--muted);padding:8px;background:var(--bg2);border-radius:8px">Testing ${t.label}...<br/><span style="font-size:8px;word-break:break-all">${t.url}</span></div>`;
+  const test = tests[which];
+  if(!test) return;
+  if(!test.url) {
+    if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' fail'; btn.textContent = `${test.label} — No key`; }
+    if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:rgba(255,181,71,.06);border:1px solid var(--amber);border-radius:8px">⚠ Add Odds API key in ⚙ Settings to test</div>`;
+    return;
+  }
 
   try {
-    const data = await safeFetch(t.url);
-    const result = t.parse(data);
-    const color = result.startsWith('✅') ? 'var(--accent)' : result.startsWith('⚠') ? 'var(--amber)' : 'var(--red)';
-    el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:${color}">
-      <div style="color:var(--muted);margin-bottom:4px;font-size:9px">${t.label}</div>
-      ${result}
-      <div style="color:var(--muted);font-size:8px;margin-top:6px;word-break:break-all">${t.url}</div>
-    </div>`;
+    const t0 = Date.now();
+    const data = await fetchWithFallback(test.url);
+    const ms = Date.now() - t0;
+    const up = test.check(data);
+    const detail = up ? test.detail(data) : 'unexpected response';
+    if(btn) {
+      btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + (up ? ' ok' : ' fail');
+      btn.textContent = `${test.label} ${up ? '✓' : '✗'} ${ms}ms`;
+    }
+    if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:${up?'var(--accent)':'var(--red)'};padding:8px;background:${up?'rgba(0,229,160,.06)':'rgba(255,77,106,.06)'};border:1px solid ${up?'var(--accent)':'var(--red)'};border-radius:8px">${up?'✓':'✗'} ${test.label} — ${detail} · ${ms}ms</div>`;
   } catch(e) {
-    el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;padding:10px;background:var(--bg2);border:1px solid rgba(255,77,106,.3);border-radius:8px;color:var(--red)">
-      ❌ FAILED: ${e.message}<br/>
-      <div style="font-size:8px;color:var(--muted);margin-top:4px">${t.url}</div>
-    </div>`;
+    if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' fail'; btn.textContent = `${test.label} ✗ down`; }
+    if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:rgba(255,77,106,.06);border:1px solid var(--red);border-radius:8px">✗ ${test.label} unreachable — ${e.message}</div>`;
   }
 }
 function renderTrace() {
@@ -1164,10 +1024,12 @@ function renderTrace() {
 // No hybrid states — one or the other, determined fresh each session
 function getAppMode() {
   if(!STATE.settings.oddsApiKey) return 'analysis';
-  // Check if any cached props have real sportsbook lines
-  const allProps = getAllCachedProps();
-  if(allProps.length === 0) return 'unknown'; // not yet fetched
-  const hasRealLines = allProps.some(p => p.dataSource?.hasRealLine === true);
+  // Check both caches — if betting cache has real lines, we're capable of betting mode
+  const bettingProps = getAllCachedProps('betting');
+  const currentProps = getAllCachedProps();
+  const allToCheck = [...bettingProps, ...currentProps];
+  if(allToCheck.length === 0) return 'unknown';
+  const hasRealLines = allToCheck.some(p => p.dataSource?.hasRealLine === true);
   return hasRealLines ? 'betting' : 'analysis';
 }
 
@@ -1214,6 +1076,7 @@ function updateModeBanner() {
 function setViewMode(mode) {
   viewMode = mode;
   updateModeBanner();
+  updateCacheStatusBar();
   renderProps();
 }
 
@@ -1222,21 +1085,41 @@ const CACHE_FRESH_MS = 2 * 60 * 60 * 1000; // 2 hours = fresh (green)
 const CACHE_STALE_MS = 6 * 60 * 60 * 1000; // 6 hours = stale (yellow) — beyond this we force re-fetch
 
 function getCacheStatus(sport) {
-  const entry = STATE.sportCache[sport];
-  if(!entry || !entry.fetchedAt) return 'none';       // never fetched — grey
+  // Check the viewMode-appropriate cache first, fall back to legacy sportCache
+  const cache = viewMode === 'analysis' ? STATE.analysisCache : STATE.bettingCache;
+  const entry = (cache && cache[sport]) ? cache[sport] : STATE.sportCache[sport];
+  if(!entry || !entry.fetchedAt) return 'none';
   const age = Date.now() - entry.fetchedAt;
-  if(age < CACHE_FRESH_MS) return 'fresh';            // <2h — green
-  if(age < CACHE_STALE_MS) return 'stale';            // 2-6h — yellow
-  return 'expired';                                    // >6h — treat as none, force re-fetch
+  if(age < CACHE_FRESH_MS) return 'fresh';
+  if(age < CACHE_STALE_MS) return 'stale';
+  return 'expired';
 }
 
-function getAllCachedProps() {
-  // Gather all props from all sport caches
+function getAllCachedProps(modeOverride) {
+  // Read from the cache matching the current viewMode (or modeOverride)
+  const mode = modeOverride || viewMode || 'betting';
+  const cache = mode === 'analysis' ? STATE.analysisCache : STATE.bettingCache;
+  // Fallback to legacy sportCache if new caches are empty (migration)
+  const source = (cache && Object.values(cache).some(e => e?.props?.length > 0))
+    ? cache : STATE.sportCache;
   const all = [];
-  Object.values(STATE.sportCache).forEach(entry => {
+  Object.values(source).forEach(entry => {
     if(entry && entry.props) all.push(...entry.props);
   });
   return all;
+}
+
+function getAllCachedPropsBothModes() {
+  // Returns all props from both caches — used for metrics/restore detection
+  const all = [];
+  [STATE.bettingCache, STATE.analysisCache, STATE.sportCache].forEach(cache => {
+    Object.values(cache || {}).forEach(entry => {
+      if(entry && entry.props) all.push(...entry.props);
+    });
+  });
+  // Deduplicate by id
+  const seen = new Set();
+  return all.filter(p => { if(seen.has(p.id)) return false; seen.add(p.id); return true; });
 }
 
 function formatAge(ms) {
@@ -1266,7 +1149,7 @@ document.addEventListener('DOMContentLoaded', function() {
   updateSportChipStatus();
   updateProxyBadge();
 
-  // Clear all _lastproj_ stability anchors on v12.24 startup
+  // Clear all _lastproj_ stability anchors on v13.0 startup
   // These anchors lock in stale projections from previous buggy versions — safer to reset
   try {
     const keysToDelete = [];
@@ -1300,8 +1183,11 @@ document.addEventListener('DOMContentLoaded', function() {
   } catch(e) {}
 
   // On open: check if cached data exists — ask user before restoring
-  const hasCachedData = STATE.sportCache &&
-    Object.values(STATE.sportCache).some(e => e?.props?.length > 0);
+  const hasCachedData = (
+    (STATE.bettingCache && Object.values(STATE.bettingCache).some(e => e?.props?.length > 0)) ||
+    (STATE.analysisCache && Object.values(STATE.analysisCache).some(e => e?.props?.length > 0)) ||
+    (STATE.sportCache && Object.values(STATE.sportCache).some(e => e?.props?.length > 0))
+  );
 
   if(hasCachedData) {
     // Show restore prompt instead of silently loading stale data
@@ -1317,25 +1203,36 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function showCacheRestorePrompt() {
-  const sports = Object.entries(STATE.sportCache)
-    .filter(([, e]) => e?.props?.length > 0)
-    .map(([sport, e]) => {
-      const age = e.fetchedAt ? Math.round((Date.now() - e.fetchedAt) / 60000) : null;
-      const ageStr = age !== null ? (age < 60 ? `${age}m ago` : `${Math.round(age/60)}h ago`) : 'unknown age';
-      return `${sport}: ${e.props.length} props (${ageStr})`;
-    });
+  const bettingProps = getAllCachedProps('betting');
+  const analysisProps = getAllCachedProps('analysis');
+  const hasBetting = bettingProps.length > 0;
+  const hasAnalysis = analysisProps.length > 0;
 
-  const allProps = getAllCachedProps();
-  const hasRealLines = allProps.some(p => p.dataSource?.hasRealLine === true);
-  const modeNote = hasRealLines
-    ? `<div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:6px">✓ Real sportsbook lines available — betting mode ready</div>`
-    : `<div style="font-family:var(--mono);font-size:10px;color:var(--amber);margin-top:6px">⚠ No sportsbook lines — analysis mode only</div>`;
+  const formatCache = (cache, label) => {
+    if(!cache || !Object.values(cache).some(e => e?.props?.length > 0)) return '';
+    const parts = Object.entries(cache)
+      .filter(([, e]) => e?.props?.length > 0)
+      .map(([sport, e]) => {
+        const age = e.fetchedAt ? Math.round((Date.now() - e.fetchedAt) / 60000) : null;
+        const ageStr = age !== null ? (age < 60 ? `${age}m ago` : `${Math.round(age/60)}h ago`) : 'unknown';
+        return `${sport}: ${e.props.length} props (${ageStr})`;
+      });
+    return `<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px;font-weight:700">${label}</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--muted)">${parts.join(' · ')}</div>`;
+  };
+
+  const bCache = STATE.bettingCache && Object.values(STATE.bettingCache).some(e => e?.props?.length > 0) ? STATE.bettingCache : STATE.sportCache;
+  const aCache = STATE.analysisCache;
 
   const propsList = document.getElementById('props-list');
   propsList.innerHTML = `
     <div class="cache-restore-banner">
       <div class="cache-restore-title">📦 Cached props available</div>
-      <div class="cache-restore-sub">${sports.join('<br/>')}${modeNote}</div>
+      <div class="cache-restore-sub">
+        ${hasBetting ? formatCache(bCache, '📈 BETTING MODE') : ''}
+        ${hasAnalysis ? formatCache(aCache, '📊 ANALYSIS MODE') : ''}
+        ${!hasBetting && !hasAnalysis ? '<div style="font-family:var(--mono);font-size:10px;color:var(--muted)">Legacy cache — will restore as-is</div>' : ''}
+      </div>
       <div class="cache-restore-btns">
         <button class="cache-restore-yes" onclick="restoreCachedData()">✓ Load cached</button>
         <button class="cache-restore-no" onclick="discardCachedData()">✕ Start fresh</button>
@@ -1344,18 +1241,30 @@ function showCacheRestorePrompt() {
 }
 
 function restoreCachedData() {
-  // User confirmed — render from cache as-is
+  // Set viewMode based on what's available — prefer betting if it exists
+  const hasBetting = STATE.bettingCache && Object.values(STATE.bettingCache).some(e => e?.props?.length > 0);
+  const hasAnalysis = STATE.analysisCache && Object.values(STATE.analysisCache).some(e => e?.props?.length > 0);
+  const legacyHasLines = getAllCachedProps('betting').some(p => p.dataSource?.hasRealLine === true);
+
+  if(hasBetting) viewMode = 'betting';
+  else if(legacyHasLines) viewMode = 'betting';
+  else if(hasAnalysis) viewMode = 'analysis';
+  else viewMode = 'betting'; // default
+
   renderProps();
   updateMetrics();
-  updateCacheStatusBar(); // also shows the refetch button if props exist
+  updateCacheStatusBar();
   updateModeBanner();
   updateProxyBadge();
-  showToast('✓ Cached data restored', 'success');
+  const modeMsg = (hasBetting && hasAnalysis) ? 'Both betting & analysis caches restored' : viewMode === 'betting' ? 'Betting cache restored' : 'Analysis cache restored';
+  showToast(`✓ ${modeMsg}`, 'success');
 }
 
 function discardCachedData() {
   // User chose fresh start — wipe cache and slate log
   STATE.sportCache = {};
+  STATE.bettingCache = {};
+  STATE.analysisCache = {};
   STATE.slateLog = null;
   saveState();
   renderProps();
@@ -1446,14 +1355,18 @@ function loadSettingsIntoForm() {
   document.getElementById('s-odds-key').value = s.oddsApiKey || '';
   document.getElementById('s-cors-proxy').value = s.corsProxy || '';
   document.getElementById('s-proxy-token').value = s.proxyToken || '';
-  document.getElementById('s-min-edge').value = s.minEdge ?? 5;
-  document.getElementById('s-min-conf').value = s.minConf ?? 4;
+  document.getElementById('s-betting-min-edge').value = s.bettingMinEdge ?? s.minEdge ?? 5;
+  document.getElementById('s-betting-min-conf').value = s.bettingMinConf ?? s.minConf ?? 4;
+  document.getElementById('s-analysis-min-conf').value = s.analysisMinConf ?? 1;
   document.getElementById('s-games-per-sport').value = s.gamesPerSport || 2;
   document.getElementById('s-players-per-game').value = s.playersPerGame || 3;
   document.getElementById('s-analysis-games').value = s.analysisGamesPerSport || 4;
   document.getElementById('s-analysis-players').value = s.analysisPlayersPerGame || 5;
 }
 function saveSettings() {
+  const prevBettingMinEdge = STATE.settings.bettingMinEdge;
+  const prevBettingMinConf = STATE.settings.bettingMinConf;
+  const prevAnalysisMinConf = STATE.settings.analysisMinConf;
   const prevMinEdge = STATE.settings.minEdge;
   const prevMinConf = STATE.settings.minConf;
   const prevGamesPerSport = STATE.settings.gamesPerSport;
@@ -1464,8 +1377,12 @@ function saveSettings() {
   STATE.settings.oddsApiKey = document.getElementById('s-odds-key').value.trim();
   STATE.settings.corsProxy   = document.getElementById('s-cors-proxy').value.trim();
   STATE.settings.proxyToken  = document.getElementById('s-proxy-token').value.trim();
-  STATE.settings.minEdge = parseFloat(document.getElementById('s-min-edge').value) || 3;
-  STATE.settings.minConf = parseInt(document.getElementById('s-min-conf').value) || 4;
+  STATE.settings.bettingMinEdge = parseFloat(document.getElementById('s-betting-min-edge').value) || 3;
+  STATE.settings.bettingMinConf = parseInt(document.getElementById('s-betting-min-conf').value) || 4;
+  STATE.settings.analysisMinConf = parseInt(document.getElementById('s-analysis-min-conf').value) || 1;
+  // Keep legacy minEdge/minConf in sync with betting values for evDecision + other callers
+  STATE.settings.minEdge = STATE.settings.bettingMinEdge;
+  STATE.settings.minConf = STATE.settings.bettingMinConf;
   STATE.settings.gamesPerSport = Math.min(8, Math.max(1, parseInt(document.getElementById('s-games-per-sport').value) || 2));
   STATE.settings.playersPerGame = Math.min(10, Math.max(1, parseInt(document.getElementById('s-players-per-game').value) || 3));
   STATE.settings.analysisGamesPerSport = Math.min(12, Math.max(1, parseInt(document.getElementById('s-analysis-games').value) || 4));
@@ -1473,8 +1390,12 @@ function saveSettings() {
   saveState();
   closeSettings();
 
-  // Check what changed
-  const filterSettingsChanged = (STATE.settings.minEdge !== prevMinEdge || STATE.settings.minConf !== prevMinConf);
+  // Re-render instantly if any filter threshold changed
+  const filterSettingsChanged = (
+    STATE.settings.bettingMinEdge !== prevBettingMinEdge ||
+    STATE.settings.bettingMinConf !== prevBettingMinConf ||
+    STATE.settings.analysisMinConf !== prevAnalysisMinConf
+  );
   const fetchSettingsChanged = (STATE.settings.gamesPerSport !== prevGamesPerSport || STATE.settings.playersPerGame !== prevPlayersPerGame || STATE.settings.analysisGamesPerSport !== prevAnalysisGames || STATE.settings.analysisPlayersPerGame !== prevAnalysisPlayers);
 
   if(filterSettingsChanged) {
@@ -1517,25 +1438,29 @@ function updateSportChipStatus() {
 function updateCacheStatusBar() {
   const bar = document.getElementById('cache-status-bar');
   const allProps = getAllCachedProps();
-  // Show/hide Use Cache button
+  // Show/hide Use Cache button — show if EITHER cache has data
   const useCacheBtn = document.getElementById('use-cache-btn');
-  if(useCacheBtn) useCacheBtn.style.display = allProps.length > 0 ? 'block' : 'none';
-  if(allProps.length === 0) { bar.innerHTML = ''; return; }
+  const eitherHasData = getAllCachedPropsBothModes().length > 0;
+  if(useCacheBtn) useCacheBtn.style.display = eitherHasData ? 'block' : 'none';
+  if(allProps.length === 0 && !eitherHasData) { bar.innerHTML = ''; return; }
 
-  const sports = Object.keys(STATE.sportCache).filter(s => STATE.sportCache[s]?.props?.length > 0);
+  const activeCache = viewMode === 'analysis'
+    ? (STATE.analysisCache && Object.values(STATE.analysisCache).some(e=>e?.props?.length>0) ? STATE.analysisCache : STATE.sportCache)
+    : (STATE.bettingCache && Object.values(STATE.bettingCache).some(e=>e?.props?.length>0) ? STATE.bettingCache : STATE.sportCache);
+
+  const sports = Object.keys(activeCache).filter(s => activeCache[s]?.props?.length > 0);
   const parts = sports.map(s => {
-    const entry = STATE.sportCache[s];
+    const entry = activeCache[s];
     const status = getCacheStatus(s);
-    const age = Date.now() - (entry.fetchedAt || 0);
     const colorClass = status === 'fresh' ? 'cache-fresh' : status === 'stale' ? 'cache-stale' : '';
     return `<span class="${colorClass}">${s}:${entry.props.length}</span>`;
   });
 
-  // Find most recent fetch
-  const latestFetch = Math.max(...Object.values(STATE.sportCache).filter(e=>e?.fetchedAt).map(e=>e.fetchedAt));
+  const latestFetch = Math.max(...Object.values(activeCache).filter(e=>e?.fetchedAt).map(e=>e.fetchedAt));
   const ageStr = latestFetch ? formatAge(Date.now() - latestFetch) : '';
+  const modeLabel = viewMode === 'analysis' ? '📊' : '📈';
 
-  bar.innerHTML = `<span>${allProps.length} props loaded</span>${parts.length ? ' · ' + parts.join(' ') : ''}${ageStr ? ` · <span>fetched ${ageStr}</span>` : ''}`;
+  bar.innerHTML = `<span>${modeLabel} ${allProps.length} props</span>${parts.length ? ' · ' + parts.join(' ') : ''}${ageStr ? ` · <span>fetched ${ageStr}</span>` : ''}`;
 
   // Refetch button is always visible — no show/hide needed
 }
@@ -2510,6 +2435,8 @@ async function refetchAll() {
   if(isGenerating) return;
   // Clear all caches and re-fetch everything
   STATE.sportCache = {};
+  STATE.bettingCache = {};
+  STATE.analysisCache = {};
   saveState();
   const allSports = ['NBA','MLB','NFL','NHL','WNBA','GOLF'];
   await runFetch(allSports);
@@ -3460,13 +3387,15 @@ async function runFetch(sportsToFetch) {
         validationLog.push(`${sport}: DISCARDED (${validation.reason})`);
         // Discard this sport's output — do not store in cache
         STATE.sportCache[sport] = { props: [], fetchedAt: now, propCount: 0, validationFailed: true };
+        STATE.bettingCache[sport] = STATE.sportCache[sport];
+        STATE.analysisCache[sport] = STATE.sportCache[sport];
         return;
       }
-      STATE.sportCache[sport] = {
-        props,
-        fetchedAt: now,
-        propCount: props.length
-      };
+      // Write to mode-specific cache: bettingCache if real lines, analysisCache if not
+      const hasModeRealLine = props.some(p => p.dataSource?.hasRealLine === true);
+      const targetCache = hasModeRealLine ? 'bettingCache' : 'analysisCache';
+      STATE[targetCache][sport] = { props, fetchedAt: now, propCount: props.length };
+      STATE.sportCache[sport] = STATE[targetCache][sport]; // keep legacy alias in sync
       validationLog.push(`${sport}: OK (${props.length} props)`);
       totalNew += props.length;
     });
@@ -3486,6 +3415,8 @@ async function runFetch(sportsToFetch) {
       if(cached.props.length > structuralMaxPerSport) {
         console.warn(`Structural max exceeded for ${sport}: ${cached.props.length} > ${structuralMaxPerSport} — discarding (structure broken)`);
         STATE.sportCache[sport] = { props: [], fetchedAt: now, propCount: 0, validationFailed: true };
+        STATE.bettingCache[sport] = STATE.sportCache[sport];
+        STATE.analysisCache[sport] = STATE.sportCache[sport];
         totalNew = Math.max(0, totalNew - cached.props.length);
         validationLog.push(`${sport}: DISCARDED (structural max ${structuralMaxPerSport} exceeded with ${cached.props.length} props)`);
       }
@@ -3507,6 +3438,11 @@ async function runFetch(sportsToFetch) {
     updateSportChipStatus();
     updateCacheStatusBar();
 
+    // Set viewMode to match what was just fetched
+    const allCached = getAllCachedProps();
+    const realLines = allCached.filter(p=>p.dataSource?.hasRealLine).length;
+    viewMode = realLines > 0 ? 'betting' : 'analysis';
+
     // Re-render from full cache (which may include previously cached sports too)
     renderProps();
     updateMetrics();
@@ -3515,8 +3451,6 @@ async function runFetch(sportsToFetch) {
   updateProxyBadge();
     renderSlateLog();
 
-    const allCached = getAllCachedProps();
-    const realLines = allCached.filter(p=>p.dataSource?.hasRealLine).length;
     const mode = getAppMode();
     showToast(
       mode === 'betting'
@@ -5961,34 +5895,28 @@ function toggleSportFilter(sport, el) {
   if(sport === 'all') {
     filters.sports = new Set(['all']);
     chips.forEach(c => {
-      c.classList.remove('active','active-multi');
+      c.classList.remove('active', 'active-multi');
       if(c.dataset.sport === 'all') c.classList.add('active');
     });
   } else {
-    if(filters.sports.has('all')) filters.sports.delete('all');
-    if(filters.sports.has(sport)) {
-      filters.sports.delete(sport);
-    } else {
-      filters.sports.add(sport);
-    }
-    if(filters.sports.size === 0) {
-      filters.sports.add('all');
+    // Single-select: tapping a sport shows only that sport.
+    // Tapping the same sport again resets to All.
+    if(filters.sports.has(sport) && filters.sports.size === 1) {
+      // Already exclusively selected — toggle back to all
+      filters.sports = new Set(['all']);
       chips.forEach(c => {
-        c.classList.remove('active','active-multi');
+        c.classList.remove('active', 'active-multi');
         if(c.dataset.sport === 'all') c.classList.add('active');
       });
     } else {
+      filters.sports = new Set([sport]);
       chips.forEach(c => {
-        c.classList.remove('active','active-multi');
-        if(c.dataset.sport === 'all') return;
-        if(filters.sports.has(c.dataset.sport)) {
-          c.classList.add(filters.sports.size === 1 ? 'active' : 'active-multi');
-        }
+        c.classList.remove('active', 'active-multi');
+        if(c.dataset.sport === sport) c.classList.add('active');
       });
     }
   }
 
-  // Just filter — never auto-fetch on chip tap. User must tap Generate.
   renderProps();
 }
 
@@ -6023,9 +5951,11 @@ function renderProps() {
     return;
   }
 
-  // Apply all filters + settings thresholds from cache
-  const minEdge = STATE.settings.minEdge ?? 5;
-  const minConf = STATE.settings.minConf ?? 4;
+  // Use per-mode thresholds
+  const minEdge = (viewMode === 'analysis' ? 0 : (STATE.settings.bettingMinEdge ?? STATE.settings.minEdge ?? 5));
+  const minConf = (viewMode === 'analysis'
+    ? (STATE.settings.analysisMinConf ?? 1)
+    : (STATE.settings.bettingMinConf ?? STATE.settings.minConf ?? 4));
 
   let filtered = allCachedProps.filter(p => {
     if(!filters.sports.has('all') && !filters.sports.has(p.sport)) return false;
@@ -6035,24 +5965,26 @@ function renderProps() {
     if(filters.date === 'today' && p.date !== 'today') return false;
     if(filters.date === 'tomorrow' && p.date !== 'tomorrow') return false;
     if(filters.prop !== 'all' && p.prop !== filters.prop) return false;
-    // Analysis viewMode: show all props regardless of EV/conf — user wants to see projections
+    // Analysis viewMode: show all props regardless of EV/conf
     if(viewMode === 'analysis') {
-      return p.conf >= 1; // only skip truly empty projections
+      return p.conf >= 1;
     }
     // Analysis mode props (no real line): skip EV filter
     if(p.analysisMode) {
       if(p.conf < 1) return false;
       return true;
     }
-    // Betting mode: apply EV + confidence thresholds (sport-aware)
+    // Betting mode with real lines: show ALL decisions including PASS
+    // Props were already filtered at generation time — don't re-filter by EV/conf
+    // (Settings may have changed since generation, which would incorrectly hide valid props)
+    if(p.dataSource?.hasRealLine === true) {
+      const sportMinConf = (p.sport === 'MLB' || p.sport === 'NHL') ? Math.min(minConf, 3) : minConf;
+      if(p.conf < sportMinConf) return false;
+      return true; // show all decisions — OVER/UNDER/PASS — EV was applied at generation
+    }
+    // Estimated line (no Odds API key): apply conf threshold only
     const sportMinConf = (p.sport === 'MLB' || p.sport === 'NHL') ? Math.min(minConf, 3) : minConf;
     if(p.conf < sportMinConf) return false;
-    if(p.decision !== 'PASS') {
-      const chosenEV = p.overEV !== undefined
-        ? (p.decision === 'OVER' ? p.overEV : p.underEV)
-        : Math.abs(p.edge?.pct || 0);
-      if(chosenEV < minEdge) return false;
-    }
     return true;
   });
 
@@ -6189,10 +6121,10 @@ function toggleReasoning(id) {
 // ═══════════════════════════════════════════════════════
 function updateMetrics() {
   const allProps = getAllCachedProps();
-  const minEdge = STATE.settings.minEdge ?? 5;
-  const minConf = STATE.settings.minConf ?? 4;
-
-  // Count visible (filtered) props
+  const minEdge = viewMode === 'analysis' ? 0 : (STATE.settings.bettingMinEdge ?? STATE.settings.minEdge ?? 5);
+  const minConf = viewMode === 'analysis'
+    ? (STATE.settings.analysisMinConf ?? 1)
+    : (STATE.settings.bettingMinConf ?? STATE.settings.minConf ?? 4);
   const visible = allProps.filter(p => {
     if(!filters.sports.has('all') && !filters.sports.has(p.sport)) return false;
     if(p.conf < minConf) return false;
