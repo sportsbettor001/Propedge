@@ -273,7 +273,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
 /* TRACE TAB */
 .trace-section{margin-bottom:14px}
-.trace-section-title{font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--blue);padding:6px 10px;background:var(--bg3);border-radius:8px 8px 0 0;border:1px solid var(--border);border-bottom:none}
+.trace-section-title{font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--blue);padding:6px 10px;background:var(--bg3);border-radius:8px 8px 0 0;border:1px solid var(--border);border-bottom:none;cursor:pointer;user-select:none}
+.trace-section.collapsed .trace-section-title{border-radius:8px;border-bottom:1px solid var(--border)}
+.trace-section.collapsed .trace-entries{display:none}
 .trace-entries{background:var(--bg2);border:1px solid var(--border);border-radius:0 0 8px 8px;overflow:hidden}
 .trace-entry{font-family:var(--mono);font-size:9px;padding:4px 10px;border-bottom:1px solid var(--border);line-height:1.5;color:var(--muted)}
 .trace-entry:last-child{border-bottom:none}
@@ -299,7 +301,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v12.17</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v12.24</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -348,6 +350,79 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           <div class="filter-chip" data-dec="OVER" onclick="setFilter('dec','OVER',this)">OVER</div>
           <div class="filter-chip" data-dec="UNDER" onclick="setFilter('dec','UNDER',this)">UNDER</div>
           <div class="filter-chip" data-dec="PASS" onclick="setFilter('dec','PASS',this)">PASS</div>
+        </div>
+        <div style="margin-bottom:6px;display:flex;gap:6px;align-items:center">
+          <select id="prop-type-filter" onchange="setFilter('prop',this.value)" style="flex:1;font-family:var(--mono);font-size:11px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:5px 8px;cursor:pointer">
+            <option value="all">All prop types</option>
+            <optgroup label="── NBA/WNBA ──">
+              <option value="Points">Points</option>
+              <option value="Rebounds">Rebounds</option>
+              <option value="Assists">Assists</option>
+              <option value="Points + Rebounds + Assists">PRA</option>
+              <option value="Points + Rebounds">Points + Rebounds</option>
+              <option value="Points + Assists">Points + Assists</option>
+              <option value="Assists + Rebounds">Assists + Rebounds</option>
+              <option value="Threes Made">Threes Made</option>
+              <option value="Steals">Steals</option>
+              <option value="Blocks">Blocks</option>
+              <option value="Turnovers">Turnovers</option>
+              <option value="Steals + Blocks">Steals + Blocks</option>
+              <option value="Double Double">Double Double</option>
+              <option value="Triple Double">Triple Double</option>
+            </optgroup>
+            <optgroup label="── MLB Batters ──">
+              <option value="Hits">Hits</option>
+              <option value="Total Bases">Total Bases</option>
+              <option value="Home Runs">Home Runs</option>
+              <option value="Runs">Runs</option>
+              <option value="RBIs">RBIs</option>
+              <option value="Hits + Runs + RBIs">H+R+RBI</option>
+              <option value="Singles">Singles</option>
+              <option value="Doubles">Doubles</option>
+              <option value="Stolen Bases">Stolen Bases</option>
+              <option value="Walks">Walks</option>
+            </optgroup>
+            <optgroup label="── MLB Pitchers ──">
+              <option value="Strikeouts">Strikeouts</option>
+              <option value="Total Outs">Total Outs</option>
+              <option value="Hits Allowed">Hits Allowed</option>
+              <option value="Earned Runs">Earned Runs</option>
+              <option value="Runs First Inning">Runs First Inning</option>
+            </optgroup>
+            <optgroup label="── NFL ──">
+              <option value="Pass Yards">Pass Yards</option>
+              <option value="Rush Yards">Rush Yards</option>
+              <option value="Receiving Yards">Receiving Yards</option>
+              <option value="Receptions">Receptions</option>
+              <option value="Passing Touchdowns">Passing TDs</option>
+              <option value="Receiving Touchdown">Receiving TD</option>
+              <option value="Rush + Receiving Touchdowns">Rush+Rec TDs</option>
+              <option value="Anytime Touchdown">Anytime TD</option>
+              <option value="Targets">Targets</option>
+              <option value="Pass Attempts">Pass Attempts</option>
+              <option value="Rushing Attempts">Rush Attempts</option>
+              <option value="Interceptions Thrown">INTs Thrown</option>
+              <option value="Sacks">Sacks</option>
+              <option value="Total Tackles">Total Tackles</option>
+              <option value="FG Made">FG Made</option>
+              <option value="Kicking Points">Kicking Points</option>
+            </optgroup>
+            <optgroup label="── NHL ──">
+              <option value="Points">Points (NHL)</option>
+              <option value="Goals">Goals</option>
+              <option value="Assists">Assists (NHL)</option>
+              <option value="Shots on Goal">Shots on Goal</option>
+              <option value="Power Play Points">Power Play Pts</option>
+              <option value="Blocks">Blocks (NHL)</option>
+              <option value="Saves">Saves</option>
+              <option value="Goals Against">Goals Against</option>
+            </optgroup>
+            <optgroup label="── Golf ──">
+              <option value="Strokes">Strokes</option>
+              <option value="Birdies or Better">Birdies or Better</option>
+              <option value="Bogeys or Worse">Bogeys or Worse</option>
+            </optgroup>
+          </select>
         </div>
         <div class="filter-row" id="date-filters" style="margin-bottom:6px">
           <div class="filter-chip active" data-date="all" onclick="setFilter('date','all',this)">All dates</div>
@@ -518,6 +593,22 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       <div class="section-title">Current slip <span class="count" id="slip-count-badge">0 legs</span></div>
       <div id="slip-list"></div>
       <div id="slip-summary-area"></div>
+      <div style="margin-top:16px;padding:12px;background:var(--bg3);border:1px solid var(--border);border-radius:12px">
+        <div style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--blue);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">+ Add Manual Pick</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <input id="manual-player" class="form-input" placeholder="Player name" autocorrect="off" autocapitalize="words" style="font-size:12px;padding:7px 10px"/>
+          <input id="manual-prop" class="form-input" placeholder="Prop (e.g. Points)" autocorrect="off" style="font-size:12px;padding:7px 10px"/>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+          <input id="manual-line" class="form-input" type="number" step="0.5" placeholder="Line (27.5)" inputmode="decimal" style="font-size:12px;padding:7px 10px"/>
+          <input id="manual-proj" class="form-input" type="number" step="0.1" placeholder="Proj (optional)" inputmode="decimal" style="font-size:12px;padding:7px 10px"/>
+          <select id="manual-side" class="form-input form-select" style="font-size:12px;padding:7px 10px">
+            <option value="OVER">OVER</option>
+            <option value="UNDER">UNDER</option>
+          </select>
+        </div>
+        <button onclick="addManualPick()" style="width:100%;padding:9px;background:var(--accent);color:#000;font-family:var(--mono);font-size:11px;font-weight:700;border:none;border-radius:8px;cursor:pointer">Add to Slip</button>
+      </div>
     </div>
 
     <!-- ROI TRACKER TAB -->
@@ -566,11 +657,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
     <div class="setting-group">
       <label class="setting-label">ESPN API — NBA/NFL/WNBA schedules & injuries</label>
       <div class="setting-hint" style="color:var(--amber)">⚠ Unofficial endpoint — works today, no SLA. Used for NBA/NFL game logs and injury reports.</div>
-    </div>
-    <div class="setting-group">
-      <label class="setting-label">BallDontLie API Key (optional — improves NBA/WNBA)</label>
-      <input class="setting-input" id="s-bdl-key" placeholder="Optional — paste BallDontLie key here" autocorrect="off" autocapitalize="none"/>
-      <div class="setting-hint">Optional. Free key at <a href="https://www.balldontlie.io" onclick="openLink('https://www.balldontlie.io')">balldontlie.io</a> — no credit card. Adds pts/reb/ast/min per game for NBA. Without key, ESPN game logs are used instead.</div>
     </div>
 
     <div class="modal-section">Cloudflare Proxy (NBA full season data)</div>
@@ -630,7 +716,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       • MLB: statsapi.mlb.com (official, no key) — batter game logs, pitcher ERA/WHIP, probable starters<br/>
       • MLB weather: open-meteo.com (no key) — wind, temp, precipitation at stadium<br/>
       • NHL: api-web.nhle.com (official, no key) — player game logs, goalie SV%/GAA, TOI<br/>
-      • NBA/WNBA: BallDontLie (optional key) → ESPN fallback<br/>
+      • NBA/WNBA: ESPN game logs (70+ games)<br/>
       • NFL: ESPN game logs (snap/target share unavailable free)<br/>
       • Sportsbook lines: The Odds API (free key from the-odds-api.com)<br/><br/>
       Model uses EWMA mean + normal distribution to compute P(Over) and P(Under), then compares against implied probability from sportsbook odds to find +EV edges. Minimum 5 valid games required. No randomness. All data stored locally on your device.
@@ -667,8 +753,7 @@ let STATE = loadState() || {
   savedSlips: [],
   settings: {
     oddsApiKey: '',
-    balldontlieKey: '',
-    corsProxy: '',
+        corsProxy: '',
     proxyToken: '',
     minEdge: 5,
     minConf: 4,
@@ -696,7 +781,7 @@ if(STATE.props && Array.isArray(STATE.props) && STATE.props.length > 0 && !STATE
 }
 
 // Ensure settings object has all keys
-STATE.settings = Object.assign({ oddsApiKey:'', balldontlieKey:'', corsProxy:'', proxyToken:'', minEdge:5, minConf:4, gamesPerSport:2, playersPerGame:3, analysisGamesPerSport:4, analysisPlayersPerGame:5 }, STATE.settings || {});
+STATE.settings = Object.assign({ oddsApiKey:'', corsProxy:'', proxyToken:'', minEdge:5, minConf:4, gamesPerSport:2, playersPerGame:3, analysisGamesPerSport:4, analysisPlayersPerGame:5 }, STATE.settings || {});
 if(!STATE.sportCache) STATE.sportCache = {};
 
 // ═══════════════════════════════════════════════════════
@@ -709,7 +794,6 @@ function initTrace() {
     gameIngestion:[], playerDiscovery:[], projectionEngine:[], filteringLog:[], outputLog:[] };
   // Reset API call log and NBA directory for this session
   API_CALL_LOG.length = 0;
-  NBA_PLAYER_DIRECTORY = null; // reset for new session
   renderTrace();
 }
 function traceLog(section, msg, level='ok') {
@@ -841,7 +925,6 @@ async function testApi(which) {
 
   if(which === 'nba_directory') {
     el.innerHTML = '<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:var(--bg2);border-radius:8px">⟳ Calling proxy... (may take 10-25s on first attempt)</div>';
-    NBA_PLAYER_DIRECTORY = null; NBA_DIRECTORY_LOADING = null;
     // Show elapsed seconds while waiting
     let secs = 0;
     const ticker = setInterval(() => {
@@ -849,13 +932,24 @@ async function testApi(which) {
       el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:var(--bg2);border-radius:8px">⟳ Calling proxy... ${secs}s elapsed</div>`;
     }, 1000);
     try {
-      const dir = await loadNBAPlayerDirectory();
+      // Test proxy by fetching a small NBA schedule endpoint
+      const season = getNBASeason();
+      const testUrl = `https://stats.nba.com/stats/playerindex?Season=${season}&LeagueID=00&Historical=0`;
+      const proxy = STATE.settings.corsProxy.trim();
+      const token = STATE.settings.proxyToken || '';
+      const proxyUrl = `${proxy}?url=${encodeURIComponent(testUrl)}`;
+      const res = await fetchWithTimeout(proxyUrl, token ? { headers: { 'x-proxy-auth': token } } : {}, 15000);
       clearInterval(ticker);
-      if(dir && dir.size > 0) {
-        const sample = [...dir.entries()].slice(0,3).map(([n,id]) => `${n} → ${id}`).join('<br/>');
-        el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--accent);padding:8px;background:var(--bg2);border-radius:8px">✓ NBA directory loaded in ${secs}s — ${dir.size} players<br/><br/>${sample}</div>`;
+      if(res.ok) {
+        const data = await res.json();
+        const rows = data?.resultSets?.[0]?.rowSet || [];
+        if(rows.length > 0) {
+          el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--accent);padding:8px;background:var(--bg2);border-radius:8px">✓ Proxy working in ${secs}s — ${rows.length} players returned from stats.nba.com</div>`;
+        } else {
+          el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:var(--bg2);border-radius:8px">✗ Proxy returned empty data<br/>Check your proxy URL and token in ⚙ Settings</div>`;
+        }
       } else {
-        el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:var(--bg2);border-radius:8px">✗ Failed after ${secs}s — proxy returned empty/null<br/>Check your proxy URL and token in ⚙ Settings</div>`;
+        el.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:var(--bg2);border-radius:8px">✗ Proxy HTTP ${res.status} after ${secs}s</div>`;
       }
     } catch(e) {
       clearInterval(ticker);
@@ -1049,10 +1143,13 @@ function renderTrace() {
     const entries = t[s] || [];
     const sectionText = `${labels[s]}\n${'='.repeat(40)}\n` + (entries.length ? entries.map(e=>e.msg).join('\n') : 'No entries');
     window._traceSectionTexts[s] = sectionText;
-    html += `<div class="trace-section">`;
-    html += `<div class="trace-section-title" style="display:flex;justify-content:space-between;align-items:center">`;
-    html += `<span>${labels[s]} (${entries.length})</span>`;
-    html += `<button data-section="${s}" onclick="var txt=window._traceSectionTexts[this.dataset.section];navigator.clipboard.writeText(txt).then(()=>showToast('Copied','ok')).catch(()=>showToast('Copy failed','error'))" style="font-family:var(--mono);font-size:8px;background:var(--bg2);color:var(--blue);border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;flex-shrink:0">⎘ copy</button>`;
+    const hasErrors = entries.some(e => e.level === 'fail');
+    const hasWarns  = entries.some(e => e.level === 'warn');
+    const statusDot = hasErrors ? '🔴' : hasWarns ? '🟡' : entries.length ? '🟢' : '⚪';
+    html += `<div class="trace-section collapsed" id="trace-sec-${s}">`;
+    html += `<div class="trace-section-title" style="display:flex;justify-content:space-between;align-items:center" onclick="(function(el){var sec=el.closest('.trace-section');sec.classList.toggle('collapsed');el.querySelector('.trace-arrow').textContent=sec.classList.contains('collapsed')?'▶':'▼'})(this)">`;
+    html += `<span>${statusDot} ${labels[s]} <span style="color:var(--muted)">(${entries.length})</span> <span class="trace-arrow" style="font-size:8px;margin-left:4px">▶</span></span>`;
+    html += `<button data-section="${s}" onclick="event.stopPropagation();var txt=window._traceSectionTexts[this.dataset.section];navigator.clipboard.writeText(txt).then(()=>showToast('Copied','ok')).catch(()=>showToast('Copy failed','error'))" style="font-family:var(--mono);font-size:8px;background:var(--bg2);color:var(--blue);border:1px solid var(--border);border-radius:4px;padding:2px 6px;cursor:pointer;flex-shrink:0">⎘ copy</button>`;
     html += `</div><div class="trace-entries">`;
     if(!entries.length) html += '<div class="trace-entry">No entries</div>';
     else entries.forEach(e => { html += `<div class="trace-entry ${e.level}">${e.msg}</div>`; });
@@ -1088,17 +1185,36 @@ function updateProxyBadge() {
 function updateModeBanner() {
   const el = document.getElementById('mode-banner');
   if(!el) return;
-  const mode = getAppMode();
-  if(mode === 'betting') {
-    el.className = 'mode-banner betting';
-    el.innerHTML = `<div class="mode-banner-dot"></div>BETTING MODE — Real sportsbook lines active (DraftKings / FanDuel)`;
-  } else if(mode === 'analysis') {
+  const appMode = getAppMode();
+  const allProps = getAllCachedProps();
+  const hasProps = allProps.length > 0;
+
+  // View toggle — only show when we have props cached
+  const toggleHTML = hasProps ? `
+    <div style="margin-left:auto;display:flex;gap:0;border:1px solid rgba(255,255,255,0.12);border-radius:6px;overflow:hidden;flex-shrink:0">
+      <button onclick="setViewMode('betting')" style="font-family:var(--mono);font-size:9px;padding:3px 8px;border:none;cursor:pointer;font-weight:${viewMode==='betting'?'700':'400'};background:${viewMode==='betting'?'rgba(0,229,160,0.2)':'transparent'};color:${viewMode==='betting'?'var(--accent)':'var(--muted)'}">BETTING</button>
+      <button onclick="setViewMode('analysis')" style="font-family:var(--mono);font-size:9px;padding:3px 8px;border:none;border-left:1px solid rgba(255,255,255,0.12);cursor:pointer;font-weight:${viewMode==='analysis'?'700':'400'};background:${viewMode==='analysis'?'rgba(255,181,71,0.2)':'transparent'};color:${viewMode==='analysis'?'var(--amber)':'var(--muted)'}">ANALYSIS</button>
+    </div>` : '';
+
+  if(viewMode === 'analysis' && hasProps) {
     el.className = 'mode-banner analysis';
-    el.innerHTML = `<div class="mode-banner-dot"></div>ANALYSIS MODE — No market lines · Projections only · No betting recommendations`;
+    el.innerHTML = `<div class="mode-banner-dot"></div>ANALYSIS VIEW — Showing model projections · EV/edge hidden${toggleHTML}`;
+  } else if(appMode === 'betting') {
+    el.className = 'mode-banner betting';
+    el.innerHTML = `<div class="mode-banner-dot"></div>BETTING MODE — Real sportsbook lines active${toggleHTML}`;
+  } else if(appMode === 'analysis') {
+    el.className = 'mode-banner analysis';
+    el.innerHTML = `<div class="mode-banner-dot"></div>ANALYSIS MODE — No market lines · Projections only${toggleHTML}`;
   } else {
     el.className = '';
     el.innerHTML = '';
   }
+}
+
+function setViewMode(mode) {
+  viewMode = mode;
+  updateModeBanner();
+  renderProps();
 }
 
 // ── CACHE HELPERS ──
@@ -1132,10 +1248,11 @@ function formatAge(ms) {
 // ═══════════════════════════════════════════════════════
 // UI STATE
 // ═══════════════════════════════════════════════════════
-let filters = { sports: new Set(['all']), dec: 'all', date: 'all' };
+let filters = { sports: new Set(['all']), dec: 'all', date: 'all', prop: 'all' };
 let expandedCards = new Set();
 let isGenerating = false;
 let isAnalyzing = false;
+let viewMode = 'betting'; // 'betting' | 'analysis' — toggles card display without re-fetch
 let fetchingSports = new Set(); // sports currently being fetched
 
 // ═══════════════════════════════════════════════════════
@@ -1149,13 +1266,13 @@ document.addEventListener('DOMContentLoaded', function() {
   updateSportChipStatus();
   updateProxyBadge();
 
-  // Clean up stale MLB _lastproj_ stability anchors from before v12.17 (when all MLB props
-  // used the same Hits snapshot — now each prop has its own projection so old anchors cause false instability)
+  // Clear all _lastproj_ stability anchors on v12.24 startup
+  // These anchors lock in stale projections from previous buggy versions — safer to reset
   try {
     const keysToDelete = [];
     for(let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if(k && k.startsWith('pe_snap2_MLB_') && k.includes('_lastproj_')) keysToDelete.push(k);
+      if(k && k.includes('_lastproj_')) keysToDelete.push(k);
     }
     keysToDelete.forEach(k => localStorage.removeItem(k));
   } catch(e) {}
@@ -1289,7 +1406,6 @@ function openSettings() {
 function revertToDefaults() {
   if(!confirm('Clear all API keys and proxy settings? Your props history and slip will be kept.')) return;
   STATE.settings.oddsApiKey   = '';
-  STATE.settings.balldontlieKey = '';
   STATE.settings.corsProxy    = '';
   STATE.settings.proxyToken   = '';
   saveState();
@@ -1328,7 +1444,6 @@ function handleModalClick(e) {
 function loadSettingsIntoForm() {
   const s = STATE.settings;
   document.getElementById('s-odds-key').value = s.oddsApiKey || '';
-  document.getElementById('s-bdl-key').value = s.balldontlieKey || '';
   document.getElementById('s-cors-proxy').value = s.corsProxy || '';
   document.getElementById('s-proxy-token').value = s.proxyToken || '';
   document.getElementById('s-min-edge').value = s.minEdge ?? 5;
@@ -1347,7 +1462,6 @@ function saveSettings() {
   const prevAnalysisPlayers = STATE.settings.analysisPlayersPerGame;
 
   STATE.settings.oddsApiKey = document.getElementById('s-odds-key').value.trim();
-  STATE.settings.balldontlieKey = document.getElementById('s-bdl-key').value.trim();
   STATE.settings.corsProxy   = document.getElementById('s-cors-proxy').value.trim();
   STATE.settings.proxyToken  = document.getElementById('s-proxy-token').value.trim();
   STATE.settings.minEdge = parseFloat(document.getElementById('s-min-edge').value) || 3;
@@ -1940,92 +2054,6 @@ function interpretMLBWeather(weather, homeTeam) {
 }
 
 // ═══════════════════════════════════════════════════════
-// BALLDONTLIE API — optional, NBA/WNBA game logs + stats
-// Requires free key from balldontlie.io (no credit card)
-// Falls back to ESPN if no key provided
-// ═══════════════════════════════════════════════════════
-async function fetchBDLPlayerStats(playerName, sport, dateFrom, dateTo) {
-  const key = STATE.settings.balldontlieKey;
-  if(!key) return null;
-  const league = sport === 'WNBA' ? 'wnba' : 'nba';
-  try {
-    // Step 1: find player ID
-    const searchUrl = `https://api.balldontlie.io/${league}/v1/players?search=${encodeURIComponent(playerName)}&per_page=5`;
-    const searchData = await fetchJSON(searchUrl, { headers: { 'Authorization': key } });
-    const player = searchData?.data?.[0];
-    if(!player) return null;
-    // Step 2: fetch recent game stats (last 20 games)
-    const statsUrl = `https://api.balldontlie.io/${league}/v1/stats?player_ids[]=${player.id}&per_page=20&sort=game_date&order=desc&start_date=${dateFrom}&end_date=${dateTo}`;
-    const statsData = await fetchJSON(statsUrl, { headers: { 'Authorization': key } });
-    return { playerId: player.id, games: statsData?.data || [] };
-  } catch(e) { return null; }
-}
-
-// ═══════════════════════════════════════════════════════
-// NBA STATS API — stats.nba.com
-// Full season game logs. CORS-blocked — requires Cloudflare proxy in Settings.
-// If no proxy configured, falls back to ESPN automatically.
-// NBA Stats player ID map — covers all active NBA players for current season
-// Ordered by prominence — top players most likely to appear in props
-const NBA_STATS_IDS = {
-  'LaMelo Ball':1630163,'Stephen Curry':201939,'Joel Embiid':203954,
-  'Nikola Jokic':203999,'Luka Doncic':1629029,'Shai Gilgeous-Alexander':1628983,
-  'Giannis Antetokounmpo':203507,'LeBron James':2544,'Kevin Durant':201142,
-  'Jayson Tatum':1628369,'Anthony Edwards':1630162,'Donovan Mitchell':1628378,
-  'Devin Booker':1626164,'Ja Morant':1629630,'Trae Young':1628384,
-  'Jaylen Brown':1627759,'Anthony Davis':203076,'Bam Adebayo':1628389,
-  'Tyrese Haliburton':1630169,'De Aaron Fox':1628368,'Damian Lillard':203081,
-  'Paolo Banchero':1631094,'Franz Wagner':1630532,'Jalen Suggs':1630591,
-  'Wendell Carter Jr.':1628928,'Devin Vassell':1630230,'Jeremy Sochan':1631217,
-  'Keldon Johnson':1629553,'Chris Paul':101108,'Tre Jones':1630200,
-  'Klay Thompson':202691,'Draymond Green':203110,'Andrew Wiggins':203952,
-  'Jonathan Kuminga':1630228,'Moses Moody':1630558,'Kawhi Leonard':202695,
-  'Paul George':202331,'James Harden':201935,'Tyrese Maxey':1630178,
-  'Kelly Oubre Jr.':203900,'Desmond Bane':1630217,'Jaren Jackson Jr.':1628991,
-  'Marcus Smart':203935,'Nikola Vucevic':202696,'Zach LaVine':203897,
-  'Coby White':1629632,'Patrick Williams':1630170,'Ayo Dosunmu':1630245,
-  'Mikal Bridges':1628969,'Karl-Anthony Towns':1626157,'Jalen Brunson':1628384,
-  'Josh Hart':1628404,'Donte DiVincenzo':1629059,'Brook Lopez':201572,
-  'Khris Middleton':203114,'Bobby Portis Jr.':1626187,
-  'Cade Cunningham':1630595,'Jaden Ivey':1631093,'Bojan Bogdanovic':202711,
-  'Evan Mobley':1630596,'Darius Garland':1629029,'Jarrett Allen':1628386,
-  'Max Strus':1629641,'Scottie Barnes':1630567,'Pascal Siakam':1626169,
-  'Fred VanVleet':2716,'Gary Trent Jr.':1629018,'Alperen Sengun':1631167,
-  'Jalen Green':1630224,'Jabari Smith Jr.':1630538,'Tari Eason':1631105,
-  'Kristaps Porzingis':204001,'Al Horford':201143,'Payton Pritchard':1630202,
-  'Sam Hauser':1630546,'Julius Randle':203944,'RJ Barrett':1629628,
-  'Immanuel Quickley':1630193,'Isaiah Hartenstein':1628398,
-  'Zion Williamson':1629627,'Brandon Ingram':1627742,'CJ McCollum':203468,
-  'Herbert Jones':1630529,'Trey Murphy III':1630530,'Jonas Valanciunas':202685,
-  'Rudy Gobert':203497,'Mike Conley':201144,'Jordan Clarkson':203903,
-  'Lauri Markkanen':1628374,'Walker Kessler':1631117,'Collin Sexton':1629012,
-  'Deni Avdija':1630166,'Kyle Kuzma':1628398,'Bradley Beal':203078,
-  'Jordan Poole':1629673,'Anthony Black':1631105,'Chet Holmgren':1630533,
-  'Josh Giddey':1630581,'Luguentz Dort':1629652,'Isaiah Joe':1630187,
-  'Victor Wembanyama':1641705,'Brandon Miller':1631103,'Miles Bridges':1626170,
-  'Terry Rozier':1626179,'Nick Richards':1629637,'DeAnthony Melton':1629001,
-  'Dejounte Murray':1627749,'John Collins':1628381,'Bogdan Bogdanovic':203992,
-  'Clint Capela':203991,'Russell Westbrook':201566,'Ivica Zubac':1627826,
-  'Norman Powell':1626181,'DAngelo Russell':1626156,'Austin Reaves':1630559,
-  'Rui Hachimura':1629060,'Derrick White':1628401,'Grant Williams':1629684,
-  'OG Anunoby':1628384,'Patrick Beverley':201976,'Dennis Schroder':203471,
-  'Cam Thomas':1631117,'Ben Simmons':1627732,'Mikal Bridges':1628969,
-};
-
-let NBA_PLAYER_DIRECTORY = null; // kept for compatibility but not used
-
-async function loadNBAPlayerDirectory() {
-  // Returns the hardcoded map — no API call needed
-  if(!STATE.settings.corsProxy) return null;
-  NBA_PLAYER_DIRECTORY = new Map(
-    Object.entries(NBA_STATS_IDS).map(([name, id]) => [name.toLowerCase(), id])
-  );
-  return NBA_PLAYER_DIRECTORY;
-}
-
-// Session cache for dynamically resolved NBA IDs (not in hardcoded map)
-const NBA_DYNAMIC_IDS = {};
-
 // ═══════════════════════════════════════════════════════
 // ESPN ID VERIFICATION SYSTEM
 // Verifies hardcoded ESPN IDs by checking the player name
@@ -2176,98 +2204,8 @@ function getVerifiedESPNId(playerName, fallbackId) {
   return cache[key] || fallbackId;
 }
 
-async function lookupNBAPlayerId(playerName) {
-  const norm = s => (s||'').toLowerCase().trim();
-  const target = norm(playerName);
+// lookupNBAPlayerId removed — NBA Stats API path replaced by ESPN game logs
 
-  // 1. Hardcoded map — instant, covers current stars
-  if(NBA_STATS_IDS[playerName]) return NBA_STATS_IDS[playerName];
-  for(const [name, id] of Object.entries(NBA_STATS_IDS)) {
-    if(norm(name) === target) return id;
-  }
-
-  // 2. Dynamic cache — already resolved this session
-  if(NBA_DYNAMIC_IDS[target]) return NBA_DYNAMIC_IDS[target];
-
-  // 3. Last name match in hardcoded map (unique only)
-  const targetLast = target.split(' ').pop();
-  const lastMatches = Object.entries(NBA_STATS_IDS).filter(([n]) => norm(n).split(' ').pop() === targetLast);
-  if(lastMatches.length === 1) return lastMatches[0][1];
-
-  // 4. Live search via proxy — for players not in hardcoded map (rookies, trades etc)
-  // Uses commonPlayerInfo search-like approach via playerindex endpoint
-  if(STATE.settings.corsProxy) {
-    try {
-      const season = getNBASeason();
-      // playerindex endpoint returns all players with their IDs — filterable
-      const nbaUrl = `https://stats.nba.com/stats/playerindex?Season=${season}&LeagueID=00&Historical=0`;
-      const proxy = STATE.settings.corsProxy.trim();
-      const token = STATE.settings.proxyToken || '';
-      const proxyUrl = `${proxy}?url=${encodeURIComponent(nbaUrl)}`;
-      const res = await fetchWithTimeout(proxyUrl, token ? { headers: { 'x-proxy-auth': token } } : {}, 15000);
-      if(res.ok) {
-        const data = await res.json();
-        const headers = data?.resultSets?.[0]?.headers || [];
-        const rows = data?.resultSets?.[0]?.rowSet || [];
-        const idIdx = headers.indexOf('PERSON_ID');
-        const firstIdx = headers.indexOf('PLAYER_FIRST_NAME');
-        const lastIdx = headers.indexOf('PLAYER_LAST_NAME');
-        if(idIdx >= 0 && rows.length > 0) {
-          // Cache all results for this session
-          for(const row of rows) {
-            const fullName = norm(`${row[firstIdx]} ${row[lastIdx]}`);
-            if(fullName && row[idIdx]) NBA_DYNAMIC_IDS[fullName] = row[idIdx];
-          }
-          traceLog('gameIngestion', `NBA playerindex loaded — ${rows.length} players cached`, 'ok');
-          // Now try again
-          if(NBA_DYNAMIC_IDS[target]) return NBA_DYNAMIC_IDS[target];
-        }
-      }
-    } catch(e) {
-      // Silent fail — proxy might not support this endpoint
-    }
-  }
-
-  return null;
-}
-
-async function fetchNBAStatsGameLog(playerName, nbaPersonId) {
-  if(!STATE.settings.corsProxy) return null;
-  const nbaId = nbaPersonId || await lookupNBAPlayerId(playerName);
-  if(!nbaId) return null;
-  const season = getNBASeason();
-  try {
-    const url = `https://stats.nba.com/stats/playergamelogs?PlayerID=${nbaId}&Season=${season}&SeasonType=Regular+Season&LeagueID=00`;
-    // fetchWithFallback routes through proxy automatically — same as working version
-    const data = await fetchWithFallback(url);
-    const headers = data?.resultSets?.[0]?.headers || [];
-    const rows    = data?.resultSets?.[0]?.rowSet    || [];
-    if(!headers.length || !rows.length) return null;
-    traceLog('projectionEngine', `${playerName} (NBA): NBA Stats got ${rows.length} games (ID ${nbaId})`, 'ok');
-    return { headers, rows, playerName };
-  } catch(e) { return null; }
-}
-
-function parseNBAStatsGameLog(nbaStatsData, statLabel, opp) {
-  if(!nbaStatsData?.rows?.length) return { allVals:[], vsOppVals:[] };
-  const { headers, rows } = nbaStatsData;
-  const idx = col => headers.findIndex(h => h === col);
-  const colMap = { 'Points':'PTS','Rebounds':'REB','Assists':'AST','Threes Made':'FG3M','Steals':'STL','Blocks':'BLK','Turnovers':'TOV' };
-  const col = colMap[statLabel];
-  if(!col) return { allVals:[], vsOppVals:[] };
-  const colIdx = idx(col);
-  const oppIdx = idx('MATCHUP');
-  if(colIdx < 0) return { allVals:[], vsOppVals:[] };
-  const oppNorm = (opp||'').toUpperCase().slice(0,3);
-  const allVals = [], vsOppVals = [];
-  for(const row of rows) {
-    const val = parseFloat(row[colIdx]);
-    if(isNaN(val) || val < 0) continue;
-    allVals.push(val);
-    if(oppNorm && (row[oppIdx]||'').toUpperCase().includes(oppNorm)) vsOppVals.push(val);
-  }
-  return { allVals, vsOppVals };
-}
 
 // ═══════════════════════════════════════════════════════
 // ODDS API FETCHER
@@ -2651,11 +2589,6 @@ async function runFetch(sportsToFetch) {
   // Set trace mode immediately
   if(STATE.trace) STATE.trace.mode = STATE.settings.oddsApiKey ? 'betting' : 'analysis';
 
-  // Preload NBA player directory early — stats.nba.com is slow, start it now
-  // so it's ready by the time we process NBA players
-  if(STATE.settings.corsProxy && sportsToFetch.includes('NBA')) {
-    loadNBAPlayerDirectory().catch(() => {}); // fire and forget, errors handled inside
-  }
   initTrace();
   traceLog('gameIngestion', `Run started — sports: ${sportsToFetch.join(', ')}`, 'ok');
 
@@ -3302,20 +3235,6 @@ async function runFetch(sportsToFetch) {
             traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN ID from player database → ${espnId}`, 'ok');
           }
         }
-        // Step 2: For NBA — also store the NBA Stats PERSON_ID separately for game log fetches
-        // PERSON_ID ≠ ESPN ID — these are different systems entirely
-        // NBA Stats API game logs use PERSON_ID; ESPN game logs use ESPN athlete ID
-        if(player.sport === 'NBA' && STATE.settings.corsProxy) {
-          const nbaPersonId = await lookupNBAPlayerId(player.name);
-          if(nbaPersonId) {
-            // Store NBA person ID in meta — used by fetchNBAStatsGameLog
-            player.meta = { ...(player.meta||{}), nbaPersonId };
-            traceLog('playerDiscovery', `${player.name} (NBA): NBA Stats PERSON_ID → ${nbaPersonId}`, 'ok');
-            // If we still have no ESPN ID, use PERSON_ID as fallback identity token
-            // (game log will fall back to ESPN anyway if NBA Stats fails)
-            if(!espnId) espnId = String(nbaPersonId);
-          }
-        }
         // Step 2: ESPN name search fallback — only for NBA (MLB/NHL have own IDs)
         // Check ESPN ID cache first — avoids repeat searches across generates
         if(!espnId && player.name && player.espnSport && player.espnLeague && player.sport === 'NBA') {
@@ -3466,8 +3385,7 @@ async function runFetch(sportsToFetch) {
         // Merge mlbId into playerMeta so buildPlayerProp can use it for MLB API fetch
         const playerMetaMerged = { ...(dbEntry||{}), ...(player.meta||{}),
           mlbId: resolvedMlbId || null,
-          nbaPersonId: player.meta?.nbaPersonId || null,
-          nbaId: dbEntry?.nbaId || player.meta?.nbaPersonId || null };
+          nbaId: dbEntry?.nbaId || null };
         let prop = await buildPlayerProp(
           effectiveId, player.name, player.sport, player.espnSport, player.espnLeague,
           dbEntry?.team||player.homeTeam, opp, player.dateTag || 'today',
@@ -3633,8 +3551,6 @@ async function runFetch(sportsToFetch) {
 // ═══════════════════════════════════════════════════════
 const PLAYER_DB = {
   NBA: [
-    // id = ESPN athlete ID, nbaId = NBA Stats PERSON_ID
-    // Game log fetch: ESPN first (id), NBA Stats via proxy fallback (nbaId)
     {id:'3945274',nbaId:1628983,name:'Shai Gilgeous-Alexander',team:'OKC',prop:'Points',lineBase:32,usage:0.34,vol:'high'},
     {id:'3136193',nbaId:1629029,name:'Luka Doncic',team:'LAL',prop:'Points',lineBase:33.5,usage:0.37,vol:'high'},
     {id:'6450',nbaId:2544,name:'LeBron James',team:'LAL',prop:'Points',lineBase:22,usage:0.28,vol:'med'},
@@ -3770,20 +3686,23 @@ const PLAYER_DB = {
     {id:'4432803',name:'Rhyne Howard',team:'ATL',prop:'Points',lineBase:16},
   ],
   GOLF: [
-    {id:'3468',name:'Scottie Scheffler',team:'PGA',prop:'Strokes',lineBase:67.5,sgTotal:3.8},
-    {id:'4686885',name:'Rory McIlroy',team:'PGA',prop:'Birdies or Better',lineBase:4.5,sgTotal:3.2},
-    {id:'4686886',name:'Jon Rahm',team:'LIV',prop:'Strokes',lineBase:69.5,sgTotal:2.8},
-    {id:'3215',name:'Xander Schauffele',team:'PGA',prop:'Birdies or Better',lineBase:4.5,sgTotal:2.9},
-    {id:'4686887',name:'Collin Morikawa',team:'PGA',prop:'Strokes',lineBase:69.5,sgTotal:2.7},
-    {id:'4686888',name:'Viktor Hovland',team:'PGA',prop:'Birdies or Better',lineBase:3.5,sgTotal:2.4},
-    {id:'4686889',name:'Ludvig Aberg',team:'PGA',prop:'Strokes',lineBase:69.5,sgTotal:2.6},
-    {id:'4686890',name:'Brooks Koepka',team:'LIV',prop:'Bogeys or Worse',lineBase:2.5,sgTotal:1.8},
-    {id:'4686892',name:'Tony Finau',team:'PGA',prop:'Birdies or Better',lineBase:3.5,sgTotal:2.1},
-    {id:'4686894',name:'Tommy Fleetwood',team:'PGA',prop:'Strokes',lineBase:69.5,sgTotal:2.3},
-    {id:'4686895',name:'Wyndham Clark',team:'PGA',prop:'Birdies or Better',lineBase:3.5,sgTotal:2.2},
-    {id:'4686896',name:'Patrick Cantlay',team:'PGA',prop:'Strokes',lineBase:69.5,sgTotal:2.4},
-    {id:'4686899',name:'Min Woo Lee',team:'PGA',prop:'Birdies or Better',lineBase:3.5,sgTotal:2.0},
-    {id:'4686900',name:'Tom Kim',team:'PGA',prop:'Birdies or Better',lineBase:3.5,sgTotal:2.1},
+    // ESPN IDs from espn.com/golf/player/_/id/{ID}
+    // RBC Heritage 2026 field (Harbour Town, Hilton Head — week of Apr 17)
+    {id:'9478',  name:'Scottie Scheffler',  team:'PGA', prop:'Strokes',          lineBase:68.5, sgTotal:3.8},
+    {id:'4686889',name:'Ludvig Aberg',      team:'PGA', prop:'Strokes',          lineBase:68.5, sgTotal:3.1},
+    {id:'3215',  name:'Xander Schauffele',  team:'PGA', prop:'Birdies or Better',lineBase:4.5,  sgTotal:2.9},
+    {id:'4686885',name:'Rory McIlroy',      team:'PGA', prop:'Birdies or Better',lineBase:4.5,  sgTotal:3.2},
+    {id:'4686888',name:'Viktor Hovland',    team:'PGA', prop:'Strokes',          lineBase:68.5, sgTotal:2.6},
+    {id:'4686887',name:'Collin Morikawa',   team:'PGA', prop:'Strokes',          lineBase:69.0, sgTotal:2.7},
+    {id:'3467',  name:'Jordan Spieth',      team:'PGA', prop:'Birdies or Better',lineBase:3.5,  sgTotal:2.2},
+    {id:'4686894',name:'Tommy Fleetwood',   team:'PGA', prop:'Strokes',          lineBase:69.0, sgTotal:2.3},
+    {id:'4686896',name:'Patrick Cantlay',   team:'PGA', prop:'Birdies or Better',lineBase:3.5,  sgTotal:2.4},
+    {id:'3468',  name:'Matt Fitzpatrick',   team:'PGA', prop:'Strokes',          lineBase:69.0, sgTotal:2.3},
+    {id:'4686892',name:'Tony Finau',        team:'PGA', prop:'Birdies or Better',lineBase:3.5,  sgTotal:2.1},
+    {id:'4686899',name:'Min Woo Lee',       team:'PGA', prop:'Birdies or Better',lineBase:3.5,  sgTotal:2.0},
+    {id:'4686900',name:'Tom Kim',           team:'PGA', prop:'Birdies or Better',lineBase:3.5,  sgTotal:2.1},
+    {id:'3468179',name:'Sam Burns',         team:'PGA', prop:'Birdies or Better',lineBase:4.0,  sgTotal:2.2},
+    {id:'4686886',name:'Jon Rahm',          team:'LIV', prop:'Strokes',          lineBase:69.5, sgTotal:2.8},
   ]
 };
 
@@ -3903,8 +3822,18 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
   const findIdx = (stat) => {
     for(const alias of getAliases(stat)) {
       const al = alias.toLowerCase();
-      const idx = topLabels.findIndex(l => l === al || l.includes(al) || al.includes(l));
-      if(idx !== -1) return idx;
+      // Exact match first — never use partial match for short labels (prevents 'a' matching 'ast')
+      const exactIdx = topLabels.findIndex(l => l === al);
+      if(exactIdx !== -1) return exactIdx;
+    }
+    for(const alias of getAliases(stat)) {
+      const al = alias.toLowerCase();
+      // Partial: label contains alias (e.g. 'total rebounds' contains 'reb')
+      // Only allow if alias is at least 3 chars to avoid 'r','a' false matches
+      if(al.length >= 3) {
+        const idx = topLabels.findIndex(l => l.includes(al));
+        if(idx !== -1) return idx;
+      }
     }
     return -1;
   };
@@ -4188,10 +4117,19 @@ function extractESPNRawGames(gameLogData, statLabel, opp) {
   }
 
   const findIdx = stat => {
+    // Pass 1: exact match only
     for(const alias of getAliases(stat)) {
       const al = alias.toLowerCase();
-      const idx = topLabels.findIndex(l => l === al || l.includes(al) || al.includes(l));
+      const idx = topLabels.findIndex(l => l === al);
       if(idx !== -1) return idx;
+    }
+    // Pass 2: label contains alias — only if alias is 3+ chars (prevents 'r','a' false matches)
+    for(const alias of getAliases(stat)) {
+      const al = alias.toLowerCase();
+      if(al.length >= 3) {
+        const idx = topLabels.findIndex(l => l.includes(al));
+        if(idx !== -1) return idx;
+      }
     }
     return -1;
   };
@@ -4339,7 +4277,6 @@ function extractStatFromSnapshot(snap, statLabel) {
     'Turnovers':    ['to','turnovers','TOV'],
     'Shots on Goal':['sog','shots','shotsOnGoal','SOG'],
     'Goals':        ['g','goals','G'],
-    'Assists':      ['ast','assists','AST'],  // shared label — context-sensitive
     'Goals Against':['ga','goalsAgainst','GA'],
     'Saves':        ['sv','saves','SV'],
     'Power Play Points':['ppp','powerPlayPoints','PPP'],
@@ -4376,12 +4313,23 @@ function extractStatFromSnapshot(snap, statLabel) {
   const firstGame = snap.rawGameObjects.find(g => g.labels?.length > 0 && g.allStats?.length > 0);
   if(!firstGame) return null;
 
-  const labels = firstGame.labels;
+  const labels = firstGame.labels.map(l => (l||'').toString().toLowerCase());
   let colIdx = -1;
+  // Pass 1: exact match
   for(const alias of aliases) {
     const al = alias.toLowerCase();
-    const idx = labels.findIndex(l => l === al || l.includes(al) || al.includes(l));
+    const idx = labels.findIndex(l => l === al);
     if(idx !== -1) { colIdx = idx; break; }
+  }
+  // Pass 2: label contains alias (3+ char guard)
+  if(colIdx < 0) {
+    for(const alias of aliases) {
+      const al = alias.toLowerCase();
+      if(al.length >= 3) {
+        const idx = labels.findIndex(l => l.includes(al));
+        if(idx !== -1) { colIdx = idx; break; }
+      }
+    }
   }
   if(colIdx < 0) return null;
 
@@ -4473,66 +4421,11 @@ function computeSharpProjection(snap, vsOppVals, overrideGames) {
 // Storage: localStorage key 'pe_calibration'
 // ═══════════════════════════════════════════════════════
 
-const CALIBRATION_KEY = 'pe_calibration';
-const CALIBRATION_BUCKETS = [0.50,0.55,0.60,0.65,0.70,0.75,0.80,0.85,0.90];
-const MIN_BUCKET_SAMPLES = 10; // need at least 10 to trust calibration
-
-function loadCalibrationData() {
-  try {
-    const raw = localStorage.getItem(CALIBRATION_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch(e) { return {}; }
-}
-
-function saveCalibrationData(data) {
-  try { localStorage.setItem(CALIBRATION_KEY, JSON.stringify(data)); } catch(e) {}
-}
-
-// Call this when a bet result is known (win/loss)
-function recordPredictionResult(predictedProb, won) {
-  const data = loadCalibrationData();
-  const bucket = CALIBRATION_BUCKETS.reduce((prev, curr) =>
-    Math.abs(curr - predictedProb) < Math.abs(prev - predictedProb) ? curr : prev
-  );
-  const key = bucket.toFixed(2);
-  if(!data[key]) data[key] = { predictions: 0, wins: 0 };
-  data[key].predictions++;
-  if(won) data[key].wins++;
-  saveCalibrationData(data);
-}
-
-// Apply calibration to a raw probability
-function calibrateProb(rawProb) {
-  if(rawProb < 0.50) {
-    // For under side, calibrate the complement and flip back
-    const calibrated = calibrateProb(1 - rawProb);
-    return 1 - calibrated;
-  }
-  const data = loadCalibrationData();
-  const bucket = CALIBRATION_BUCKETS.reduce((prev, curr) =>
-    Math.abs(curr - rawProb) < Math.abs(prev - rawProb) ? curr : prev
-  );
-  const key = bucket.toFixed(2);
-  const entry = data[key];
-  if(!entry || entry.predictions < MIN_BUCKET_SAMPLES) return rawProb; // not enough data yet
-  const actualWinRate = entry.wins / entry.predictions;
-  // Blend: 70% calibrated, 30% raw (don't over-correct)
-  const calibrated = (rawProb * 0.30) + (actualWinRate * 0.70);
-  return Math.max(0.05, Math.min(0.95, calibrated));
-}
-
-// Get calibration stats for display in trace
-function getCalibrationStats() {
-  const data = loadCalibrationData();
-  const stats = [];
-  for(const [bucket, entry] of Object.entries(data)) {
-    if(entry.predictions >= MIN_BUCKET_SAMPLES) {
-      const actualRate = (entry.wins / entry.predictions * 100).toFixed(1);
-      stats.push(`${(parseFloat(bucket)*100).toFixed(0)}% bucket: ${actualRate}% actual (${entry.predictions} samples)`);
-    }
-  }
-  return stats;
-}
+const CALIBRATION_KEY = 'pe_calibration'; // kept for data-clear logic only
+// Calibration: identity pass-through (future: wire up recordPredictionResult when result tracking is built)
+function recordPredictionResult(predictedProb, won) { /* stub — not yet wired to result tracking */ }
+function calibrateProb(rawProb) { return rawProb; } // identity until result data available
+function getCalibrationStats() { return []; }
 
 // ═══════════════════════════════════════════════════════
 // CONTEXT ENGINE
@@ -5741,7 +5634,6 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     // ── REASONING ──
     const dataSourceLabel = sport === 'MLB' ? 'statsapi.mlb.com (official)'
       : sport === 'NHL' ? 'api-web.nhle.com (official)'
-      : (sport === 'NBA' || sport === 'WNBA') && STATE.settings.balldontlieKey ? 'BallDontLie API'
       : 'ESPN game log';
 
     const cvRatio = finalProjection > 0 ? effectiveStdDev / finalProjection : null;
@@ -5927,17 +5819,40 @@ async function analyzePick() {
           const statsData = await fetchESPNPlayerStats(espnSport, espnLeague, athleteId);
           const seasonStats = statsData?.statistics?.find(s => s.type === 'total')?.stats || [];
           const statIdx = getStatIndex(sport, prop);
-          const seasonVal = parseFloat(seasonStats[statIdx] || 0);
-          if(seasonVal > 0) {
-            // Use season avg directly as single data point — low confidence will reflect this
-            gameLogValues = [seasonVal];
-            dataPoints = 5;
+          // -1 means combo/unextractable — skip season stats fallback for these
+          if(statIdx >= 0) {
+            const seasonVal = parseFloat(seasonStats[statIdx] || 0);
+            if(seasonVal > 0) {
+              // Use season avg directly as single data point — low confidence will reflect this
+              gameLogValues = [seasonVal];
+              dataPoints = 5;
+            }
           }
         } catch(e) {}
       }
     }
 
-    if(gameLogValues.length === 0) { showToast('No data for ' + player, 'error'); isAnalyzing = false; btn.disabled = false; btnText.textContent = 'Analyze This Pick'; return; }
+    // Fallback: check PLAYER_DB for this player by name
+    if(gameLogValues.length === 0 && !athleteId) {
+      const allDbPlayers = Object.values(PLAYER_DB).flat();
+      const normName = s => (s||'').toLowerCase().replace(/['.,-]/g,'').trim();
+      const dbMatch = allDbPlayers.find(p => {
+        const pn = normName(p.name);
+        const tn = normName(player);
+        return pn === tn || pn.includes(tn) || tn.includes(pn);
+      });
+      if(dbMatch) athleteId = dbMatch.id;
+      if(athleteId) {
+        try {
+          const [espnSp, espnLg] = espnMap[sport] || ['basketball','nba'];
+          const gameLogData = await fetchESPNGameLog(espnSp, espnLg, athleteId);
+          const parsed = _parseESPNGameLogSingle(gameLogData, prop, null);
+          gameLogValues = parsed.allVals.slice(-20);
+          dataPoints = gameLogValues.length;
+        } catch(e) {}
+      }
+    }
+    if(gameLogValues.length === 0) { showToast('Player not found or no recent game data. Check spelling & sport.', 'error'); isAnalyzing = false; btn.disabled = false; btnText.textContent = 'Analyze This Pick'; return; }
 
     // ── EV ENGINE for Check Pick ──
     const cleanVals = gameLogValues.filter(v => !isNaN(v) && v >= 0);
@@ -6011,26 +5926,30 @@ async function analyzePick() {
 }
 
 function getStatIndex(sport, prop) {
+  // These are ESPN stats array positional indices (0-based)
+  // Combo props (PRA, PR, PA, AR) are computed from components — return -1 to signal that
+  // -1 = not extractable from a single column (caller should compute or skip)
   const maps = {
     NBA:  { 'Points':13,'Rebounds':6,'Assists':8,'Threes Made':3,'Steals':4,'Blocks':5,'Turnovers':7,
-            'Points + Rebounds + Assists':13,'Points + Rebounds':13,'Points + Assists':13,'Assists + Rebounds':8,
-            'Double Double':0,'Triple Double':0,'Steals + Blocks':4 },
+            'Points + Rebounds + Assists':-1,'Points + Rebounds':-1,'Points + Assists':-1,
+            'Assists + Rebounds':-1,'Double Double':-1,'Triple Double':-1,'Steals + Blocks':-1 },
     WNBA: { 'Points':13,'Rebounds':6,'Assists':8,'Threes Made':3,'Steals':4,'Blocks':5,'Turnovers':7,
-            'Double Double':0,'Triple Double':0 },
+            'Double Double':-1,'Triple Double':-1 },
     MLB:  { 'Hits':1,'Total Bases':5,'RBIs':3,'Strikeouts':9,'Runs':2,'Home Runs':4,
-            'Singles':1,'Doubles':2,'Stolen Bases':6,'Walks':7,'Hits + Runs + RBIs':1,
-            'Total Outs':9,'Hits Allowed':1,'Earned Runs':3,'Runs First Inning':2 },
-    NFL:  { 'Pass Yards':4,'Rush Yards':0,'Receiving Yards':0,'Receptions':0,'Targets':0,
-            'Pass Attempts':0,'Rushing Attempts':0,'Passing Touchdowns':0,
-            'Receiving Touchdown':0,'Interceptions Thrown':0,
-            'Rush + Receiving Touchdowns':0,'Anytime Touchdown':0,
-            'FG Made':0,'XP Made':0,'Kicking Points':0,
-            'Sacks':0,'Solo Tackles':0,'Assisted Tackles':0,'Total Tackles':0 },
-    NHL:  { 'Points':0,'Goals':0,'Assists':8,'Shots on Goal':8,
-            'Power Play Points':0,'Blocks':5,'Saves':0,'Goals Against':0 },
-    GOLF: { 'Strokes':1,'Birdies or Better':0,'Bogeys or Worse':0,'Made Cut':0 }
+            'Singles':-1,'Doubles':-1,'Stolen Bases':6,'Walks':7,'Hits + Runs + RBIs':-1,
+            'Total Outs':9,'Hits Allowed':1,'Earned Runs':3,'Runs First Inning':-1 },
+    NFL:  { 'Pass Yards':4,'Rush Yards':1,'Receiving Yards':1,'Receptions':0,'Targets':-1,
+            'Pass Attempts':2,'Rushing Attempts':0,'Passing Touchdowns':5,
+            'Receiving Touchdown':-1,'Interceptions Thrown':6,
+            'Rush + Receiving Touchdowns':-1,'Anytime Touchdown':-1,
+            'FG Made':0,'XP Made':1,'Kicking Points':-1,
+            'Sacks':0,'Solo Tackles':0,'Assisted Tackles':1,'Total Tackles':-1 },
+    NHL:  { 'Points':2,'Goals':0,'Assists':1,'Shots on Goal':4,
+            'Power Play Points':-1,'Blocks':6,'Saves':0,'Goals Against':1 },
+    GOLF: { 'Strokes':1,'Birdies or Better':-1,'Bogeys or Worse':-1 }
   };
-  return maps[sport]?.[prop] || 0;
+  const idx = maps[sport]?.[prop];
+  return (idx !== undefined) ? idx : -1;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -6074,11 +5993,16 @@ function toggleSportFilter(sport, el) {
 }
 
 function setFilter(type, val, el) {
+  if(type === 'prop') {
+    filters.prop = val;
+    renderProps();
+    return;
+  }
   const groupMap = { dec: 'dec-filters', date: 'date-filters' };
   const group = groupMap[type];
   if(!group) return;
   document.querySelectorAll('#' + group + ' .filter-chip').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
+  if(el) el.classList.add('active');
   filters[type] = val;
   renderProps();
 }
@@ -6089,6 +6013,7 @@ function setFilter(type, val, el) {
 function renderProps() {
   const list = document.getElementById('props-list');
   const allCachedProps = getAllCachedProps();
+  updateModeBanner(); // keep toggle buttons in sync with current viewMode + prop count
 
   if(allCachedProps.length === 0) {
     if(!isGenerating) {
@@ -6109,7 +6034,12 @@ function renderProps() {
     if(filters.dec === 'PASS' && p.decision !== 'PASS') return false;
     if(filters.date === 'today' && p.date !== 'today') return false;
     if(filters.date === 'tomorrow' && p.date !== 'tomorrow') return false;
-    // Analysis mode props: skip EV filter
+    if(filters.prop !== 'all' && p.prop !== filters.prop) return false;
+    // Analysis viewMode: show all props regardless of EV/conf — user wants to see projections
+    if(viewMode === 'analysis') {
+      return p.conf >= 1; // only skip truly empty projections
+    }
+    // Analysis mode props (no real line): skip EV filter
     if(p.analysisMode) {
       if(p.conf < 1) return false;
       return true;
@@ -6118,7 +6048,6 @@ function renderProps() {
     const sportMinConf = (p.sport === 'MLB' || p.sport === 'NHL') ? Math.min(minConf, 3) : minConf;
     if(p.conf < sportMinConf) return false;
     if(p.decision !== 'PASS') {
-      // Use EV fields if available (v4), fall back to edge.pct for cached v3 props
       const chosenEV = p.overEV !== undefined
         ? (p.decision === 'OVER' ? p.overEV : p.underEV)
         : Math.abs(p.edge?.pct || 0);
@@ -6143,17 +6072,32 @@ function renderProps() {
 }
 
 function propCardHTML(p) {
-  // isAnalysis must be defined first — used throughout this function
-  const isAnalysis = p.analysisMode === true;
+  // isAnalysis: either the prop was built in analysis mode, OR user toggled to analysis view
+  const isAnalysis = p.analysisMode === true || viewMode === 'analysis';
+  // forceAnalysis: user toggled to analysis view on a betting-mode prop — show proj data prominently
+  const forceAnalysis = viewMode === 'analysis' && p.analysisMode !== true;
   const isProbProp = ['Double Double','Triple Double','Anytime Touchdown','Steals + Blocks'].includes(p.prop);
   const projDisplay = isProbProp ? `${p.proj}%` : p.proj;
   const edgeStr = isAnalysis ? '—' : ((p.edge.val >= 0 ? '+' : '') + p.edge.val + ' (' + (p.edge.val >= 0 ? '+' : '') + p.edge.pct + '%)');
   const edgeClass = p.edge.val >= 0 ? 'green' : 'red';
-  const decLow = p.decision === 'PASS' ? 'pass' : p.decision.toLowerCase();
-  const decBadgeLabel = isAnalysis
-    ? 'ANALYSIS ONLY'
-    : (p.decision === 'PASS' && !p.dataSource?.hasRealLine ? 'PASS · No market line' : p.decision);
-  const decBadgeClass = isAnalysis ? 'pass' : decLow; // amber styling for analysis
+
+  // In analysis view: decision shows projection vs line comparison, not OVER/UNDER/PASS
+  let decLow, decBadgeLabel, decBadgeClass;
+  if(forceAnalysis) {
+    const lineForComp = p.line || p.lineBase;
+    const projVsLine = lineForComp ? (p.proj > lineForComp ? '▲ PROJ OVER' : p.proj < lineForComp ? '▼ PROJ UNDER' : '≈ AT LINE') : 'MODEL';
+    const projColor = lineForComp ? (p.proj > lineForComp ? 'over' : p.proj < lineForComp ? 'under' : 'pass') : 'pass';
+    decLow = projColor;
+    decBadgeLabel = projVsLine;
+    decBadgeClass = projColor;
+  } else {
+    decLow = p.decision === 'PASS' ? 'pass' : p.decision.toLowerCase();
+    decBadgeLabel = isAnalysis
+      ? 'ANALYSIS ONLY'
+      : (p.decision === 'PASS' && !p.dataSource?.hasRealLine ? 'PASS · No market line' : p.decision);
+    decBadgeClass = isAnalysis ? 'pass' : decLow;
+  }
+
   const inSlip = STATE.slip.some(s => s.id === p.id);
   const isExpanded = expandedCards.has(p.id);
   const dotSVG = Array.from({length:10}, (_,i) => {
@@ -6182,10 +6126,26 @@ function propCardHTML(p) {
     <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:6px">${p.hitRateSeason.hits}/${p.hitRateSeason.total} games this season${p.line != null ? ' over ' + p.line + ' ' + p.prop.toLowerCase() : ''}</div>`;
   }
 
-  const analysisWarningHTML = isAnalysis
+  // Analysis view banner: show proj vs sportsbook line comparison when forcing analysis on betting props
+  const analysisWarningHTML = forceAnalysis
+    ? `<div style="font-family:var(--mono);font-size:9px;color:var(--amber);background:rgba(255,181,71,.06);border:1px solid rgba(255,181,71,.15);border-radius:6px;padding:5px 9px;margin-bottom:6px">📊 ANALYSIS VIEW · Line: ${p.line ?? '—'} · Proj: ${projDisplay} · Model prob: ${p.overProb ?? '—'}% OVER · ${p.underProb !== undefined ? (100 - p.overProb) : '—'}% UNDER</div>`
+    : isAnalysis
     ? `<div style="font-family:var(--mono);font-size:9px;color:var(--amber);background:rgba(255,181,71,.06);border:1px solid rgba(255,181,71,.15);border-radius:6px;padding:5px 9px;margin-bottom:6px">⚠ NO MARKET DATA — ANALYSIS MODE ONLY. No betting recommendation.</div>`
     : '';
-  const narrativeHTML = p.narrative ? `<div class="prop-narrative ${isAnalysis ? 'pass' : decLow}">${p.narrative}</div>` : '';
+  const narrativeHTML = p.narrative ? `<div class="prop-narrative ${forceAnalysis ? (p.proj > (p.line||p.lineBase||p.proj) ? 'over' : 'under') : (isAnalysis ? 'pass' : decLow)}">${p.narrative}</div>` : '';
+
+  // Numbers row: analysis view hides EV, shows proj vs line cleanly
+  const lineDisplay = forceAnalysis
+    ? `<div class="prop-num-block"><div class="prop-num-label">Book Line</div><div class="prop-num-value">${p.line ?? '—'}</div></div>`
+    : `<div class="prop-num-block"><div class="prop-num-label">Line</div><div class="prop-num-value" style="${isAnalysis?'color:var(--muted)':''}">${isAnalysis ? '—' : (p.line ?? '—')}</div></div>`;
+
+  const probEvBlock = forceAnalysis
+    ? `<div class="prop-num-block"><div class="prop-num-label">P(Over)</div><div class="prop-num-value" style="font-size:14px;color:var(--amber)">${p.overProb}%</div></div>
+       <div class="prop-num-block"><div class="prop-num-label">P(Under)</div><div class="prop-num-value" style="font-size:14px;color:var(--muted)">${p.overProb !== undefined ? (100 - p.overProb) : '—'}%</div></div>`
+    : (!isAnalysis && p.overProb !== undefined)
+    ? `<div class="prop-num-block"><div class="prop-num-label">P(Over)</div><div class="prop-num-value" style="font-size:14px;color:${p.decision==='OVER'?'var(--accent)':'var(--muted)'}">${p.overProb}%</div></div>
+       <div class="prop-num-block"><div class="prop-num-label">EV</div><div class="prop-edge-val" style="color:${(p.decision==='OVER'?p.overEV:p.underEV)>0?'var(--accent)':'var(--red)'}">+${p.decision==='OVER'?p.overEV:p.underEV}%</div></div>`
+    : `<div class="prop-num-block"><div class="prop-num-label">Edge</div><div class="prop-edge-val ${edgeClass}">${edgeStr}</div></div>`;
 
   return `<div class="prop-card ${decLow}" id="pcard-${p.id}">
     <div class="prop-top">
@@ -6198,12 +6158,9 @@ function propCardHTML(p) {
     </div>
     <div class="prop-numbers">
       <div class="prop-num-block"><div class="prop-num-label">Prop</div><div class="prop-num-value" style="font-size:12px;margin-top:2px">${p.prop}</div></div>
-      <div class="prop-num-block"><div class="prop-num-label">Line</div><div class="prop-num-value" style="${isAnalysis?'color:var(--muted)':''}">${isAnalysis ? '—' : (p.line ?? '—')}</div></div>
+      ${lineDisplay}
       <div class="prop-num-block"><div class="prop-num-label">Model μ</div><div class="prop-num-value ${edgeClass}">${projDisplay}</div></div>
-      ${!isAnalysis && p.overProb !== undefined ? `
-      <div class="prop-num-block"><div class="prop-num-label">P(Over)</div><div class="prop-num-value" style="font-size:14px;color:${p.decision==='OVER'?'var(--accent)':'var(--muted)'}">${p.overProb}%</div></div>
-      <div class="prop-num-block"><div class="prop-num-label">EV</div><div class="prop-edge-val" style="color:${(p.decision==='OVER'?p.overEV:p.underEV)>0?'var(--accent)':'var(--red)'}">+${p.decision==='OVER'?p.overEV:p.underEV}%</div></div>
-      ` : `<div class="prop-num-block"><div class="prop-num-label">Edge</div><div class="prop-edge-val ${edgeClass}">${edgeStr}</div></div>`}
+      ${probEvBlock}
       ${completenessScore !== null ? `<div class="prop-num-block"><div class="prop-num-label">Data</div><div class="prop-num-value" style="font-size:13px;color:${completenessColor}">${completenessScore}%<span style="font-size:8px;color:var(--muted);display:block">min ${p.completenessThreshold ?? 60}%</span></div></div>` : ''}
     </div>
     ${hitRateHTML}
@@ -6216,9 +6173,9 @@ function propCardHTML(p) {
     <button class="expand-btn" onclick="toggleReasoning(${p.id})">▾ full data breakdown</button>
     <div class="reasoning ${isExpanded ? 'open' : ''}" id="reasoning-${p.id}">
       ${reasoningHTML}
-      <div class="data-source-line">📡 ${dataLabel}${isAnalysis ? ' · ANALYSIS MODE — no market data' : p.dataSource?.hasRealLine ? ' · ✓ Live sportsbook line' : ' · Estimated line — add Odds API key'} · completeness ${completenessScore !== null ? completenessScore + '%' : 'N/A'}</div>
+      <div class="data-source-line">📡 ${dataLabel}${isAnalysis && !forceAnalysis ? ' · ANALYSIS MODE — no market data' : p.dataSource?.hasRealLine ? ' · ✓ Live sportsbook line' : ' · Estimated line — add Odds API key'} · completeness ${completenessScore !== null ? completenessScore + '%' : 'N/A'}</div>
     </div>
-    ${(p.decision !== 'PASS') ? `<button class="add-slip-btn ${inSlip ? 'added' : ''}" id="slip-btn-${p.id}" onclick="toggleSlip(${p.id})">${inSlip ? '✓ Added to slip' : '+ Add to slip'}</button>` : ''}
+    ${(!forceAnalysis && p.decision !== 'PASS') ? `<button class="add-slip-btn ${inSlip ? 'added' : ''}" id="slip-btn-${p.id}" onclick="toggleSlip(${p.id})">${inSlip ? '✓ Added to slip' : '+ Add to slip'}</button>` : ''}
   </div>`;
 }
 
@@ -6291,6 +6248,54 @@ function toggleSlip(id) {
   saveState();
   renderProps();
   renderSlip();
+}
+
+function addManualPick() {
+  const player = document.getElementById('manual-player').value.trim();
+  const prop   = document.getElementById('manual-prop').value.trim();
+  const lineRaw = document.getElementById('manual-line').value;
+  const projRaw = document.getElementById('manual-proj').value;
+  const side   = document.getElementById('manual-side').value;
+
+  if(!player) { showToast('Enter player name', 'error'); return; }
+  if(!prop)   { showToast('Enter prop type', 'error'); return; }
+  if(!lineRaw || isNaN(parseFloat(lineRaw))) { showToast('Enter a valid line', 'error'); return; }
+
+  const line = parseFloat(lineRaw);
+  const proj = projRaw ? parseFloat(projRaw) : null;
+  const id   = Date.now();
+
+  const manualPick = {
+    id, player, prop, line,
+    proj: proj || line,
+    sport: 'MANUAL',
+    team: '', opp: '', date: 'today',
+    decision: side,
+    conf: 1,
+    winProb: side === 'OVER' ? 55 : 45,
+    overProb: side === 'OVER' ? 55 : 45,
+    underProb: side === 'OVER' ? 45 : 55,
+    overEV: 0, underEV: 0,
+    edge: { val: 0, pct: 0 },
+    reasoning: [`Manual pick — ${side} ${line} ${prop}`],
+    dataSource: { gamelog: 0, hasRealLine: true },
+    narrative: `Manually added: ${player} ${side} ${line} ${prop}`,
+    completeness: null,
+    analysisMode: false,
+    _manual: true,
+  };
+
+  STATE.slip.push(manualPick);
+  saveState();
+  renderSlip();
+
+  // Clear inputs
+  document.getElementById('manual-player').value = '';
+  document.getElementById('manual-prop').value = '';
+  document.getElementById('manual-line').value = '';
+  document.getElementById('manual-proj').value = '';
+
+  showToast(`${player} ${side} ${line} added to slip`, 'ok');
 }
 
 function renderSlip() {
@@ -6565,7 +6570,7 @@ function renderApiStatus(statusMap) {
     { key: 'NHL', label: 'NHL' },
     { key: 'ESPN', label: 'ESPN' },
     { key: 'Odds', label: STATE.settings.oddsApiKey ? 'ODDS' : 'ODDS⚠' },
-    ...(STATE.settings.balldontlieKey ? [{ key: 'BDL', label: 'BDL' }] : [])
+    
   ];
   area.innerHTML = items.map(item => {
     const status = statusMap[item.key];
