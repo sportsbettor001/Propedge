@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v14.6</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v14.9</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -437,6 +437,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           <div class="filter-chip active" data-date="all" onclick="setFilter('date','all',this)">All dates</div>
           <div class="filter-chip" id="chip-today" data-date="today" onclick="setFilter('date','today',this)">Today</div>
           <div class="filter-chip" id="chip-tomorrow" data-date="tomorrow" onclick="setFilter('date','tomorrow',this)">Tomorrow</div>
+        </div>
+        <div style="display:flex;gap:0;border:1px solid var(--border2);border-radius:10px;overflow:hidden;margin-bottom:8px">
+          <button id="mode-select-betting" onclick="setViewMode('betting')" style="flex:1;font-family:var(--mono);font-size:11px;font-weight:700;padding:8px;border:none;cursor:pointer;transition:all .15s;background:rgba(0,229,160,0.15);color:var(--accent)">📈 BETTING</button>
+          <button id="mode-select-analysis" onclick="setViewMode('analysis')" style="flex:1;font-family:var(--mono);font-size:11px;font-weight:700;padding:8px;border:none;border-left:1px solid var(--border2);cursor:pointer;transition:all .15s;background:transparent;color:var(--muted)">📊 ANALYSIS</button>
         </div>
         <div style="display:flex;gap:6px;align-items:center">
           <button class="gen-btn" id="gen-btn" onclick="generateProps()" style="flex:1;margin-bottom:0;padding:10px">
@@ -1283,67 +1287,6 @@ function copyRawApiOutput() {
   navigator.clipboard.writeText(content).then(() => showToast('Copied', 'ok')).catch(() => showToast('Copy failed', 'error'));
 }
 
-async function checkApiStatus(which) {
-  const btn = document.getElementById(`apibtn-${which}`);
-  const resultsEl = document.getElementById('api-status-results');
-  if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' checking'; btn.textContent = '⟳ Checking...'; }
-
-  const today = todayStr();
-  const tests = {
-    espn:      { label:'ESPN', url:`https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${today.replace(/-/g,'')}`, check: d => (d?.events !== undefined), detail: d => `${d?.events?.length ?? 0} games today` },
-    mlb:       { label:'MLB API', url:`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}`, check: d => (d?.dates !== undefined), detail: d => `${d?.dates?.[0]?.games?.length ?? 0} games today` },
-    nhl:       { label:'NHL API', url:`https://api-web.nhle.com/v1/schedule/${today}`, check: d => (d?.gameWeek !== undefined || d?.games !== undefined), detail: d => `${(d?.gameWeek?.[0]?.games || d?.games || []).length} games today` },
-    odds:      { label:'Odds API', url: STATE.settings.oddsApiKey ? `https://api.the-odds-api.com/v4/sports?apiKey=${STATE.settings.oddsApiKey}` : null, check: d => Array.isArray(d), detail: d => `${d?.length ?? 0} sports available` },
-  };
-
-  if(which === 'nba_proxy') {
-    if(!STATE.settings.corsProxy) {
-      if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' fail'; btn.textContent = '🏀 NBA Proxy — No URL set'; }
-      if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:rgba(255,77,106,.06);border:1px solid var(--red);border-radius:8px">No Cloudflare proxy URL in ⚙ Settings</div>`;
-      return;
-    }
-    if(btn) btn.textContent = '⟳ Testing proxy...';
-    try {
-      const nbaUrl = `https://stats.nba.com/stats/playergamelogs?PlayerID=1630163&Season=${getNBASeason()}&SeasonType=Regular+Season&LeagueID=00`;
-      const data = await fetchWithFallback(nbaUrl);
-      const rows = data?.resultSets?.[0]?.rowSet || [];
-      if(rows.length > 0) {
-        if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' ok'; btn.textContent = `🏀 NBA Proxy ✓ — ${rows.length} games`; }
-        if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--accent);padding:8px;background:rgba(0,229,160,.06);border:1px solid var(--accent);border-radius:8px">✓ NBA proxy working · ${rows.length} game logs returned</div>`;
-      } else {
-        if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' fail'; btn.textContent = '🏀 NBA Proxy ✗ — empty'; }
-      }
-    } catch(e) {
-      if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' fail'; btn.textContent = '🏀 NBA Proxy ✗'; }
-      if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:rgba(255,77,106,.06);border:1px solid var(--red);border-radius:8px">✗ ${e.message}</div>`;
-    }
-    return;
-  }
-
-  const test = tests[which];
-  if(!test) return;
-  if(!test.url) {
-    if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' fail'; btn.textContent = `${test.label} — No key`; }
-    if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--amber);padding:8px;background:rgba(255,181,71,.06);border:1px solid var(--amber);border-radius:8px">⚠ Add Odds API key in ⚙ Settings to test</div>`;
-    return;
-  }
-
-  try {
-    const t0 = Date.now();
-    const data = await fetchWithFallback(test.url);
-    const ms = Date.now() - t0;
-    const up = test.check(data);
-    const detail = up ? test.detail(data) : 'unexpected response';
-    if(btn) {
-      btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + (up ? ' ok' : ' fail');
-      btn.textContent = `${test.label} ${up ? '✓' : '✗'} ${ms}ms`;
-    }
-    if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:${up?'var(--accent)':'var(--red)'};padding:8px;background:${up?'rgba(0,229,160,.06)':'rgba(255,77,106,.06)'};border:1px solid ${up?'var(--accent)':'var(--red)'};border-radius:8px">${up?'✓':'✗'} ${test.label} — ${detail} · ${ms}ms</div>`;
-  } catch(e) {
-    if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' fail'; btn.textContent = `${test.label} ✗ down`; }
-    if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:rgba(255,77,106,.06);border:1px solid var(--red);border-radius:8px">✗ ${test.label} unreachable — ${e.message}</div>`;
-  }
-}
 function renderTrace() {
   const panel = document.getElementById('trace-panel');
   if(!panel) return;
@@ -1445,6 +1388,19 @@ function updateModeBanner() {
 
 function setViewMode(mode) {
   viewMode = mode;
+  // Update pre-generate mode selector buttons
+  const bBtn = document.getElementById('mode-select-betting');
+  const aBtn = document.getElementById('mode-select-analysis');
+  if(bBtn) {
+    bBtn.style.background = mode === 'betting' ? 'rgba(0,229,160,0.15)' : 'transparent';
+    bBtn.style.color = mode === 'betting' ? 'var(--accent)' : 'var(--muted)';
+    bBtn.style.fontWeight = mode === 'betting' ? '700' : '400';
+  }
+  if(aBtn) {
+    aBtn.style.background = mode === 'analysis' ? 'rgba(255,181,71,0.15)' : 'transparent';
+    aBtn.style.color = mode === 'analysis' ? 'var(--amber)' : 'var(--muted)';
+    aBtn.style.fontWeight = mode === 'analysis' ? '700' : '400';
+  }
   updateModeBanner();
   updateCacheStatusBar();
   renderProps();
@@ -1519,8 +1475,9 @@ document.addEventListener('DOMContentLoaded', function() {
   renderApiStatus({});
   updateSportChipStatus();
   updateProxyBadge();
+  setViewMode(viewMode); // initialize mode selector button state
 
-  // Clear all _lastproj_ stability anchors on v14.6 startup
+  // Clear all _lastproj_ stability anchors on v14.9 startup
   // These anchors lock in stale projections from previous buggy versions — safer to reset
   try {
     const keysToDelete = [];
@@ -3082,8 +3039,10 @@ async function runFetch(sportsToFetch) {
 
     const filteredLines = allPlayersWithLines.filter(p => sportsToFetch.includes(p.sport));
 
-    if(filteredLines.length > 0) {
-      // ── BETTING MODE: strict Sport → Game → Player hierarchy ──
+    // Use viewMode to decide which path to run, not whether lines were returned
+    // Betting mode: use Odds API lines (filteredLines) to select players
+    // Analysis mode: use schedule-based player discovery
+    if(viewMode === 'betting' && filteredLines.length > 0) {
       // Group all lines by sport, then by game (eventId), then pick top 3 unique players per game.
       // "Top 3 per game" = 3 unique player names, not 3 prop entries.
       // Players with more prop lines get priority (more market data = higher confidence).
@@ -3181,8 +3140,14 @@ async function runFetch(sportsToFetch) {
       showToast(`BETTING MODE — ${new Set(playersToProcess.map(p=>p.gameId)).size} games · ${playersToProcess.length} props`, 'success');
 
     } else {
-      // ── ANALYSIS MODE: Sport → Game → Top 3 players per game ──
-      const gps = STATE.settings.analysisGamesPerSport || 4; // analysis mode — free APIs, use higher limit
+      // ── ANALYSIS MODE (or betting mode with no lines available) ──
+      // Runs when: viewMode === 'analysis', OR viewMode === 'betting' but Odds API returned 0 lines
+      if(viewMode === 'betting' && filteredLines.length === 0) {
+        traceLog('gameIngestion', 'BETTING MODE: Odds API returned 0 player prop lines — no games today, games in future, or check API quota/key', 'warn');
+        showToast('⚠ No sportsbook lines available — no games today or check Odds API', 'error');
+      }
+      // Run full schedule-based analysis path
+      const gps = STATE.settings.analysisGamesPerSport || 4;
       const schedulePromises = sportsToFetch
         .filter(s => s !== 'GOLF')
         .map(async sport => {
