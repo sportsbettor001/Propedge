@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v14.9</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v15.0</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -765,7 +765,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 // ═══════════════════════════════════════════════════════
 // STATE + PERSISTENCE
 // ═══════════════════════════════════════════════════════
-const STORAGE_KEY = 'propedge_v6'; // v6: EV engine (EWMA + normal CDF + implied prob)
+const STORAGE_KEY = 'propedge_v7'; // v7: strict mode isolation — betting/analysis caches fully separated; Odds API gated on viewMode
 
 function loadState() {
   try {
@@ -2830,10 +2830,10 @@ async function runFetch(sportsToFetch) {
   document.getElementById('live-label').textContent = 'LIVE';
 
   const propsList = document.getElementById('props-list');
-  const loadingMode = STATE.settings.oddsApiKey ? 'BETTING MODE' : 'ANALYSIS MODE';
-  const loadingModeSub = STATE.settings.oddsApiKey
+  const loadingMode = (STATE.settings.oddsApiKey && viewMode === 'betting') ? 'BETTING MODE' : 'ANALYSIS MODE';
+  const loadingModeSub = (STATE.settings.oddsApiKey && viewMode === 'betting')
     ? 'Fetching sportsbook lines → game logs → building picks'
-    : 'No Odds API key — Analysis Mode · Projections only · No betting recommendations';
+    : 'Analysis Mode · Projections only · No Odds API calls';
   propsList.innerHTML = `
     <div class="loading-card">
       <div style="font-family:var(--mono);font-size:10px;font-weight:700;color:${STATE.settings.oddsApiKey ? 'var(--accent)' : 'var(--amber)'};margin-bottom:6px">${loadingMode}</div>
@@ -2847,11 +2847,11 @@ async function runFetch(sportsToFetch) {
         <div id="eta-bar" style="height:100%;background:var(--accent);width:0%;transition:width .5s;border-radius:4px"></div>
       </div>
       <div class="progress-steps" id="progress-steps">
-        <div class="progress-step active" id="step-schedule"><span class="step-icon">⟳</span>${STATE.settings.oddsApiKey ? 'Fetching sportsbook player props...' : 'Fetching schedule...'}</div>
+        <div class="progress-step active" id="step-schedule"><span class="step-icon">⟳</span>${(STATE.settings.oddsApiKey && viewMode === 'betting') ? 'Fetching sportsbook player props...' : 'Fetching schedule...'}</div>
         <div class="progress-step" id="step-stats"><span class="step-icon">○</span>Selecting top 3 players per game...</div>
         <div class="progress-step" id="step-matchups"><span class="step-icon">○</span>Fetching game logs & context data...</div>
         <div class="progress-step" id="step-engine"><span class="step-icon">○</span>Running projection engine...</div>
-        <div class="progress-step" id="step-odds"><span class="step-icon">○</span>${STATE.settings.oddsApiKey ? 'Building picks & edge calculations...' : 'Building projections & watchlist...'}</div>
+        <div class="progress-step" id="step-odds"><span class="step-icon">○</span>${(STATE.settings.oddsApiKey && viewMode === 'betting') ? 'Building picks & edge calculations...' : 'Building projections & watchlist...'}</div>
       </div>
     </div>`;
 
@@ -2890,7 +2890,7 @@ async function runFetch(sportsToFetch) {
   const apiStatusMap = {};
 
   // Set trace mode immediately
-  if(STATE.trace) STATE.trace.mode = STATE.settings.oddsApiKey ? 'betting' : 'analysis';
+  if(STATE.trace) STATE.trace.mode = (STATE.settings.oddsApiKey && viewMode === 'betting') ? 'betting' : 'analysis';
 
   initTrace();
   traceLog('gameIngestion', `Run started — sports: ${sportsToFetch.join(', ')}`, 'ok');
@@ -2950,8 +2950,9 @@ async function runFetch(sportsToFetch) {
       NHL:['hockey','nhl'], WNBA:['basketball','wnba']
     };
 
-    if(STATE.settings.oddsApiKey) {
+    if(STATE.settings.oddsApiKey && viewMode === 'betting') {
       // ── ODDS API: ONE SLATE FETCH — all sports in parallel, not sequential ──
+      // Only called in BETTING MODE. Analysis mode never touches the Odds API.
       // Spec rule: API called once per slate, never per-sport per-game per-player.
       // We fetch all sport events simultaneously, then all prop markets simultaneously.
       const slateSports = sportsToFetch.filter(s => s !== 'GOLF' && oddsKeyMap[s]);
@@ -3022,7 +3023,8 @@ async function runFetch(sportsToFetch) {
       }
       apiStatusMap.Odds = oddsApiWorking ? 'ok' : 'warn';
     } else {
-      apiStatusMap.Odds = 'warn';
+      // Analysis mode: Odds API intentionally skipped — show warn only if key exists
+      apiStatusMap.Odds = (STATE.settings.oddsApiKey && viewMode !== 'betting') ? 'warn' : 'warn';
     }
 
     setStep('step-schedule', 'done');
@@ -6715,7 +6717,9 @@ function renderProps() {
 
   if(allCachedProps.length === 0) {
     if(!isGenerating) {
-      list.innerHTML = `<div class="empty"><div class="empty-title">No picks yet</div><div class="empty-sub">Tap "Generate Live Props" to fetch real data.<br/><br/>Tap any sport chip to fetch just that sport.<br/><br/>Add your Odds API key in ⚙ Settings for real lines.</div></div>`;
+      list.innerHTML = viewMode === 'analysis'
+        ? `<div class="empty"><div class="empty-title">No projections yet</div><div class="empty-sub">Tap "Generate" in Analysis mode to run projections.<br/><br/>Analysis mode uses free APIs only — no Odds API calls.</div></div>`
+        : `<div class="empty"><div class="empty-title">No picks yet</div><div class="empty-sub">Tap "Generate Live Props" to fetch real sportsbook lines.<br/><br/>Tap any sport chip to fetch just that sport.<br/><br/>Add your Odds API key in ⚙ Settings for real lines.</div></div>`;
     }
     updateMetrics();
     return;
@@ -6728,6 +6732,12 @@ function renderProps() {
     : (STATE.settings.bettingMinConf ?? STATE.settings.minConf ?? 4));
 
   let filtered = allCachedProps.filter(p => {
+    // ── MODE GATE: each mode only shows its own props ──
+    // Betting mode: only show props with real sportsbook lines
+    // Analysis mode: only show props built without real lines (projections only)
+    if(viewMode === 'betting' && p.analysisMode === true) return false;
+    if(viewMode === 'analysis' && p.analysisMode !== true && p.dataSource?.hasRealLine === true) return false;
+
     if(!filters.sports.has('all') && !filters.sports.has(p.sport)) return false;
     if(filters.dec === 'OVER' && p.decision !== 'OVER') return false;
     if(filters.dec === 'UNDER' && p.decision !== 'UNDER') return false;
