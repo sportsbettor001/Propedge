@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v15.5</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v15.6</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -437,6 +437,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           <div class="filter-chip active" data-date="all" onclick="setFilter('date','all',this)">All dates</div>
           <div class="filter-chip" id="chip-today" data-date="today" onclick="setFilter('date','today',this)">Today</div>
           <div class="filter-chip" id="chip-tomorrow" data-date="tomorrow" onclick="setFilter('date','tomorrow',this)">Tomorrow</div>
+        </div>
+        <div class="filter-row" id="game-filters" style="margin-bottom:6px;display:none">
+          <!-- populated dynamically by updateGameFilter() -->
         </div>
         <div style="display:flex;gap:0;border:1px solid var(--border2);border-radius:10px;overflow:hidden;margin-bottom:8px">
           <button id="mode-select-betting" onclick="setViewMode('betting')" style="flex:1;font-family:var(--mono);font-size:11px;font-weight:700;padding:8px;border:none;cursor:pointer;transition:all .15s;background:rgba(0,229,160,0.15);color:var(--accent)">📈 BETTING</button>
@@ -1598,7 +1601,7 @@ function formatAge(ms) {
 // ═══════════════════════════════════════════════════════
 // UI STATE
 // ═══════════════════════════════════════════════════════
-let filters = { sports: new Set(['all']), dec: 'all', date: 'all', prop: 'all' };
+let filters = { sports: new Set(['all']), dec: 'all', date: 'all', prop: 'all', game: 'all' };
 let expandedCards = new Set();
 let isGenerating = false;
 let isAnalyzing = false;
@@ -6876,6 +6879,7 @@ function toggleSportFilter(sport, el) {
 
   if(sport === 'all') {
     filters.sports = new Set(['all']);
+    filters.game = 'all'; // reset game filter when going back to all sports
     chips.forEach(c => {
       c.classList.remove('active', 'active-multi');
       if(c.dataset.sport === 'all') c.classList.add('active');
@@ -6902,6 +6906,49 @@ function toggleSportFilter(sport, el) {
   renderProps();
 }
 
+// ── GAME FILTER — dynamically built from current cached props ──
+function updateGameFilter() {
+  const row = document.getElementById('game-filters');
+  if(!row) return;
+  const allProps = getAllCachedProps();
+  if(allProps.length === 0) { row.style.display = 'none'; return; }
+
+  // Build unique matchup keys from visible props
+  // Key format: "TEAM vs OPP" — sport prefix added when multiple sports
+  const gameMap = {}; // key -> { label, sport, count }
+  allProps.forEach(p => {
+    if(!p.team && !p.opp) return;
+    const t = (p.team || '').toUpperCase();
+    const o = (p.opp  || '').toUpperCase();
+    // Normalize: always sort alphabetically so "BOS vs NYK" and "NYK vs BOS" merge
+    const [a, b] = [t, o].sort();
+    const key = a + '_' + b;
+    if(!gameMap[key]) {
+      gameMap[key] = { key, label: t + ' vs ' + o, sport: p.sport, count: 0 };
+    }
+    gameMap[key].count++;
+  });
+
+  const games = Object.values(gameMap);
+  if(games.length <= 1) { row.style.display = 'none'; filters.game = 'all'; return; }
+
+  row.style.display = 'flex';
+  const chips = [{ key: 'all', label: 'All games' }, ...games];
+  row.innerHTML = chips.map(g => {
+    const isActive = filters.game === g.key;
+    const cls = isActive ? 'filter-chip active' : 'filter-chip';
+    const label = g.key === 'all' ? g.label : g.label + (g.count ? ' <span style="font-size:8px;opacity:.7">(' + g.count + ')</span>' : '');
+    return '<div class="' + cls + '" onclick="setGameFilter(\'' + g.key + '\',this)">' + label + '</div>';
+  }).join('');
+}
+
+function setGameFilter(key, el) {
+  filters.game = key;
+  document.querySelectorAll('#game-filters .filter-chip').forEach(c => c.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderProps();
+}
+
 function setFilter(type, val, el) {
   if(type === 'prop') {
     filters.prop = val;
@@ -6924,6 +6971,7 @@ function renderProps() {
   const list = document.getElementById('props-list');
   const allCachedProps = getAllCachedProps();
   updateModeBanner(); // keep toggle buttons in sync with current viewMode + prop count
+  updateGameFilter(); // rebuild game chips from current cache
 
   if(allCachedProps.length === 0) {
     if(!isGenerating) {
@@ -6947,6 +6995,15 @@ function renderProps() {
     // Analysis mode: only show props built without real lines (projections only)
     if(viewMode === 'betting' && p.analysisMode === true) return false;
     if(viewMode === 'analysis' && p.analysisMode !== true && p.dataSource?.hasRealLine === true) return false;
+
+    // ── GAME FILTER ──
+    if(filters.game !== 'all') {
+      const t = (p.team || '').toUpperCase();
+      const o = (p.opp  || '').toUpperCase();
+      const [a, b] = [t, o].sort();
+      const key = a + '_' + b;
+      if(key !== filters.game) return false;
+    }
 
     if(!filters.sports.has('all') && !filters.sports.has(p.sport)) return false;
     if(filters.dec === 'OVER' && p.decision !== 'OVER') return false;
