@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v14.2</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v14.3</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1066,6 +1066,9 @@ function inspectESPNGamelog(data, targetStat, fullDump) {
         const ev = evArr[0];
         const stats = ev?.stats || ev?.statistics || [];
         lines.push(`      First game stats (${stats.length} cols): [${stats.slice(0,15).join(', ')}${stats.length>15?'...':''}]`);
+        // Show event ID fields — critical for dedup
+        lines.push(`      First event keys: [${Object.keys(ev||{}).slice(0,8).join(', ')}]`);
+        lines.push(`      eventId=${ev?.eventId ?? 'MISSING'}, id=${ev?.id ?? 'MISSING'}`);
         // Map labels to values for first game
         const labelsToUse = catLabels.length > 0 ? catLabels : topLabels;
         if(labelsToUse.length > 0 && stats.length > 0) {
@@ -1408,7 +1411,7 @@ document.addEventListener('DOMContentLoaded', function() {
   updateSportChipStatus();
   updateProxyBadge();
 
-  // Clear all _lastproj_ stability anchors on v14.2 startup
+  // Clear all _lastproj_ stability anchors on v14.3 startup
   // These anchors lock in stale projections from previous buggy versions — safer to reset
   try {
     const keysToDelete = [];
