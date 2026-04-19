@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v15.4</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v15.5</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -613,12 +613,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Over odds</label>
-            <input class="form-input" id="c-over-odds" type="number" placeholder="-110" inputmode="numeric"/>
+            <input class="form-input" id="c-over-odds" type="text" placeholder="-110" inputmode="text" pattern="[+-]?[0-9]*"/>
             <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:3px">American (e.g. -110, +120)</div>
           </div>
           <div class="form-group">
             <label class="form-label">Under odds</label>
-            <input class="form-input" id="c-under-odds" type="number" placeholder="-110" inputmode="numeric"/>
+            <input class="form-input" id="c-under-odds" type="text" placeholder="-110" inputmode="text" pattern="[+-]?[0-9]*"/>
             <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:3px">Leave blank = -110</div>
           </div>
         </div>
