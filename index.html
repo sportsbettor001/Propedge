@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v14.3</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v14.6</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -479,6 +479,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         <button onclick="inspectRawApi('mlb_gamelog')" class="api-status-btn">⚾ MLB Gamelog<br><span style="font-size:8px;opacity:.7">Judge · stat keys</span></button>
         <button onclick="inspectRawApi('nhl_gamelog')" class="api-status-btn">🏒 NHL Gamelog<br><span style="font-size:8px;opacity:.7">McDavid · fields</span></button>
         <button onclick="inspectRawApi('espn_labels')" class="api-status-btn">📋 ESPN Labels<br><span style="font-size:8px;opacity:.7">Raw topLabels dump</span></button>
+        <button onclick="inspectRawApi('odds_events')" class="api-status-btn" style="background:rgba(0,229,160,.06);border-color:rgba(0,229,160,.25)">📊 Odds Events<br><span style="font-size:8px;opacity:.7">NBA today · needs key</span></button>
+        <button onclick="inspectRawApi('odds_props')" class="api-status-btn" style="background:rgba(0,229,160,.06);border-color:rgba(0,229,160,.25)">📊 Odds Props<br><span style="font-size:8px;opacity:.7">First game bookmaker structure</span></button>
       </div>
       <div id="raw-api-output" style="display:none;margin-bottom:14px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;overflow-x:auto">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -1031,7 +1033,62 @@ async function inspectRawApi(which) {
       url: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/1966/gamelog',
       parse: d => inspectESPNGamelog(d, null, true)
     },
+    odds_events: {
+      label: 'Odds API — NBA events list',
+      url: null, // built dynamically
+      parse: inspectOddsEvents
+    },
+    odds_props: {
+      label: 'Odds API — NBA props (first event)',
+      url: null,
+      parse: inspectOddsProps
+    },
+    mlb_gamelog: {
+      label: 'MLB Gamelog — Judge (592450) · game log splits',
+      url: 'https://statsapi.mlb.com/api/v1/people/592450/stats?stats=gameLog&season=2025&group=hitting',
+      parse: inspectMLBGamelog
+    },
+    nhl_gamelog: {
+      label: 'NHL Gamelog — McDavid (8478402) · game log',
+      url: 'https://api-web.nhle.com/v1/player/8478402/game-log/20242025/2',
+      parse: inspectNHLGamelog
+    },
+    espn_labels: {
+      label: 'ESPN Labels dump — LeBron (1966) · raw structure',
+      url: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/1966/gamelog',
+      parse: d => inspectESPNGamelog(d, null, true)
+    },
   };
+
+  // Odds API requires key and dynamic URL
+  if(which === 'odds_events' || which === 'odds_props') {
+    if(!STATE.settings.oddsApiKey) {
+      title.textContent = 'Odds API — No key in Settings';
+      content.textContent = 'Add your Odds API key in ⚙ Settings first.';
+      return;
+    }
+    try {
+      if(which === 'odds_events') {
+        const url = `https://api.the-odds-api.com/v4/sports/basketball_nba/events?apiKey=${STATE.settings.oddsApiKey}`;
+        title.textContent = 'Odds API — NBA events';
+        const data = await fetchWithFallback(url);
+        content.textContent = inspectOddsEvents(data);
+      } else {
+        // Fetch first NBA event then its props
+        const eventsUrl = `https://api.the-odds-api.com/v4/sports/basketball_nba/events?apiKey=${STATE.settings.oddsApiKey}`;
+        const events = await fetchWithFallback(eventsUrl);
+        if(!events?.length) { content.textContent = 'No NBA events found today.'; return; }
+        const ev = events[0];
+        title.textContent = `Odds API — Props: ${ev.away_team} @ ${ev.home_team}`;
+        const propsUrl = `https://api.the-odds-api.com/v4/sports/basketball_nba/events/${ev.id}/odds?apiKey=${STATE.settings.oddsApiKey}&regions=us&markets=player_points,player_threes&oddsFormat=american`;
+        const propsData = await fetchWithFallback(propsUrl);
+        content.textContent = inspectOddsProps(propsData);
+      }
+    } catch(e) {
+      content.textContent = '✗ Error: ' + e.message;
+    }
+    return;
+  }
 
   const cfg = configs[which];
   if(!cfg) return;
@@ -1167,6 +1224,57 @@ function inspectNHLGamelog(data) {
     lines.push(`First game keys: [${Object.keys(gl[0]).join(', ')}]`);
     lines.push(`First game: ${JSON.stringify(gl[0]).slice(0,300)}`);
   }
+  return lines.join('\n');
+}
+
+function inspectOddsEvents(data) {
+  const lines = [];
+  const events = Array.isArray(data) ? data : [];
+  lines.push(`Events returned: ${events.length}`);
+  events.slice(0,5).forEach((ev, i) => {
+    lines.push(`\n[${i}] ${ev.away_team} @ ${ev.home_team}`);
+    lines.push(`  id: ${ev.id}`);
+    lines.push(`  commence_time: ${ev.commence_time}`);
+    lines.push(`  Keys: [${Object.keys(ev).join(', ')}]`);
+  });
+  return lines.join('\n');
+}
+
+function inspectOddsProps(data) {
+  const lines = [];
+  lines.push(`Top-level keys: [${Object.keys(data||{}).join(', ')}]`);
+  const bookmakers = data?.bookmakers || [];
+  lines.push(`Bookmakers (${bookmakers.length}): [${bookmakers.map(b=>b.key).join(', ')}]`);
+
+  // Show structure of first bookmaker
+  const bk = bookmakers.find(b=>b.key==='draftkings') || bookmakers.find(b=>b.key==='fanduel') || bookmakers[0];
+  if(!bk) { lines.push('No bookmakers found!'); return lines.join('\n'); }
+
+  lines.push(`\nUsing bookmaker: ${bk.key} (${bk.title})`);
+  lines.push(`Markets (${bk.markets?.length}): [${bk.markets?.map(m=>m.key).join(', ')}]`);
+
+  // Show first market in detail
+  const mkt = bk.markets?.[0];
+  if(mkt) {
+    lines.push(`\nFirst market: ${mkt.key}`);
+    lines.push(`Outcomes (${mkt.outcomes?.length}):`);
+    mkt.outcomes?.slice(0,4).forEach(o => {
+      lines.push(`  name=${o.name} description=${o.description} point=${o.point} price=${o.price}`);
+    });
+    lines.push(`\nFirst outcome keys: [${Object.keys(mkt.outcomes?.[0]||{}).join(', ')}]`);
+  }
+
+  // Check player_threes specifically
+  const threesMkt = bk.markets?.find(m => m.key === 'player_threes');
+  if(threesMkt) {
+    lines.push(`\nplayer_threes market found! (${threesMkt.outcomes?.length} outcomes)`);
+    threesMkt.outcomes?.slice(0,4).forEach(o => {
+      lines.push(`  ${o.name} ${o.description}: line=${o.point} odds=${o.price}`);
+    });
+  } else {
+    lines.push('\nplayer_threes market: NOT in response');
+  }
+
   return lines.join('\n');
 }
 
@@ -1347,10 +1455,11 @@ const CACHE_FRESH_MS = 2 * 60 * 60 * 1000; // 2 hours = fresh (green)
 const CACHE_STALE_MS = 6 * 60 * 60 * 1000; // 6 hours = stale (yellow) — beyond this we force re-fetch
 
 function getCacheStatus(sport) {
-  // Check the viewMode-appropriate cache first, fall back to legacy sportCache
+  // Check ONLY the viewMode-appropriate cache — no fallback to sportCache
+  // This ensures betting mode always re-fetches when bettingCache is empty
   const cache = viewMode === 'analysis' ? STATE.analysisCache : STATE.bettingCache;
-  const entry = (cache && cache[sport]) ? cache[sport] : STATE.sportCache[sport];
-  if(!entry || !entry.fetchedAt) return 'none';
+  const entry = cache?.[sport];
+  if(!entry || !entry.fetchedAt || !entry.props?.length) return 'none';
   const age = Date.now() - entry.fetchedAt;
   if(age < CACHE_FRESH_MS) return 'fresh';
   if(age < CACHE_STALE_MS) return 'stale';
@@ -1411,7 +1520,7 @@ document.addEventListener('DOMContentLoaded', function() {
   updateSportChipStatus();
   updateProxyBadge();
 
-  // Clear all _lastproj_ stability anchors on v14.3 startup
+  // Clear all _lastproj_ stability anchors on v14.6 startup
   // These anchors lock in stale projections from previous buggy versions — safer to reset
   try {
     const keysToDelete = [];
@@ -2711,12 +2820,17 @@ async function generateProps() {
     return status === 'none' || status === 'expired';
   });
 
-  if(sportsToFetch.length === 0) {
-    // All selected sports already cached — just re-filter, no API calls
+  // If the current mode's cache is empty but the other mode's cache is fresh,
+  // we still need to fetch — don't short-circuit just because sportCache has data
+  const currentModeCache = viewMode === 'analysis' ? STATE.analysisCache : STATE.bettingCache;
+  const currentModeHasData = selectedSports.some(s => currentModeCache?.[s]?.props?.length > 0);
+
+  if(sportsToFetch.length === 0 && currentModeHasData) {
+    // Current mode's cache is fresh — just re-render, no API calls needed
     const mode = getAppMode();
     if(STATE.trace) { STATE.trace.mode = mode; renderTrace(); }
     showToast(
-      mode === 'betting'
+      viewMode === 'betting'
         ? '✓ Using cached lines — no re-fetch needed'
         : '✓ Using cached projections — Analysis Mode',
       'success'
@@ -2726,7 +2840,7 @@ async function generateProps() {
     updateSportChipStatus();
     updateCacheStatusBar();
     updateModeBanner();
-  updateProxyBadge();
+    updateProxyBadge();
     return;
   }
 
@@ -2735,10 +2849,13 @@ async function generateProps() {
 
 async function refetchAll() {
   if(isGenerating) return;
-  // Clear all caches and re-fetch everything
+  // Clear only the current mode's cache so the other mode's data is preserved
+  if(viewMode === 'analysis') {
+    STATE.analysisCache = {};
+  } else {
+    STATE.bettingCache = {};
+  }
   STATE.sportCache = {};
-  STATE.bettingCache = {};
-  STATE.analysisCache = {};
   saveState();
   const allSports = ['NBA','MLB','NFL','NHL','WNBA','GOLF'];
   await runFetch(allSports);
@@ -3746,10 +3863,14 @@ async function runFetch(sportsToFetch) {
     updateSportChipStatus();
     updateCacheStatusBar();
 
-    // Set viewMode to match what was just fetched
+    // viewMode stays as whatever the user had selected before generating
+    // bettingCache/analysisCache are written correctly by the cache write logic above
+    // Just verify: if user is on betting but no real lines came back, warn them
     const allCached = getAllCachedProps();
     const realLines = allCached.filter(p=>p.dataSource?.hasRealLine).length;
-    viewMode = realLines > 0 ? 'betting' : 'analysis';
+    if(viewMode === 'betting' && realLines === 0 && STATE.settings.oddsApiKey) {
+      traceLog('outputLog', 'No real sportsbook lines found — check Odds API key or no games today', 'warn');
+    }
 
     // Re-render from full cache (which may include previously cached sports too)
     renderProps();
