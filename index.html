@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v15.1</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v15.3</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -3286,12 +3286,36 @@ async function runFetch(sportsToFetch) {
       showToast(`BETTING MODE — ${new Set(playersToProcess.map(p=>p.gameId)).size} games · ${playersToProcess.length} props`, 'success');
 
     } else {
-      // ── ANALYSIS MODE (or betting mode with no lines available) ──
-      // Runs when: viewMode === 'analysis', OR viewMode === 'betting' but Odds API returned 0 lines
-      if(viewMode === 'betting' && filteredLines.length === 0) {
-        traceLog('gameIngestion', 'BETTING MODE: Odds API returned 0 player prop lines — no games today, games in future, or check API quota/key', 'warn');
-        showToast('⚠ No sportsbook lines available — no games today or check Odds API', 'error');
+      // ── ANALYSIS MODE only ──
+      // Betting mode with no lines = hard stop. Never fall through to analysis.
+      if(viewMode === 'betting') {
+        // Odds API returned nothing — could be quota exhausted, bad key, or no games
+        const quotaExhausted = loadQuota().exhausted;
+        const msg = quotaExhausted
+          ? '⚠ Odds API quota exhausted — switch to Analysis mode or wait for reset on the 9th'
+          : '⚠ Odds API returned no lines — check your key or no games today';
+        traceLog('gameIngestion', 'BETTING MODE ABORTED: ' + msg, 'fail');
+        showToast(msg, 'error');
+        // Show a clear error card instead of empty props list
+        document.getElementById('props-list').innerHTML =
+          '<div class="error-card">' + msg + '<br><br>' +
+          '<span style="color:var(--muted)">Switch to Analysis mode to run projections without lines.</span>' +
+          '</div>';
+        // Clean up loading state
+        clearInterval(window._propEdgeEtaInterval);
+        isGenerating = false;
+        sportsToFetch.forEach(s => fetchingSports.delete(s));
+        document.getElementById('gen-btn').disabled = false;
+        document.getElementById('gen-btn-text').textContent = 'Generate Live Props';
+        document.getElementById('live-label').textContent = 'READY';
+        updateSportChipStatus();
+        updateCacheStatusBar();
+        updateModeBanner();
+        renderApiStatus(apiStatusMap);
+        saveState();
+        return; // hard stop — do not run analysis path
       }
+      // ── ANALYSIS MODE: only reaches here when viewMode === 'analysis' ──
       // Run full schedule-based analysis path
       const gps = STATE.settings.analysisGamesPerSport || 4;
       const schedulePromises = sportsToFetch
@@ -3617,10 +3641,8 @@ async function runFetch(sportsToFetch) {
       STATE.slateLog = { mode:'analysis', fetchedAt:Date.now(), sports:slateLogSports, validationNotes:[] };
     }
 
-    // ── GOLF: same structure, 3 players max per event (FIX 3) ──
-    // Golf has one "event" (the tournament) — treat entire field as one game,
-    // cap at top 3 by SG:Total (production metric).
-    if(sportsToFetch.includes('GOLF')) {
+    // ── GOLF: analysis mode only — no Odds API lines for golf ──
+    if(viewMode === 'analysis' && sportsToFetch.includes('GOLF')) {
       const golfEvent = 'golf_tournament_today';
       const top3Golf = (PLAYER_DB.GOLF||[])
         .slice() // don't mutate original
