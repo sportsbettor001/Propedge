@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v15.3</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v15.4</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -606,14 +606,20 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
             </select>
           </div>
         </div>
-        <div class="form-group"><label class="form-label">Sportsbook line</label><input class="form-input" id="c-line" type="number" step="0.5" placeholder="e.g. 27.5" inputmode="decimal"/></div>
         <div class="form-row">
-          <div class="form-group"><label class="form-label">Opponent team</label><input class="form-input" id="c-opp" placeholder="e.g. PHX (optional)" autocorrect="off" autocapitalize="characters"/></div>
-          <div class="form-group"><label class="form-label">Date</label>
-            <select class="form-input form-select" id="c-date">
-              <option value="today">Today</option>
-              <option value="tomorrow">Tomorrow</option>
-            </select>
+          <div class="form-group"><label class="form-label">Sportsbook line</label><input class="form-input" id="c-line" type="number" step="0.5" placeholder="e.g. 27.5" inputmode="decimal"/></div>
+          <div class="form-group"><label class="form-label">Opponent (optional)</label><input class="form-input" id="c-opp" placeholder="e.g. PHX" autocorrect="off" autocapitalize="characters"/></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Over odds</label>
+            <input class="form-input" id="c-over-odds" type="number" placeholder="-110" inputmode="numeric"/>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:3px">American (e.g. -110, +120)</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Under odds</label>
+            <input class="form-input" id="c-under-odds" type="number" placeholder="-110" inputmode="numeric"/>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:3px">Leave blank = -110</div>
           </div>
         </div>
         <button class="analyze-btn" id="analyze-btn" onclick="analyzePick()">
@@ -6638,7 +6644,10 @@ async function analyzePick() {
   const prop = document.getElementById('c-prop').value;
   const lineRaw = document.getElementById('c-line').value;
   const opp = document.getElementById('c-opp').value.trim().toUpperCase() || null;
-  const date = document.getElementById('c-date').value;
+  const overOddsRaw  = document.getElementById('c-over-odds').value.trim();
+  const underOddsRaw = document.getElementById('c-under-odds').value.trim();
+  const overOdds  = overOddsRaw  && !isNaN(parseInt(overOddsRaw))  ? parseInt(overOddsRaw)  : -110;
+  const underOdds = underOddsRaw && !isNaN(parseInt(underOddsRaw)) ? parseInt(underOddsRaw) : -110;
 
   if(!player) { showToast('Enter a player name', 'error'); return; }
   if(!lineRaw || isNaN(parseFloat(lineRaw))) { showToast('Enter a valid line', 'error'); return; }
@@ -6662,102 +6671,137 @@ async function analyzePick() {
     let athleteId = null, athleteName = player;
     let gameLogValues = [];
     let dataPoints = 0, foundViaAPI = false;
+    let projectionFromCache = null; // set if we find this player in analysis cache
 
-    try {
-      const searchData = await searchESPNAthlete(espnSport, espnLeague, player);
-      // Use fuzzy matching — handles nicknames, missing middle names, etc.
-      const foundId = exactMatchESPNId(searchData, player);
-      if(foundId) {
-        athleteId = foundId;
-        // Get the display name from the matched athlete
-        const allAthletes = searchData?.athletes || searchData?.items || [];
-        const matched = allAthletes.find(a => (a.id||a.athlete?.id) == foundId);
-        athleteName = matched?.displayName || matched?.athlete?.displayName || player;
-      }
-    } catch(e) {}
-
-    if(athleteId) {
-      try {
-        const gameLogData = await fetchESPNGameLog(espnSport, espnLeague, athleteId);
-        // Use the same confirmed parser as the main engine
-        const parsed = _parseESPNGameLogSingle(gameLogData, prop, null);
-        gameLogValues = parsed.allVals.slice(-20); // last 20 games
-        dataPoints = gameLogValues.length;
-        foundViaAPI = dataPoints > 0;
-      } catch(e) {}
-
-      if(gameLogValues.length < 2) {
-        try {
-          const statsData = await fetchESPNPlayerStats(espnSport, espnLeague, athleteId);
-          const seasonStats = statsData?.statistics?.find(s => s.type === 'total')?.stats || [];
-          const statIdx = getStatIndex(sport, prop);
-          // -1 means combo/unextractable — skip season stats fallback for these
-          if(statIdx >= 0) {
-            const seasonVal = parseFloat(seasonStats[statIdx] || 0);
-            if(seasonVal > 0) {
-              // Use season avg directly as single data point — low confidence will reflect this
-              gameLogValues = [seasonVal];
-              dataPoints = 5;
-            }
-          }
-        } catch(e) {}
-      }
+    // ── PRIORITY 1: Check analysis cache — player already projected this session ──
+    // If they ran analysis mode, the projection + game log data is already computed.
+    // Use that directly — no ESPN fetch needed, and it uses the full sharp engine.
+    const normName = s => (s||'').toLowerCase().replace(/[''.,-]/g,'').trim();
+    const targetName = normName(player);
+    const allCachedBothModes = getAllCachedPropsBothModes();
+    const cachedProp = allCachedBothModes.find(p =>
+      normName(p.player) === targetName &&
+      p.sport === sport &&
+      p.prop === prop
+    );
+    if(cachedProp) {
+      // Found in cache — use the already-computed projection directly
+      projectionFromCache = cachedProp;
+      athleteName = cachedProp.player;
+      foundViaAPI = true;
+      // Synthesize gameLogValues from proj + stddev so EV math still works
+      // We use the cached proj as our mean; build synthetic values around it
+      const cachedProj = cachedProp.proj;
+      const cachedSd = cachedProp.stdDev || (cachedProj * 0.25);
+      const n = cachedProp.dataSource?.gamelog || 10;
+      // Build synthetic array: mean-distributed around projection (for confidence calc)
+      gameLogValues = Array.from({length: Math.max(n, 8)}, (_, i) => {
+        const offset = (i % 3 === 0 ? 1 : i % 3 === 1 ? -1 : 0) * cachedSd * 0.5;
+        return Math.max(0, parseFloat((cachedProj + offset).toFixed(2)));
+      });
+      dataPoints = gameLogValues.length;
     }
 
-    // Fallback: check PLAYER_DB for this player by name
-    if(gameLogValues.length === 0 && !athleteId) {
-      const allDbPlayers = Object.values(PLAYER_DB).flat();
-      const normName = s => (s||'').toLowerCase().replace(/['.,-]/g,'').trim();
-      const dbMatch = allDbPlayers.find(p => {
-        const pn = normName(p.name);
-        const tn = normName(player);
-        return pn === tn || pn.includes(tn) || tn.includes(pn);
-      });
-      if(dbMatch) athleteId = dbMatch.id;
+    // ── PRIORITY 2: ESPN live fetch ──
+    if(!projectionFromCache) {
+      try {
+        const searchData = await searchESPNAthlete(espnSport, espnLeague, player);
+        const foundId = exactMatchESPNId(searchData, player);
+        if(foundId) {
+          athleteId = foundId;
+          const allAthletes = searchData?.athletes || searchData?.items || [];
+          const matched = allAthletes.find(a => (a.id||a.athlete?.id) == foundId);
+          athleteName = matched?.displayName || matched?.athlete?.displayName || player;
+        }
+      } catch(e) {}
+
       if(athleteId) {
         try {
-          const [espnSp, espnLg] = espnMap[sport] || ['basketball','nba'];
-          const gameLogData = await fetchESPNGameLog(espnSp, espnLg, athleteId);
+          const gameLogData = await fetchESPNGameLog(espnSport, espnLeague, athleteId);
           const parsed = _parseESPNGameLogSingle(gameLogData, prop, null);
           gameLogValues = parsed.allVals.slice(-20);
           dataPoints = gameLogValues.length;
+          foundViaAPI = dataPoints > 0;
         } catch(e) {}
+
+        if(gameLogValues.length < 2) {
+          try {
+            const statsData = await fetchESPNPlayerStats(espnSport, espnLeague, athleteId);
+            const seasonStats = statsData?.statistics?.find(s => s.type === 'total')?.stats || [];
+            const statIdx = getStatIndex(sport, prop);
+            if(statIdx >= 0) {
+              const seasonVal = parseFloat(seasonStats[statIdx] || 0);
+              if(seasonVal > 0) { gameLogValues = [seasonVal]; dataPoints = 5; }
+            }
+          } catch(e) {}
+        }
+      }
+
+      // ── PRIORITY 3: PLAYER_DB fallback ──
+      if(gameLogValues.length === 0 && !athleteId) {
+        const allDbPlayers = Object.values(PLAYER_DB).flat();
+        const dbMatch = allDbPlayers.find(p => {
+          const pn = normName(p.name);
+          return pn === targetName || pn.includes(targetName) || targetName.includes(pn);
+        });
+        if(dbMatch) athleteId = dbMatch.id;
+        if(athleteId) {
+          try {
+            const gameLogData = await fetchESPNGameLog(espnSport, espnLeague, athleteId);
+            const parsed = _parseESPNGameLogSingle(gameLogData, prop, null);
+            gameLogValues = parsed.allVals.slice(-20);
+            dataPoints = gameLogValues.length;
+          } catch(e) {}
+        }
       }
     }
-    if(gameLogValues.length === 0) { showToast('Player not found or no recent game data. Check spelling & sport.', 'error'); isAnalyzing = false; btn.disabled = false; btnText.textContent = 'Analyze This Pick'; return; }
+
+    if(gameLogValues.length === 0) {
+      showToast('Player not found — run Analysis mode first to project them, then check here', 'error');
+      isAnalyzing = false; btn.disabled = false; btnText.textContent = 'Analyze This Pick';
+      return;
+    }
 
     // ── EV ENGINE for Check Pick ──
     const cleanVals = gameLogValues.filter(v => !isNaN(v) && v >= 0);
     if(cleanVals.length < 2) { showToast('Need at least 2 valid games — PASS', 'error'); isAnalyzing = false; btn.disabled = false; btnText.textContent = 'Analyze This Pick'; return; }
 
-    const projection = parseFloat((computeEWMA(cleanVals) || 0).toFixed(2));
+    // Use cached projection directly if available (sharp engine already ran on it)
+    // Otherwise compute EWMA from raw game log values
+    const projection = projectionFromCache
+      ? projectionFromCache.proj
+      : parseFloat((computeEWMA(cleanVals) || 0).toFixed(2));
     if(!projection) { showToast('Insufficient data', 'error'); isAnalyzing = false; btn.disabled = false; btnText.textContent = 'Analyze This Pick'; return; }
 
-    const sd = computeStdDev(cleanVals, projection) || projection * 0.25;
+    const sd = projectionFromCache?.stdDev || computeStdDev(cleanVals, projection) || projection * 0.25;
     const ovP = probOver(projection, sd, line, prop, sport);
     const unP = 1 - ovP;
-    const impOv = americanToImplied(-110);
-    const evOv  = parseFloat((computeEV(ovP, impOv, -110) * 100).toFixed(1));
-    const evUn  = parseFloat((computeEV(unP, impOv, -110) * 100).toFixed(1));
-    const conf  = computeConfidence(cleanVals.length, sd, projection, false, false);
-    // Check Pick = manually entered line, not verified — display results but note it
-    const minEVPct = (STATE.settings.minEdge ?? 5) / 100;
+    // Use manually entered odds — not assuming -110
+    const impOv = americanToImplied(overOdds);
+    const impUn = americanToImplied(underOdds);
+    const evOv  = parseFloat((computeEV(ovP, impOv, overOdds) * 100).toFixed(1));
+    const evUn  = parseFloat((computeEV(unP, impUn, underOdds) * 100).toFixed(1));
+    const conf  = projectionFromCache?.conf || computeConfidence(cleanVals.length, sd, projection, false, false);
+    const minEVPct = (STATE.settings.bettingMinEdge ?? STATE.settings.minEdge ?? 5) / 100;
     let decision = 'PASS';
-    if(conf >= (STATE.settings.minConf ?? 4)) {
+    if(conf >= (STATE.settings.bettingMinConf ?? STATE.settings.minConf ?? 4)) {
       if(ovP - impOv >= minEVPct) decision = 'OVER';
-      else if(unP - impOv >= minEVPct) decision = 'UNDER';
+      else if(unP - impUn >= minEVPct) decision = 'UNDER';
     }
     const chosenEV   = decision === 'OVER' ? evOv : evUn;
     const chosenProb = decision === 'OVER' ? ovP : unP;
     const decColor   = decision === 'OVER' ? 'var(--accent)' : decision === 'UNDER' ? 'var(--red)' : 'var(--amber)';
     const cv = projection > 0 ? (sd / projection).toFixed(2) : 'N/A';
+    const dataSourceNote = projectionFromCache
+      ? 'Projection from analysis cache (sharp engine) — ' + (projectionFromCache.dataSource?.gamelog || '?') + ' game logs'
+      : cleanVals.length + ' game log values from ESPN (live fetch)';
     const reasoning = [
-      `Model: EWMA (α=0.25) μ=${projection} | σ=${sd.toFixed(2)} | CV=${cv}`,
-      `P(Over ${line}) = ${(ovP*100).toFixed(1)}% | P(Under) = ${(unP*100).toFixed(1)}%`,
-      `Implied prob (−110): ${(impOv*100).toFixed(1)}%`,
-      `EV: over=${evOv}% / under=${evUn}% → ${decision}`,
-      `${cleanVals.length} game log values from ESPN`,
-      `⚠ Line manually entered — not verified from sportsbook`,
+      'Model: ' + (projectionFromCache ? 'Sharp engine (cached)' : 'EWMA (α=0.25)') + ' μ=' + projection + ' | σ=' + sd.toFixed(2) + ' | CV=' + cv,
+      'P(Over ' + line + ') = ' + (ovP*100).toFixed(1) + '% | P(Under) = ' + (unP*100).toFixed(1) + '%',
+      'Implied prob — Over (' + overOdds + '): ' + (impOv*100).toFixed(1) + '% | Under (' + underOdds + '): ' + (impUn*100).toFixed(1) + '%',
+      'EV: over=' + evOv + '% / under=' + evUn + '% → ' + decision,
+      dataSourceNote,
+      '⚠ Line & odds manually entered',
     ];
 
     const histEntry = {
