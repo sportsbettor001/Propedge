@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v15.0</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v15.1</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -495,6 +495,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       </div>
       <button onclick="runNBAIdSync()" id="btn-sync-ids" style="width:100%;font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700;margin-bottom:14px">🔄 Sync All NBA Player IDs — All 30 Teams (run once)</button>
       <div id="sync-ids-progress" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg2);border-radius:8px;padding:10px;margin-bottom:14px"></div>
+
+      <div class="section-title">Odds API Quota</div>
+      <div id="odds-quota-card" style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted)">Loading...</div>
+      </div>
 
       <div class="section-title">Slate</div>
       <div id="slate-log-panel" style="margin-bottom:14px"></div>
@@ -765,7 +770,127 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 // ═══════════════════════════════════════════════════════
 // STATE + PERSISTENCE
 // ═══════════════════════════════════════════════════════
-const STORAGE_KEY = 'propedge_v7'; // v7: strict mode isolation — betting/analysis caches fully separated; Odds API gated on viewMode
+const STORAGE_KEY = 'propedge_v7';
+
+// ═══════════════════════════════════════════════════════
+// ODDS API QUOTA TRACKER — persists across sessions, never cleared
+// Stores: used, remaining, lastUpdated
+// Reset anchor: hardcoded to the 9th of each month (subscribed Apr 9)
+// ═══════════════════════════════════════════════════════
+const QUOTA_KEY = 'pe_odds_quota';
+// Subscription started Apr 9, 2026 @ 10:16 AM CST — resets every month on the 9th
+const QUOTA_RESET_DAY = 9; // day of month
+
+function loadQuota() {
+  try { return JSON.parse(localStorage.getItem(QUOTA_KEY)) || {}; } catch(e) { return {}; }
+}
+function saveQuota(q) {
+  try { localStorage.setItem(QUOTA_KEY, JSON.stringify(q)); } catch(e) {}
+}
+
+function updateQuotaFromHeaders(res) {
+  // Called after every successful Odds API fetch with the raw Response object
+  const remaining = parseInt(res.headers.get('x-requests-remaining'), 10);
+  const used      = parseInt(res.headers.get('x-requests-used'), 10);
+  const last      = parseInt(res.headers.get('x-requests-last'), 10);
+  if(isNaN(remaining) && isNaN(used)) return; // not an Odds API response
+
+  const q = loadQuota();
+
+  if(!isNaN(remaining)) q.remaining = remaining;
+  if(!isNaN(used))      q.used      = used;
+  if(!isNaN(last))      q.last      = last;
+  q.lastUpdated = Date.now();
+
+  // Once we see remaining === 0, flag exhausted — pin display at 500 used
+  if(!isNaN(remaining) && remaining === 0) q.exhausted = true;
+  // New cycle detected: used dropped back to a low number
+  if(q.exhausted && !isNaN(used) && used <= 5) q.exhausted = false;
+
+  saveQuota(q);
+  renderQuotaCard();
+}
+
+function updateQuotaExhausted() {
+  // Called when Odds API returns a 422/401 quota-exceeded error
+  const q = loadQuota();
+  q.exhausted = true;
+  q.remaining = 0;
+  if(isNaN(q.used)) q.used = 500; // best guess if we never got headers
+  q.lastUpdated = Date.now();
+  saveQuota(q);
+  renderQuotaCard();
+}
+
+function getDaysUntilQuotaReset() {
+  // Resets on the 9th of each month (subscription start day)
+  const now = new Date();
+  const day = now.getDate();
+  // Next reset: if today is before the 9th, it is this month; otherwise next month
+  let resetDate;
+  if(day < QUOTA_RESET_DAY) {
+    resetDate = new Date(now.getFullYear(), now.getMonth(), QUOTA_RESET_DAY);
+  } else {
+    resetDate = new Date(now.getFullYear(), now.getMonth() + 1, QUOTA_RESET_DAY);
+  }
+  const msLeft = resetDate.getTime() - now.getTime();
+  return Math.max(0, Math.ceil(msLeft / 86400000));
+}
+
+function renderQuotaCard() {
+  const el = document.getElementById('odds-quota-card');
+  if(!el) return;
+  const q = loadQuota();
+
+  if(!STATE.settings.oddsApiKey) {
+    el.innerHTML = '<div style="font-family:var(--mono);font-size:10px;color:var(--muted)">No Odds API key configured — add key in ⚙ Settings</div>';
+    return;
+  }
+  if(q.lastUpdated === undefined) {
+    el.innerHTML = '<div style="font-family:var(--mono);font-size:10px;color:var(--muted)">No quota data yet — run Betting Mode to fetch</div>';
+    return;
+  }
+
+  const used      = q.exhausted ? 500 : (q.used ?? '—');
+  const remaining = q.exhausted ? 0   : (q.remaining ?? '—');
+  const usedNum   = typeof used === 'number' ? used : 0;
+  const pct       = Math.min(100, Math.round((usedNum / 500) * 100));
+  const daysLeft  = getDaysUntilQuotaReset();
+  const updatedAgo = q.lastUpdated ? formatAge(Date.now() - q.lastUpdated) : '—';
+
+  const barColor = pct >= 90 ? 'var(--red)' : pct >= 70 ? 'var(--amber)' : 'var(--accent)';
+  const usedColor = pct >= 90 ? 'var(--red)' : pct >= 70 ? 'var(--amber)' : 'var(--text)';
+
+  const exhaustedBanner = q.exhausted
+    ? '<div style="margin-top:8px;font-family:var(--mono);font-size:9px;color:var(--red);background:rgba(255,77,106,.08);border:1px solid rgba(255,77,106,.2);border-radius:6px;padding:5px 8px">⚠ Quota exhausted — Odds API calls blocked until reset</div>'
+    : '';
+  const lastCostLine = q.last !== undefined
+    ? '<div style="font-family:var(--mono);font-size:9px;color:var(--muted)">last call cost ' + q.last + '</div>'
+    : '';
+  const daysStr = daysLeft !== null ? 'Resets in ~' + daysLeft + ' day' + (daysLeft !== 1 ? 's' : '') : '—';
+
+  el.innerHTML =
+    '<div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--blue);margin-bottom:10px">ODDS API QUOTA</div>' +
+    '<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:6px">' +
+      '<div>' +
+        '<span style="font-size:22px;font-weight:800;color:' + usedColor + '">' + used + '</span>' +
+        '<span style="font-family:var(--mono);font-size:10px;color:var(--muted)"> / 500 used</span>' +
+      '</div>' +
+      '<div style="text-align:right">' +
+        '<div style="font-family:var(--mono);font-size:11px;font-weight:700;color:' + (remaining === 0 ? 'var(--red)' : 'var(--accent)') + '">' + remaining + ' left</div>' +
+        lastCostLine +
+      '</div>' +
+    '</div>' +
+    '<div style="background:var(--bg3);border-radius:4px;height:5px;overflow:hidden;margin-bottom:8px">' +
+      '<div style="background:' + barColor + ';height:100%;width:' + pct + '%;border-radius:4px;transition:width .4s"></div>' +
+    '</div>' +
+    '<div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--muted)">' +
+      '<span>Updated ' + updatedAgo + '</span>' +
+      '<span>' + daysStr + '</span>' +
+    '</div>' +
+    exhaustedBanner;
+}
+ // v7: strict mode isolation — betting/analysis caches fully separated; Odds API gated on viewMode
 
 function loadState() {
   try {
@@ -1360,29 +1485,38 @@ function updateProxyBadge() {
 function updateModeBanner() {
   const el = document.getElementById('mode-banner');
   if(!el) return;
-  const appMode = getAppMode();
-  const allProps = getAllCachedProps();
-  const hasProps = allProps.length > 0;
 
-  // View toggle — only show when we have props cached
-  const toggleHTML = hasProps ? `
+  // Check what is actually cached per mode
+  const hasBettingCache = STATE.bettingCache && Object.values(STATE.bettingCache).some(e => e?.props?.length > 0);
+  const hasAnalysisCache = STATE.analysisCache && Object.values(STATE.analysisCache).some(e => e?.props?.length > 0);
+  const eitherHasData = hasBettingCache || hasAnalysisCache ||
+    (STATE.sportCache && Object.values(STATE.sportCache).some(e => e?.props?.length > 0));
+
+  // Toggle always shown when either cache has data
+  const toggleHTML = eitherHasData ? `
     <div style="margin-left:auto;display:flex;gap:0;border:1px solid rgba(255,255,255,0.12);border-radius:6px;overflow:hidden;flex-shrink:0">
       <button onclick="setViewMode('betting')" style="font-family:var(--mono);font-size:9px;padding:3px 8px;border:none;cursor:pointer;font-weight:${viewMode==='betting'?'700':'400'};background:${viewMode==='betting'?'rgba(0,229,160,0.2)':'transparent'};color:${viewMode==='betting'?'var(--accent)':'var(--muted)'}">BETTING</button>
       <button onclick="setViewMode('analysis')" style="font-family:var(--mono);font-size:9px;padding:3px 8px;border:none;border-left:1px solid rgba(255,255,255,0.12);cursor:pointer;font-weight:${viewMode==='analysis'?'700':'400'};background:${viewMode==='analysis'?'rgba(255,181,71,0.2)':'transparent'};color:${viewMode==='analysis'?'var(--amber)':'var(--muted)'}">ANALYSIS</button>
     </div>` : '';
 
-  if(viewMode === 'analysis' && hasProps) {
+  // Banner driven entirely by viewMode — not by what is in cache
+  if(viewMode === 'analysis') {
     el.className = 'mode-banner analysis';
-    el.innerHTML = `<div class="mode-banner-dot"></div>ANALYSIS VIEW — Showing model projections · EV/edge hidden${toggleHTML}`;
-  } else if(appMode === 'betting') {
-    el.className = 'mode-banner betting';
-    el.innerHTML = `<div class="mode-banner-dot"></div>BETTING MODE — Real sportsbook lines active${toggleHTML}`;
-  } else if(appMode === 'analysis') {
-    el.className = 'mode-banner analysis';
-    el.innerHTML = `<div class="mode-banner-dot"></div>ANALYSIS MODE — No market lines · Projections only${toggleHTML}`;
+    el.innerHTML = `<div class="mode-banner-dot"></div>ANALYSIS MODE — Projections only · No market lines${toggleHTML}`;
   } else {
-    el.className = '';
-    el.innerHTML = '';
+    // Betting mode — sub-label depends on whether betting cache actually has real lines
+    const hasRealLines = hasBettingCache &&
+      Object.values(STATE.bettingCache).some(e => e?.props?.some(p => p.dataSource?.hasRealLine === true));
+    if(hasRealLines) {
+      el.className = 'mode-banner betting';
+      el.innerHTML = `<div class="mode-banner-dot"></div>BETTING MODE — Real sportsbook lines active${toggleHTML}`;
+    } else if(eitherHasData) {
+      el.className = 'mode-banner betting';
+      el.innerHTML = `<div class="mode-banner-dot"></div>BETTING MODE — No lines cached · Hit Refresh to fetch${toggleHTML}`;
+    } else {
+      el.className = 'mode-banner betting';
+      el.innerHTML = `<div class="mode-banner-dot"></div>BETTING MODE — Generate props to fetch sportsbook lines${toggleHTML}`;
+    }
   }
 }
 
@@ -1476,6 +1610,7 @@ document.addEventListener('DOMContentLoaded', function() {
   updateSportChipStatus();
   updateProxyBadge();
   setViewMode(viewMode); // initialize mode selector button state
+  renderQuotaCard(); // show current quota state immediately
 
   // Clear all _lastproj_ stability anchors on v14.9 startup
   // These anchors lock in stale projections from previous buggy versions — safer to reset
@@ -1818,8 +1953,17 @@ async function fetchJSON(url, options = {}, timeoutMs = 8000) {
   try {
     const res = await fetch(url, { ...options, signal: controller.signal });
     clearTimeout(timeout);
-    if(!res.ok) { logApiCall(url, 'error'); throw new Error('HTTP ' + res.status); }
+    if(!res.ok) {
+      logApiCall(url, 'error');
+      // Odds API quota exhausted — 401 or 422 with quota error body
+      if(url.includes('api.the-odds-api.com') && (res.status === 401 || res.status === 422 || res.status === 429)) {
+        updateQuotaExhausted();
+      }
+      throw new Error('HTTP ' + res.status);
+    }
     logApiCall(url, 'ok');
+    // Capture Odds API quota headers on every successful response
+    if(url.includes('api.the-odds-api.com')) updateQuotaFromHeaders(res);
     return await res.json();
   } catch(e) {
     clearTimeout(timeout);
