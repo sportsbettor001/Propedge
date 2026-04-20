@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.3</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.4</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -2204,24 +2204,36 @@ async function fetchESPNSchedule(sport, league, date) {
   const dateStr = date.replace(/-/g,'');
   const base = `${ESPN_BASE}/${sport}/${league}/scoreboard`;
 
-  // For NBA, try multiple season group params — ESPN hides play-in and playoff
-  // games from the default scoreboard endpoint. groups=50 includes postseason.
+  // For NBA: try postseason-specific URLs first. Return on FIRST success —
+  // do NOT cascade to the regular-season default once a postseason URL returns
+  // events, because mixing results from different URL variants is what causes
+  // phantom games (e.g. a stale NO vs TOR regular-season game appearing
+  // alongside the real CLE vs TOR playoff game).
   if(league === 'nba') {
-    // Try each variant, return first one that has events
-    const urls = [
-      `${base}?dates=${dateStr}&groups=50`,   // postseason / play-in
-      `${base}?dates=${dateStr}&seasontype=5`, // play-in tournament specifically
-      `${base}?dates=${dateStr}&seasontype=3`, // playoffs
-      `${base}?dates=${dateStr}`,              // default (regular season)
+    const postseasonUrls = [
+      `${base}?dates=${dateStr}&groups=50`,    // postseason / play-in (most reliable)
+      `${base}?dates=${dateStr}&seasontype=3`, // explicit playoffs
+      `${base}?dates=${dateStr}&seasontype=5`, // play-in tournament
     ];
-    for(const url of urls) {
+    for(const url of postseasonUrls) {
       try {
         const data = await fetchWithFallback(url);
-        if(data?.events?.length > 0) return data;
+        if(data?.events?.length > 0) {
+          // Dedup within this single response (ESPN can duplicate across season-type boundaries)
+          const seen = new Set();
+          data.events = data.events.filter(e => {
+            if(!e.id) return true;
+            if(seen.has(e.id)) return false;
+            seen.add(e.id);
+            return true;
+          });
+          return data;
+        }
       } catch(e) { continue; }
     }
-    // Return empty if nothing found
-    return { events: [] };
+    // All postseason URLs empty — regular season or off-season
+    try { return await fetchWithFallback(`${base}?dates=${dateStr}`); }
+    catch(e) { return { events: [] }; }
   }
 
   return await fetchWithFallback(`${base}?dates=${dateStr}`);
@@ -3782,27 +3794,20 @@ async function runFetch(sportsToFetch) {
             fetchDay(today, 'today'),
             fetchDay(tomorrow, 'tomorrow'),
           ]);
-          // Fix 1: Deduplicate by game id (today beats tomorrow for same id).
-          // Also drop stale STATUS_FINAL/POSTPONED/CANCELED games that ESPN playoff
-          // endpoints sometimes return alongside the active schedule — this prevents
-          // phantom games (e.g. NOvsTOR from a completed regular-season game) from
-          // leaking into props for a slate where those teams aren't playing.
-          const seenEventIds = new Set();
-          const dedupedEvents = [...todayEvents, ...tomorrowEvents].filter(e => {
-            if(!e.id) return true;
-            if(seenEventIds.has(e.id)) return false;
-            seenEventIds.add(e.id);
-            return true;
+          // Dedup by game.id across today+tomorrow (today wins), and drop any
+          // game ESPN has already marked final/cancelled — stale events from prior
+          // dates that bleed through postseason endpoints cause phantom matchups.
+          const _seenEvIds = new Set();
+          const _mergedEvts = [...todayEvents, ...tomorrowEvents].filter(e => {
+            if(e.id) {
+              if(_seenEvIds.has(e.id)) return false;
+              _seenEvIds.add(e.id);
+            }
+            const sn = e.status?.type?.name || '';
+            return !['STATUS_FINAL','STATUS_POSTPONED','STATUS_CANCELED',
+                     'STATUS_SUSPENDED','STATUS_FORFEIT'].includes(sn);
           });
-          const activeEvents = dedupedEvents.filter(e => {
-            const statusName = e.status?.type?.name || '';
-            const staleStatuses = ['STATUS_FINAL','STATUS_POSTPONED','STATUS_CANCELED',
-              'STATUS_SUSPENDED','STATUS_FORFEIT'];
-            // Drop any game ESPN has already marked as finished/cancelled —
-            // these are stale events from prior dates bleeding through playoff endpoints
-            return !staleStatuses.includes(statusName);
-          });
-          return { sport, events: activeEvents };
+          return { sport, events: _mergedEvts };
         });
       const scheduleResults = await Promise.all(schedulePromises);
       scheduleResults.forEach(r => {
@@ -3933,26 +3938,24 @@ async function runFetch(sportsToFetch) {
           if(candidatePool.length === 0 && sport !== 'MLB') {
             traceLog('playerDiscovery', `${sport} ${home}v${away} T1 empty — trying T2 rosters (homeId=${homeTeamId} awayId=${awayTeamId})`, 'warn');
             const rFetches = [];
-            // Fix 2B: tag _side on roster fetches so home/away balancer knows which team each player is on
-            if(homeTeamId) rFetches.push(fetchESPNTeamRoster(espnSport, espnLeague, homeTeamId).then(r => r.map(p => ({...p, _side:'home'}))));
-            if(awayTeamId)  rFetches.push(fetchESPNTeamRoster(espnSport, espnLeague, awayTeamId).then(r => r.map(p => ({...p, _side:'away'}))));
+            // Tag _side + teamAbbr so home/away balancer knows which team each player is on
+            if(homeTeamId) rFetches.push(fetchESPNTeamRoster(espnSport, espnLeague, homeTeamId).then(r => r.map(p => ({...p, _side:'home', teamAbbr: home}))));
+            if(awayTeamId)  rFetches.push(fetchESPNTeamRoster(espnSport, espnLeague, awayTeamId).then(r => r.map(p => ({...p, _side:'away', teamAbbr: away}))));
             const rosters = await Promise.all(rFetches);
             for(const roster of rosters) {
               for(const rp of roster) {
-                // Use ESPN ID cache for verified IDs
                 const verifiedId = getVerifiedESPNId(rp.name, rp.id);
                 const db = enrichFromDB(rp.name);
-                // Fix 2B: preserve _side tag ('home'|'away') for downstream home/away balancing (Fix 4)
                 candidatePool.push({
-                  id: verifiedId, name: rp.name, teamAbbr: rp.teamAbbr || '', starter: false,
-                  position: rp.position, _side: rp._side || null,
+                  id: verifiedId, name: rp.name, teamAbbr: rp.teamAbbr || '',
+                  starter: false, position: rp.position, _side: rp._side || null,
                   prop: db?.prop || defaultPropForSport(sport),
                   lineBase: db?.lineBase || null,
                   meta: db || null,
                 });
               }
             }
-            traceLog('playerDiscovery', `${sport} ${home}v${away} T2-Rosters: ${candidatePool.length} players`, candidatePool.length>0?'pass':'warn');
+            traceLog('playerDiscovery', `${sport} ${home}v${away} T2-Rosters: ${candidatePool.length} players (home/away tagged)`, candidatePool.length>0?'pass':'warn');
           }
 
           // ── TIER 3: PLAYER_DB filtered by team — last resort only ──
@@ -3969,22 +3972,20 @@ async function runFetch(sportsToFetch) {
               }));
           }
 
-          // ── RANK + SELECT — Fix 3+4: ROLE_TIERS-first, then mins cache, then balanced home/away ──
-          // Priority order:
-          //   1. ROLE_TIERS score (authoritative static starter/role map — works with cold cache)
-          //   2. Avg minutes from ESPN snapshot/mins cache (dynamic, when available)
-          //   3. PLAYER_DB usage proxy (usage * 100 ≈ mpg equivalent)
+          // ── RANK + SELECT — ROLE_TIERS priority + balanced home/away split ──
+          // Sort order (highest wins):
+          //   1. ROLE_TIERS score — known star/starter ranking, works even with cold cache
+          //   2. Avg minutes from ESPN snapshot / mins cache
+          //   3. PLAYER_DB usage proxy (usage * 100)
           //   4. Confirmed starter flag
           //   5. Alphabetical tiebreak
-          // After ranking, Fix 4 splits selection into balanced home/away halves so that
-          // setting "5 players per game" gives ~3 from one side and ~2 from the other
-          // (or exactly 5+5 for 10), never just pulling all from one team.
+          // After sorting by quality, the pool is split into home/away buckets so that
+          // N players per game = floor(N/2) home + floor(N/2) away (+ 1 home if N is odd).
           const maxPlayers = STATE.settings.analysisPlayersPerGame || 5;
-          const perSide = Math.floor(maxPlayers / 2);
-          const extraSlot = maxPlayers % 2; // odd counts give +1 to home
+          const _perSide   = Math.floor(maxPlayers / 2);
+          const _extraSlot = maxPlayers % 2; // odd count gives home the extra slot
 
           const minsCache = loadMinsCache();
-          // Get avg minutes from snapshot/cache for a player
           const getAvgMins = (playerName, knownId, meta) => {
             const verifiedId = getVerifiedESPNId(playerName, knownId || null);
             if(verifiedId) {
@@ -4001,75 +4002,63 @@ async function runFetch(sportsToFetch) {
             return 0;
           };
 
-          // Resolve a player's _side ('home'|'away') using available signals
+          // Resolve a candidate's home/away side from available signals
           const resolveSide = (p) => {
-            if(p._side) return p._side;
-            if(p.teamAbbr) {
-              const ta = p.teamAbbr.toUpperCase();
-              if(ta === home.toUpperCase()) return 'home';
-              if(ta === away.toUpperCase()) return 'away';
-            }
-            // PLAYER_DB team field (meta.team)
+            if(p._side === 'home' || p._side === 'away') return p._side;
+            const ta = (p.teamAbbr || '').toUpperCase();
+            if(ta && ta === home.toUpperCase()) return 'home';
+            if(ta && ta === away.toUpperCase()) return 'away';
             const dbTeam = (p.meta?.team || '').toUpperCase();
-            if(dbTeam && dbTeam === home.toUpperCase()) return 'home';
-            if(dbTeam && dbTeam === away.toUpperCase()) return 'away';
-            return null; // unknown
+            if(dbTeam === home.toUpperCase()) return 'home';
+            if(dbTeam === away.toUpperCase()) return 'away';
+            return null;
           };
 
-          // Compute composite rank score for each player
-          const scoredPool = candidatePool
+          // Score every candidate — ROLE_TIERS dominates when mins cache is cold
+          const _scoredPool = candidatePool
             .filter(p => p.name && p.name.trim().length > 1)
             .map(p => {
-              const side = resolveSide(p);
-              const teamForTier = side === 'home' ? home : side === 'away' ? away : (p.meta?.team || p.teamAbbr || '');
-              const roleTier  = getRoleTierScore(p.name, teamForTier); // 100/50/20/0
-              const avgMins   = getAvgMins(p.name, p.id, p.meta);      // 0-48 mpg
-              const starterBs = p.starter ? 5 : 0;
-              return { ...p, _side: side, _roleTier: roleTier, _avgMins: avgMins,
-                       _score: roleTier * 10 + avgMins + starterBs }; // roleTier dominates
+              const side    = resolveSide(p);
+              const teamKey = side === 'home' ? home : side === 'away' ? away : (p.meta?.team || p.teamAbbr || '');
+              const rolePts = getRoleTierScore(p.name, teamKey);
+              const avgMins = getAvgMins(p.name, p.id, p.meta);
+              const starterB = p.starter ? 5 : 0;
+              return { ...p, _side: side, _score: rolePts * 10 + avgMins + starterB };
             })
-            .sort((a, b) => {
-              if(b._score !== a._score) return b._score - a._score;
-              return a.name.localeCompare(b.name);
-            });
+            .sort((a, b) => b._score !== a._score ? b._score - a._score : a.name.localeCompare(b.name));
 
-          // Split into home/away buckets (deduped), fill to perSide each
-          const seenHome = new Set(), seenAway = new Set(), seenAll = new Set();
-          const homeBucket = [], awayBucket = [], unknownBucket = [];
-          for(const p of scoredPool) {
+          // Fill home and away buckets independently to their caps
+          const _seenH = new Set(), _seenA = new Set();
+          const _homeBkt = [], _awayBkt = [], _unknBkt = [];
+          for(const p of _scoredPool) {
             const k = p.name.toLowerCase().trim();
-            if(seenAll.has(k)) continue; // global dedup
-            seenAll.add(k);
-            if(p._side === 'home' && homeBucket.length < perSide + extraSlot) {
-              seenHome.add(k); homeBucket.push(p);
-            } else if(p._side === 'away' && awayBucket.length < perSide) {
-              seenAway.add(k); awayBucket.push(p);
+            if(p._side === 'home' && _homeBkt.length < _perSide + _extraSlot && !_seenH.has(k)) {
+              _seenH.add(k); _homeBkt.push(p);
+            } else if(p._side === 'away' && _awayBkt.length < _perSide && !_seenA.has(k)) {
+              _seenA.add(k); _awayBkt.push(p);
             } else if(!p._side) {
-              unknownBucket.push(p);
+              _unknBkt.push(p);
             }
           }
 
-          // Merge: home first, then away — interleaved so display alternates
+          // Interleave home+away for display, then backfill if a side is short
           let ranked = [];
-          const maxLen = Math.max(homeBucket.length, awayBucket.length);
-          for(let i = 0; i < maxLen; i++) {
-            if(homeBucket[i]) ranked.push(homeBucket[i]);
-            if(awayBucket[i]) ranked.push(awayBucket[i]);
+          const _bktLen = Math.max(_homeBkt.length, _awayBkt.length);
+          for(let _bi = 0; _bi < _bktLen; _bi++) {
+            if(_homeBkt[_bi]) ranked.push(_homeBkt[_bi]);
+            if(_awayBkt[_bi]) ranked.push(_awayBkt[_bi]);
           }
-          // Backfill with unknowns or overflow from the larger bucket if we're short
           if(ranked.length < maxPlayers) {
-            const allLeftover = [...unknownBucket, ...scoredPool].filter(p => {
-              const k = p.name.toLowerCase().trim();
-              return !seenHome.has(k) && !seenAway.has(k) && ranked.every(r => r.name.toLowerCase().trim() !== k);
-            });
-            for(const p of allLeftover) {
+            const _allSeen = new Set(ranked.map(p => p.name.toLowerCase().trim()));
+            for(const p of [..._unknBkt, ..._scoredPool]) {
               if(ranked.length >= maxPlayers) break;
-              ranked.push(p);
+              const k = p.name.toLowerCase().trim();
+              if(!_allSeen.has(k)) { _allSeen.add(k); ranked.push(p); }
             }
           }
           ranked = ranked.slice(0, maxPlayers);
 
-          const selectedNames = ranked.map(p => `${p.name}(${p._side||'?'},tier=${p._roleTier||0},mins=${(p._avgMins||0).toFixed(0)})`).join(', ');
+          const selectedNames = ranked.map(p => `${p.name}(${p._side||'?'},s=${p._score||0})`).join(', ');
           traceLog('playerDiscovery', `${sport} ${home}v${away} SELECTED (${ranked.length}): ${selectedNames}`, ranked.length>0?'pass':'fail');
 
           if(slateEntry) slateEntry.games.push({ home, away, players: ranked.map(p=>p.name) });
@@ -4696,61 +4685,70 @@ const PLAYER_DB = {
 };
 
 // ═══════════════════════════════════════════════════════
-// ROLE_TIERS — Static starter & rotation priority per team
-// Used as authoritative rank when minutes cache is cold (T2/T3 rosters).
-// tier:1 = clear starter/star, tier:2 = solid rotation, tier:3 = role/bench
-// Keep current as of the active season. Update when rosters change significantly.
-// Format: { TEAM_ABBR: [ { name, tier, pos } ] }
+// ROLE_TIERS — Authoritative starter/rotation priority per team
+// Used ONLY for ranking/prioritization — never for filtering eligibility.
+// ESPN live API determines which players actually play in a game.
+// ROLE_TIERS just ensures stars sort above bench players when mins cache is cold.
+// tier:1 = clear star/starter, tier:2 = rotation, tier:3 = end-of-bench
+// Keep current with actual rosters — wrong entries score 0 (harmless, not wrong).
 // ═══════════════════════════════════════════════════════
 const ROLE_TIERS = {
-  // NBA — 2024-25 Playoffs
-  OKC:  [{name:'Shai Gilgeous-Alexander',tier:1,pos:'G'},{name:'Jalen Williams',tier:1,pos:'G'},{name:'Chet Holmgren',tier:1,pos:'C'},{name:'Luguentz Dort',tier:2,pos:'G'},{name:'Isaiah Hartenstein',tier:2,pos:'C'},{name:'Aaron Wiggins',tier:2,pos:'G'},{name:'Alex Caruso',tier:2,pos:'G'}],
-  MEM:  [{name:'Ja Morant',tier:1,pos:'G'},{name:'Desmond Bane',tier:1,pos:'G'},{name:'Jaren Jackson Jr.',tier:1,pos:'C'},{name:'Marcus Smart',tier:2,pos:'G'},{name:'Santi Aldama',tier:2,pos:'F'},{name:'Scotty Pippen Jr.',tier:2,pos:'G'}],
-  GSW:  [{name:'Stephen Curry',tier:1,pos:'G'},{name:'Draymond Green',tier:1,pos:'F'},{name:'Andrew Wiggins',tier:2,pos:'F'},{name:'Jonathan Kuminga',tier:2,pos:'F'},{name:'Brandin Podziemski',tier:2,pos:'G'},{name:'Moses Moody',tier:2,pos:'G'}],
-  HOU:  [{name:'Alperen Sengun',tier:1,pos:'C'},{name:'Jalen Green',tier:1,pos:'G'},{name:'Amen Thompson',tier:2,pos:'F'},{name:'Dillon Brooks',tier:2,pos:'F'},{name:'Fred VanVleet',tier:2,pos:'G'},{name:'Jabari Smith Jr.',tier:2,pos:'F'}],
-  LAL:  [{name:'LeBron James',tier:1,pos:'F'},{name:'Luka Doncic',tier:1,pos:'G'},{name:'Anthony Davis',tier:1,pos:'C'},{name:'Austin Reaves',tier:2,pos:'G'},{name:'Rui Hachimura',tier:2,pos:'F'},{name:'Dorian Finney-Smith',tier:2,pos:'F'},{name:'Gabe Vincent',tier:2,pos:'G'}],
-  DEN:  [{name:'Nikola Jokic',tier:1,pos:'C'},{name:'Jamal Murray',tier:1,pos:'G'},{name:'Michael Porter Jr.',tier:1,pos:'F'},{name:'Aaron Gordon',tier:2,pos:'F'},{name:'Kentavious Caldwell-Pope',tier:2,pos:'G'},{name:'Christian Braun',tier:2,pos:'G'}],
-  MIN:  [{name:'Anthony Edwards',tier:1,pos:'G'},{name:'Karl-Anthony Towns',tier:1,pos:'C'},{name:'Rudy Gobert',tier:1,pos:'C'},{name:'Mike Conley',tier:2,pos:'G'},{name:'Jaden McDaniels',tier:2,pos:'F'},{name:'Naz Reid',tier:2,pos:'C'}],
-  LAC:  [{name:'Kawhi Leonard',tier:1,pos:'F'},{name:'James Harden',tier:1,pos:'G'},{name:'Paul George',tier:1,pos:'F'},{name:'Ivica Zubac',tier:2,pos:'C'},{name:'Norman Powell',tier:2,pos:'G'},{name:'Terance Mann',tier:2,pos:'G'}],
-  BOS:  [{name:'Jayson Tatum',tier:1,pos:'F'},{name:'Jaylen Brown',tier:1,pos:'G'},{name:'Kristaps Porzingis',tier:1,pos:'C'},{name:'Jrue Holiday',tier:2,pos:'G'},{name:'Derrick White',tier:2,pos:'G'},{name:'Al Horford',tier:2,pos:'C'},{name:'Payton Pritchard',tier:2,pos:'G'}],
-  NYK:  [{name:'Jalen Brunson',tier:1,pos:'G'},{name:'Karl-Anthony Towns',tier:1,pos:'C'},{name:'OG Anunoby',tier:2,pos:'F'},{name:'Mikal Bridges',tier:2,pos:'G'},{name:'Josh Hart',tier:2,pos:'G'},{name:'Miles McBride',tier:2,pos:'G'}],
-  CLE:  [{name:'Donovan Mitchell',tier:1,pos:'G'},{name:'Darius Garland',tier:1,pos:'G'},{name:'Evan Mobley',tier:1,pos:'C'},{name:'Jarrett Allen',tier:2,pos:'C'},{name:'Max Strus',tier:2,pos:'G'},{name:'De Andre Hunter',tier:2,pos:'F'}],
-  IND:  [{name:'Tyrese Haliburton',tier:1,pos:'G'},{name:'Pascal Siakam',tier:1,pos:'F'},{name:'Myles Turner',tier:2,pos:'C'},{name:'Bennedict Mathurin',tier:2,pos:'F'},{name:'Andrew Nembhard',tier:2,pos:'G'},{name:'Aaron Nesmith',tier:2,pos:'F'},{name:'T.J. McConnell',tier:2,pos:'G'}],
-  MIL:  [{name:'Giannis Antetokounmpo',tier:1,pos:'F'},{name:'Damian Lillard',tier:1,pos:'G'},{name:'Khris Middleton',tier:2,pos:'F'},{name:'Brook Lopez',tier:2,pos:'C'},{name:'Bobby Portis',tier:2,pos:'F'},{name:'Gary Trent Jr.',tier:2,pos:'G'}],
-  MIA:  [{name:'Bam Adebayo',tier:1,pos:'C'},{name:'Tyler Herro',tier:1,pos:'G'},{name:'Jimmy Butler',tier:1,pos:'F'},{name:'Terry Rozier',tier:2,pos:'G'},{name:'Duncan Robinson',tier:2,pos:'G'},{name:'Haywood Highsmith',tier:2,pos:'F'}],
-  ORL:  [{name:'Paolo Banchero',tier:1,pos:'F'},{name:'Franz Wagner',tier:1,pos:'F'},{name:'Jalen Suggs',tier:2,pos:'G'},{name:'Wendell Carter Jr.',tier:2,pos:'C'},{name:'Cole Anthony',tier:2,pos:'G'},{name:'Moritz Wagner',tier:2,pos:'F'}],
-  ATL:  [{name:'Trae Young',tier:1,pos:'G'},{name:'Dejounte Murray',tier:1,pos:'G'},{name:'Clint Capela',tier:2,pos:'C'},{name:'Bogdan Bogdanovic',tier:2,pos:'G'},{name:'De Andre Hunter',tier:2,pos:'F'},{name:'Saddiq Bey',tier:2,pos:'F'}],
-  PHX:  [{name:'Kevin Durant',tier:1,pos:'F'},{name:'Devin Booker',tier:1,pos:'G'},{name:'Bradley Beal',tier:2,pos:'G'},{name:'Jusuf Nurkic',tier:2,pos:'C'},{name:'Grayson Allen',tier:2,pos:'G'},{name:"Royce O'Neale",tier:2,pos:'F'}],
-  SAC:  [{name:'De Aaron Fox',tier:1,pos:'G'},{name:'Domantas Sabonis',tier:1,pos:'C'},{name:'Malik Monk',tier:2,pos:'G'},{name:'Harrison Barnes',tier:2,pos:'F'},{name:'Kevin Huerter',tier:2,pos:'G'},{name:'Keegan Murray',tier:2,pos:'F'}],
-  DAL:  [{name:'Klay Thompson',tier:1,pos:'G'},{name:'Kyrie Irving',tier:1,pos:'G'},{name:'PJ Washington',tier:2,pos:'F'},{name:'Daniel Gafford',tier:2,pos:'C'},{name:'Dereck Lively II',tier:2,pos:'C'},{name:'Naji Marshall',tier:2,pos:'F'}],
-  SAS:  [{name:'Victor Wembanyama',tier:1,pos:'C'},{name:'Devin Vassell',tier:2,pos:'G'},{name:'Stephon Castle',tier:2,pos:'G'},{name:'Chris Paul',tier:2,pos:'G'},{name:'Harrison Barnes',tier:2,pos:'F'},{name:'Julian Champagnie',tier:3,pos:'F'}],
-  PHI:  [{name:'Joel Embiid',tier:1,pos:'C'},{name:'Tyrese Maxey',tier:1,pos:'G'},{name:'Paul George',tier:1,pos:'F'},{name:'Kelly Oubre Jr.',tier:2,pos:'F'},{name:'Caleb Martin',tier:2,pos:'F'},{name:'Kyle Lowry',tier:2,pos:'G'}],
-  CHI:  [{name:'Zach LaVine',tier:1,pos:'G'},{name:'Nikola Vucevic',tier:1,pos:'C'},{name:'DeMar DeRozan',tier:2,pos:'F'},{name:'Patrick Williams',tier:2,pos:'F'},{name:'Ayo Dosunmu',tier:2,pos:'G'}],
-  TOR:  [{name:'Scottie Barnes',tier:1,pos:'F'},{name:'RJ Barrett',tier:1,pos:'G'},{name:'Immanuel Quickley',tier:2,pos:'G'},{name:'Jakob Poeltl',tier:2,pos:'C'},{name:'Gradey Dick',tier:2,pos:'G'},{name:'Bruce Brown',tier:2,pos:'G'}],
-  NO:   [{name:'Brandon Ingram',tier:1,pos:'F'},{name:'Zion Williamson',tier:1,pos:'F'},{name:'CJ McCollum',tier:2,pos:'G'},{name:'Herb Jones',tier:2,pos:'F'},{name:'Jonas Valanciunas',tier:2,pos:'C'}],
-  DET:  [{name:'Cade Cunningham',tier:1,pos:'G'},{name:'Jalen Duren',tier:2,pos:'C'},{name:'Bojan Bogdanovic',tier:2,pos:'F'},{name:'Ausar Thompson',tier:2,pos:'F'},{name:'Killian Hayes',tier:3,pos:'G'}],
-  CHA:  [{name:'LaMelo Ball',tier:1,pos:'G'},{name:'Miles Bridges',tier:2,pos:'F'},{name:'Terry Rozier',tier:2,pos:'G'},{name:'P.J. Washington',tier:2,pos:'F'}],
-  WAS:  [{name:'Kyle Kuzma',tier:1,pos:'F'},{name:'Jordan Poole',tier:1,pos:'G'},{name:'Deni Avdija',tier:2,pos:'F'},{name:'Tyus Jones',tier:2,pos:'G'}],
-  // NHL — current playoff teams
-  FLA:  [{name:'Aleksander Barkov',tier:1,pos:'C'},{name:'Matthew Tkachuk',tier:1,pos:'F'},{name:'Sam Reinhart',tier:1,pos:'C'},{name:'Carter Verhaeghe',tier:2,pos:'F'},{name:'Sergei Bobrovsky',tier:1,pos:'G'},{name:'Gustav Forsling',tier:2,pos:'D'}],
-  TBL:  [{name:'Nikita Kucherov',tier:1,pos:'F'},{name:'Brayden Point',tier:1,pos:'C'},{name:'Steven Stamkos',tier:2,pos:'C'},{name:'Andrei Vasilevskiy',tier:1,pos:'G'},{name:'Victor Hedman',tier:1,pos:'D'}],
-  TOR:  [{name:'Auston Matthews',tier:1,pos:'C'},{name:'Mitch Marner',tier:1,pos:'F'},{name:'William Nylander',tier:1,pos:'F'},{name:'John Tavares',tier:2,pos:'C'},{name:'Morgan Rielly',tier:2,pos:'D'}],
-  BOS:  [{name:'David Pastrnak',tier:1,pos:'F'},{name:'Brad Marchand',tier:1,pos:'F'},{name:'Charlie McAvoy',tier:1,pos:'D'},{name:'Pavel Zacha',tier:2,pos:'C'},{name:'Jeremy Swayman',tier:1,pos:'G'}],
-  // NFL — keep existing starters from PLAYER_DB (already ordered by snapPct)
-  // MLB — ordered by batting order / role in PLAYER_DB already
+  // NBA 2024-25 — verified current rosters
+  OKC: [{name:'Shai Gilgeous-Alexander',tier:1},{name:'Jalen Williams',tier:1},{name:'Chet Holmgren',tier:1},{name:'Luguentz Dort',tier:2},{name:'Isaiah Hartenstein',tier:2},{name:'Aaron Wiggins',tier:2},{name:'Alex Caruso',tier:2},{name:'Isaiah Joe',tier:3}],
+  MEM: [{name:'Ja Morant',tier:1},{name:'Desmond Bane',tier:1},{name:'Jaren Jackson Jr.',tier:1},{name:'Marcus Smart',tier:2},{name:'Santi Aldama',tier:2},{name:'Scotty Pippen Jr.',tier:2},{name:'GG Jackson II',tier:2}],
+  GSW: [{name:'Stephen Curry',tier:1},{name:'Draymond Green',tier:1},{name:'Andrew Wiggins',tier:2},{name:'Jonathan Kuminga',tier:2},{name:'Brandin Podziemski',tier:2},{name:'Moses Moody',tier:2},{name:'Kyle Anderson',tier:2}],
+  HOU: [{name:'Alperen Sengun',tier:1},{name:'Jalen Green',tier:1},{name:'Amen Thompson',tier:2},{name:'Dillon Brooks',tier:2},{name:'Fred VanVleet',tier:2},{name:'Jabari Smith Jr.',tier:2},{name:'Tari Eason',tier:2},{name:'Jeff Green',tier:3}],
+  LAL: [{name:'LeBron James',tier:1},{name:'Luka Doncic',tier:1},{name:'Anthony Davis',tier:1},{name:'Austin Reaves',tier:2},{name:'Rui Hachimura',tier:2},{name:'Dorian Finney-Smith',tier:2},{name:'Gabe Vincent',tier:2},{name:'Bronny James',tier:3}],
+  DEN: [{name:'Nikola Jokic',tier:1},{name:'Jamal Murray',tier:1},{name:'Michael Porter Jr.',tier:1},{name:'Aaron Gordon',tier:2},{name:'Kentavious Caldwell-Pope',tier:2},{name:'Christian Braun',tier:2},{name:'Peyton Watson',tier:2},{name:'Russell Westbrook',tier:3}],
+  MIN: [{name:'Anthony Edwards',tier:1},{name:'Rudy Gobert',tier:1},{name:'Mike Conley',tier:2},{name:'Jaden McDaniels',tier:2},{name:'Naz Reid',tier:2},{name:'Nickeil Alexander-Walker',tier:2},{name:'Julius Randle',tier:2}],
+  BOS: [{name:'Jayson Tatum',tier:1},{name:'Jaylen Brown',tier:1},{name:'Kristaps Porzingis',tier:1},{name:'Jrue Holiday',tier:2},{name:'Derrick White',tier:2},{name:'Al Horford',tier:2},{name:'Payton Pritchard',tier:2},{name:'Sam Hauser',tier:2},{name:'Luke Kornet',tier:3}],
+  NYK: [{name:'Jalen Brunson',tier:1},{name:'Karl-Anthony Towns',tier:1},{name:'OG Anunoby',tier:2},{name:'Mikal Bridges',tier:2},{name:'Josh Hart',tier:2},{name:'Miles McBride',tier:2},{name:'Precious Achiuwa',tier:3}],
+  NY:  [{name:'Jalen Brunson',tier:1},{name:'Karl-Anthony Towns',tier:1},{name:'OG Anunoby',tier:2},{name:'Mikal Bridges',tier:2},{name:'Josh Hart',tier:2},{name:'Miles McBride',tier:2}],
+  CLE: [{name:'Donovan Mitchell',tier:1},{name:'Darius Garland',tier:1},{name:'Evan Mobley',tier:1},{name:'Jarrett Allen',tier:2},{name:'Max Strus',tier:2},{name:'Ty Jerome',tier:2},{name:'Isaac Okoro',tier:2},{name:'Caris LeVert',tier:2}],
+  IND: [{name:'Tyrese Haliburton',tier:1},{name:'Pascal Siakam',tier:1},{name:'Myles Turner',tier:2},{name:'Bennedict Mathurin',tier:2},{name:'Andrew Nembhard',tier:2},{name:'Aaron Nesmith',tier:2},{name:'T.J. McConnell',tier:2}],
+  MIL: [{name:'Giannis Antetokounmpo',tier:1},{name:'Damian Lillard',tier:1},{name:'Khris Middleton',tier:2},{name:'Brook Lopez',tier:2},{name:'Bobby Portis',tier:2},{name:'Gary Trent Jr.',tier:2}],
+  MIA: [{name:'Bam Adebayo',tier:1},{name:'Tyler Herro',tier:1},{name:'Jimmy Butler',tier:1},{name:'Terry Rozier',tier:2},{name:'Duncan Robinson',tier:2},{name:'Haywood Highsmith',tier:2}],
+  ORL: [{name:'Paolo Banchero',tier:1},{name:'Franz Wagner',tier:1},{name:'Jalen Suggs',tier:2},{name:'Wendell Carter Jr.',tier:2},{name:'Cole Anthony',tier:2},{name:'Moritz Wagner',tier:2}],
+  ATL: [{name:'Trae Young',tier:1},{name:'Dejounte Murray',tier:1},{name:'Clint Capela',tier:2},{name:'Bogdan Bogdanovic',tier:2},{name:'Onyeka Okongwu',tier:2},{name:'Saddiq Bey',tier:2}],
+  PHX: [{name:'Kevin Durant',tier:1},{name:'Devin Booker',tier:1},{name:'Bradley Beal',tier:2},{name:'Jusuf Nurkic',tier:2},{name:'Grayson Allen',tier:2},{name:"Royce O'Neale",tier:2}],
+  // De'Aaron Fox traded to SAS — SAC no longer has him
+  SAC: [{name:'Domantas Sabonis',tier:1},{name:'Malik Monk',tier:1},{name:'Keegan Murray',tier:2},{name:'Harrison Barnes',tier:2},{name:'Kevin Huerter',tier:2},{name:'DeMar DeRozan',tier:2}],
+  DAL: [{name:'Klay Thompson',tier:1},{name:'Kyrie Irving',tier:1},{name:'PJ Washington',tier:2},{name:'Daniel Gafford',tier:2},{name:'Dereck Lively II',tier:2},{name:'Naji Marshall',tier:2},{name:'Tim Hardaway Jr.',tier:2}],
+  // De'Aaron Fox now on SAS
+  SAS: [{name:'Victor Wembanyama',tier:1},{name:"De'Aaron Fox",tier:1},{name:'Stephon Castle',tier:2},{name:'Devin Vassell',tier:2},{name:'Chris Paul',tier:2},{name:'Keldon Johnson',tier:2},{name:'Zach Collins',tier:2},{name:'Blake Wesley',tier:3}],
+  PHI: [{name:'Joel Embiid',tier:1},{name:'Tyrese Maxey',tier:1},{name:'Paul George',tier:1},{name:'Kelly Oubre Jr.',tier:2},{name:'Caleb Martin',tier:2},{name:'Kyle Lowry',tier:2}],
+  CHI: [{name:'Zach LaVine',tier:1},{name:'Nikola Vucevic',tier:1},{name:'Coby White',tier:2},{name:'Patrick Williams',tier:2},{name:'Ayo Dosunmu',tier:2},{name:'Matas Buzelis',tier:2}],
+  TOR: [{name:'Scottie Barnes',tier:1},{name:'RJ Barrett',tier:1},{name:'Immanuel Quickley',tier:2},{name:'Jakob Poeltl',tier:2},{name:'Gradey Dick',tier:2},{name:'Bruce Brown',tier:2}],
+  NO:  [{name:'Zion Williamson',tier:1},{name:'Brandon Ingram',tier:1},{name:'CJ McCollum',tier:2},{name:'Herb Jones',tier:2},{name:'Jonas Valanciunas',tier:2},{name:'Trey Murphy III',tier:2}],
+  DET: [{name:'Cade Cunningham',tier:1},{name:'Jalen Duren',tier:2},{name:'Ausar Thompson',tier:2},{name:'Isaiah Stewart',tier:2},{name:'Malik Beasley',tier:2},{name:'Tim Hardaway Jr.',tier:2}],
+  CHA: [{name:'LaMelo Ball',tier:1},{name:'Miles Bridges',tier:2},{name:'Brandon Miller',tier:2},{name:'Grant Williams',tier:2},{name:'Nick Richards',tier:2}],
+  // Deni Avdija traded to POR — WAS no longer has him
+  WAS: [{name:'Kyle Kuzma',tier:1},{name:'Jordan Poole',tier:1},{name:'Alexandre Sarr',tier:2},{name:'Tyus Jones',tier:2},{name:'Bilal Coulibaly',tier:2},{name:'Marvin Bagley III',tier:2}],
+  // Deni Avdija now on POR
+  POR: [{name:'Scoot Henderson',tier:1},{name:'Jerami Grant',tier:1},{name:'Anfernee Simons',tier:1},{name:'Deni Avdija',tier:1},{name:'Deandre Ayton',tier:2},{name:'Toumani Camara',tier:2},{name:'Robert Williams III',tier:2},{name:'Malcolm Brogdon',tier:2}],
+  UTA: [{name:'Lauri Markkanen',tier:1},{name:'Jordan Clarkson',tier:2},{name:'Walker Kessler',tier:2},{name:'Keyonte George',tier:2},{name:'Collin Sexton',tier:2}],
+  // NHL playoff teams
+  FLA: [{name:'Aleksander Barkov',tier:1},{name:'Matthew Tkachuk',tier:1},{name:'Sam Reinhart',tier:1},{name:'Carter Verhaeghe',tier:2},{name:'Sergei Bobrovsky',tier:1},{name:'Gustav Forsling',tier:2}],
+  TBL: [{name:'Nikita Kucherov',tier:1},{name:'Brayden Point',tier:1},{name:'Steven Stamkos',tier:2},{name:'Andrei Vasilevskiy',tier:1},{name:'Victor Hedman',tier:1}],
 };
 
-// Helper: get ROLE_TIERS priority score for a player name + team (0 if unknown)
+// Get ROLE_TIERS priority score for ranking — 100/50/20/0.
+// ONLY affects sort order. Never used to gate or filter players.
 function getRoleTierScore(playerName, teamAbbr) {
   if(!playerName || !teamAbbr) return 0;
-  const norm = s => (s||'').toLowerCase().trim().replace(/['.,-]/g,'');
+  const norm = s => (s||'').toLowerCase().trim().replace(/[\x27’'.,-]/g,'');
   const target = norm(playerName);
-  const teamKey = teamAbbr.toUpperCase();
-  const tier = ROLE_TIERS[teamKey];
+  const tier = ROLE_TIERS[teamAbbr.toUpperCase()];
   if(!tier) return 0;
-  const entry = tier.find(p => norm(p.name) === target || target.includes(norm(p.name).split(' ').pop()));
+  const entry = tier.find(p => {
+    const pn = norm(p.name);
+    if(pn === target) return true;
+    // Last-name match as fallback (e.g. "Jokic" matches "Nikola Jokic")
+    const tLast = target.split(' ').pop();
+    const pLast = pn.split(' ').pop();
+    return tLast.length > 3 && tLast === pLast;
+  });
   if(!entry) return 0;
-  // tier:1 → score 100, tier:2 → 50, tier:3 → 20
   return entry.tier === 1 ? 100 : entry.tier === 2 ? 50 : 20;
 }
 
