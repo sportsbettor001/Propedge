@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.5</title>
+<title>PropEdge v17.6</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.5</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.6</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -3990,11 +3990,25 @@ async function runFetch(sportsToFetch, dateScope) {
             return 0;
           };
 
+          // Min minutes thresholds — players below these are bench/DNP and shouldn't be projected
+          const MIN_MINS_THRESHOLD = { NBA:12, WNBA:12, NHL:8, NFL:10, MLB:0 };
+          const minMinsRequired = MIN_MINS_THRESHOLD[sport] || 0;
+
           const ranked = candidatePool
             .filter(p => p.name && p.name.trim().length > 1)
             .map(p => ({ ...p, _avgMins: getAvgMins(p.name, p.id, p.meta) }))
+            // Gate: drop players with zero minutes evidence (not in DB, no snapshot)
+            // These are bench/two-way players we have no data for — never project them.
+            // Exception: if the ENTIRE pool has no minutes data (e.g. fresh roster fallback
+            // with no snapshots at all), allow the top entries through so we show something.
+            .filter(p => {
+              if(p._avgMins > 0) return true;
+              // Zero mins: only keep if they have a starter flag from a live game summary (T1)
+              // T1 game summary sets starter=true only for confirmed starters — trust that.
+              return p.starter === true;
+            })
             .sort((a, b) => {
-              // Primary: avg minutes descending (higher mins = more important player)
+              // Primary: avg minutes descending
               if(a._avgMins !== b._avgMins) return b._avgMins - a._avgMins;
               // Secondary: confirmed starter flag
               if(a.starter !== b.starter) return a.starter ? -1 : 1;
@@ -4007,15 +4021,24 @@ async function runFetch(sportsToFetch, dateScope) {
               seen.add(k);
               return true;
             })
+            // Hard min-minutes gate: if we have data, require meaningful playing time
+            .filter(p => p._avgMins === 0 || p._avgMins >= minMinsRequired)
             .slice(0, maxPlayers);
 
-          const selectedNames = ranked.map(p=>p.name).join(', ');
+          // If the entire ranked pool was wiped by the mins gate (can happen for a brand-new
+          // team with no cached data), fall back to top maxPlayers by starter flag only.
+          // This prevents completely empty slates on first run.
+          const finalRanked = ranked.length > 0 ? ranked : candidatePool
+            .filter(p => p.name && p.name.trim().length > 1 && p.starter === true)
+            .slice(0, maxPlayers);
+
+          const selectedNames = finalRanked.map(p=>p.name).join(', ');
           const dateLabel = (game._dateTag === 'tomorrow') ? 'TOMORROW' : 'TODAY';
           traceLog('playerDiscovery', `${sport} [${dateLabel}] ${home}v${away} SELECTED (${ranked.length}): ${selectedNames}`, ranked.length>0?'pass':'fail');
 
-          if(slateEntry) slateEntry.games.push({ home, away, players: ranked.map(p=>p.name), dateTag: game._dateTag || 'today' });
+          if(slateEntry) slateEntry.games.push({ home, away, players: finalRanked.map(p=>p.name), dateTag: game._dateTag || 'today' });
 
-          for(const p of ranked) {
+          for(const p of finalRanked) {
             // For MLB batters: the opposing pitcher is the one throwing to them
             // Home batters face the away probable pitcher, away batters face the home probable pitcher
             let opposingPitcher = null;
