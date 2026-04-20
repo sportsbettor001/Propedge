@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v15.6</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v15.8</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -4262,13 +4262,20 @@ function parseESPNGameLog(gameLogData, statLabel, opp) {
     const playParsed = gameLogData._playoffs ? _parseESPNGameLogSingle(gameLogData._playoffs, statLabel, opp, 'playoff') : { allVals:[], vsOppVals:[] };
     const regCount  = regParsed.allVals.length;
     const playCount = playParsed.allVals.length;
-    // Only merge playoffs when sample is substantial — early playoffs (1-2 games) skew reg season
-    // Only merge playoffs if substantial sample — early rounds (< 15 games) skew regular season stats
-    const includePlays = playCount >= 15;
+    // Playoff inclusion logic:
+    // - If regular season has data: only merge playoffs when sample is substantial (>= 15 games)
+    //   to avoid early-round playoff games skewing a full regular season sample
+    // - If regular season is EMPTY (e.g. NHL playoffs in progress, reg season over):
+    //   use ALL available playoff games regardless of count — it's all we have
+    // Always combine regular season + playoffs — both are valid data points.
+    // Regular season gives sample depth; playoffs give recency in postseason.
+    // Never discard either. Low sample count is handled by confidence penalty downstream.
+    const mergedVals  = [...regParsed.allVals,   ...playParsed.allVals];
+    const mergedVsOpp = [...regParsed.vsOppVals, ...playParsed.vsOppVals];
     return {
-      allVals:   [...regParsed.allVals,   ...(includePlays ? playParsed.allVals   : [])],
-      vsOppVals: [...regParsed.vsOppVals, ...(includePlays ? playParsed.vsOppVals : [])],
-      _meta: { regCount, playCount, includePlays }
+      allVals:   mergedVals,
+      vsOppVals: mergedVsOpp,
+      _meta: { regCount, playCount, includePlays: true }
     };
   }
   return _parseESPNGameLogSingle(gameLogData, statLabel, opp);
@@ -4430,6 +4437,9 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
 const SNAPSHOT_TTL = { NBA:6, NHL:6, WNBA:6, NFL:6, MLB:12, GOLF:12 };
 
 function snapshotKey(playerId, sport) {
+  // NHL: pe_snap3_ prefix invalidates old pe_snap2_ snapshots built with reg-season only
+  // New snapshots combine regular season + playoffs correctly
+  if(sport === 'NHL') return `pe_snap3_${sport}_${playerId}`;
   return `pe_snap2_${sport}_${playerId}`;
 }
 
@@ -4594,6 +4604,25 @@ function normalizeGameLogs(rawGames, sport, includePlayoffs = false) {
 // Captures: value, minutes, opponent, date, gameId, seasonType
 // seasonType: 'regular' | 'playoff' | 'playin' | 'preseason'
 function extractESPNRawGames(gameLogData, statLabel, opp) {
+  // If merged (both regular + playoff fetched), run on each and combine
+  // This ensures we always use the full sample: regular season + playoffs together
+  if(gameLogData?._merged) {
+    const regGames  = gameLogData._regular  ? _extractESPNRawGamesSingle(gameLogData._regular,  statLabel, opp) : [];
+    const playGames = gameLogData._playoffs ? _extractESPNRawGamesSingle(gameLogData._playoffs, statLabel, opp) : [];
+    // Combine, deduplicate by gameId — regular season first, then playoffs
+    const seen = new Set();
+    const combined = [];
+    for(const g of [...regGames, ...playGames]) {
+      if(g.gameId && seen.has(g.gameId)) continue;
+      if(g.gameId) seen.add(g.gameId);
+      combined.push(g);
+    }
+    return combined;
+  }
+  return _extractESPNRawGamesSingle(gameLogData, statLabel, opp);
+}
+
+function _extractESPNRawGamesSingle(gameLogData, statLabel, opp) {
   const statAliases = {
     'Points':['pts','points','PTS'],'Rebounds':['reb','rebounds','REB'],
     'Assists':['ast','assists','AST'],'Threes Made':['3pt','3pm','3-pt made','3PTM'],
@@ -4614,7 +4643,7 @@ function extractESPNRawGames(gameLogData, statLabel, opp) {
     'Total Tackles':['tkl','TKL'],
   };
   const getAliases = s => statAliases[s] || [s.toLowerCase()];
-  const raw = gameLogData?._regular || gameLogData;
+  const raw = gameLogData;
   if(!raw) return [];
 
   const topLabels = (raw?.labels || raw?.names || []).map(l => (l||'').toString().toLowerCase());
@@ -6896,6 +6925,7 @@ function toggleSportFilter(sport, el) {
       });
     } else {
       filters.sports = new Set([sport]);
+      filters.game = 'all'; // reset game filter when switching sport
       chips.forEach(c => {
         c.classList.remove('active', 'active-multi');
         if(c.dataset.sport === sport) c.classList.add('active');
@@ -6913,24 +6943,33 @@ function updateGameFilter() {
   const allProps = getAllCachedProps();
   if(allProps.length === 0) { row.style.display = 'none'; return; }
 
-  // Build unique matchup keys from visible props
-  // Key format: "TEAM vs OPP" — sport prefix added when multiple sports
-  const gameMap = {}; // key -> { label, sport, count }
-  allProps.forEach(p => {
+  // Only show games for the currently selected sport(s)
+  const sportsSelected = filters.sports.has('all') ? null : [...filters.sports];
+  const relevantProps = sportsSelected
+    ? allProps.filter(p => sportsSelected.includes(p.sport))
+    : allProps;
+
+  const gameMap = {};
+  relevantProps.forEach(p => {
     if(!p.team && !p.opp) return;
     const t = (p.team || '').toUpperCase();
     const o = (p.opp  || '').toUpperCase();
-    // Normalize: always sort alphabetically so "BOS vs NYK" and "NYK vs BOS" merge
     const [a, b] = [t, o].sort();
     const key = a + '_' + b;
     if(!gameMap[key]) {
+      // Show sport prefix only when multiple sports are visible
+      const prefix = sportsSelected === null ? '' : '';
       gameMap[key] = { key, label: t + ' vs ' + o, sport: p.sport, count: 0 };
     }
     gameMap[key].count++;
   });
 
   const games = Object.values(gameMap);
+  // Hide row if only 1 game (nothing to filter between)
   if(games.length <= 1) { row.style.display = 'none'; filters.game = 'all'; return; }
+
+  // Reset game filter if selected game no longer exists in current sport view
+  if(filters.game !== 'all' && !gameMap[filters.game]) filters.game = 'all';
 
   row.style.display = 'flex';
   const chips = [{ key: 'all', label: 'All games' }, ...games];
