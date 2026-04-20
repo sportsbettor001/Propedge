@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v15.8</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v16.0</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -3009,9 +3009,13 @@ async function runFetch(sportsToFetch) {
     </div>`;
 
   // Start elapsed timer + progress bar
+  // Fixed upfront estimate based on real observed step durations — never recalculates upward
+  // Betting: ~45s (Odds API + game logs + engine). Analysis: ~90s (more games, no Odds API shortcut).
   const _fetchStart = Date.now();
-  const _stepWeights = { 'step-schedule':10, 'step-stats':10, 'step-matchups':20, 'step-engine':55, 'step-odds':5 };
-  let _currentProgress = 0;
+  window._fetchStart = _fetchStart; // expose for setStep interpolation
+  const _totalEstSecs = (viewMode === 'betting') ? 45 : 90;
+  // Step progress thresholds: % of bar filled when each step completes
+  const _stepProgress = { 'step-schedule':12, 'step-stats':22, 'step-matchups':40, 'step-engine':92, 'step-odds':100 };
   const _etaInterval = setInterval(() => {
     const elapsed = Math.round((Date.now() - _fetchStart) / 1000);
     const elEl = document.getElementById('eta-elapsed');
@@ -3019,25 +3023,31 @@ async function runFetch(sportsToFetch) {
     const barEl = document.getElementById('eta-bar');
     if(!elEl) { clearInterval(_etaInterval); return; }
     elEl.textContent = elapsed < 60 ? elapsed + 's elapsed' : Math.floor(elapsed/60) + 'm ' + (elapsed%60) + 's elapsed';
-    // Estimate based on current step
+    // Progress bar: advance based on which step is active — never goes backward
     const activeStep = document.querySelector('.progress-step.active');
     if(activeStep) {
-      const stepId = activeStep.id;
-      const done = Object.entries(_stepWeights).filter(([k]) => {
-        const el = document.getElementById(k);
-        return el && el.classList.contains('done');
-      }).reduce((a,[,v]) => a+v, 0);
-      _currentProgress = Math.min(95, done + (_stepWeights[stepId]||0) * 0.5);
-      if(barEl) barEl.style.width = _currentProgress + '%';
-      // Rough ETA
-      if(_currentProgress > 5) {
-        const totalEst = elapsed / (_currentProgress / 100);
-        const remaining = Math.max(0, Math.round(totalEst - elapsed));
-        if(estEl) estEl.textContent = remaining > 3 ? '~' + remaining + 's remaining' : 'almost done';
+      // Find the highest completed step's progress value
+      const doneProgress = Object.entries(_stepProgress)
+        .filter(([k]) => { const el = document.getElementById(k); return el && el.classList.contains('done'); })
+        .reduce((max, [,v]) => Math.max(max, v), 0);
+      // Current step animates from doneProgress toward its target based on time spent in it
+      const activeTarget = _stepProgress[activeStep.id] || doneProgress;
+      const stepRange = activeTarget - doneProgress;
+      // Time-based interpolation within current step — saturates at 90% of step target
+      const stepElapsed = elapsed - (window._stepStartTime || 0);
+      const stepFill = Math.min(0.85, stepElapsed / 30); // saturates at 85% after 30s in a step
+      const currentProgress = Math.min(95, doneProgress + stepRange * stepFill);
+      if(barEl) barEl.style.width = currentProgress + '%';
+      // Countdown: fixed total minus elapsed, never goes up
+      const secsLeft = Math.max(0, _totalEstSecs - elapsed);
+      if(estEl) {
+        if(secsLeft > 5) estEl.textContent = '~' + secsLeft + 's remaining';
+        else estEl.textContent = 'almost done';
       }
     }
   }, 1000);
-  // Store interval to clear on finish
+  // Track when each step starts so interpolation resets per step
+  window._stepStartTime = 0;
   window._propEdgeEtaInterval = _etaInterval;
 
   const apiStatusMap = {};
@@ -4439,7 +4449,7 @@ const SNAPSHOT_TTL = { NBA:6, NHL:6, WNBA:6, NFL:6, MLB:12, GOLF:12 };
 function snapshotKey(playerId, sport) {
   // NHL: pe_snap3_ prefix invalidates old pe_snap2_ snapshots built with reg-season only
   // New snapshots combine regular season + playoffs correctly
-  if(sport === 'NHL') return `pe_snap3_${sport}_${playerId}`;
+  if(sport === 'NHL') return `pe_snap4_${sport}_${playerId}`;
   return `pe_snap2_${sport}_${playerId}`;
 }
 
@@ -4751,7 +4761,7 @@ function _extractESPNRawGamesSingle(gameLogData, statLabel, opp) {
 
 function buildSnapshot(playerId, sport, rawGames, source) {
   // Step 1: normalize — deduplicate, separate season types, validate participation
-  const normalized = normalizeGameLogs(rawGames, sport, false); // regular season only
+  const normalized = normalizeGameLogs(rawGames, sport, true); // include playoffs — regular season + playoffs always combined
   const { audit } = normalized;
 
   // Log audit
@@ -7671,7 +7681,11 @@ function setStep(id, state) {
   if(!el) return;
   el.className = 'progress-step ' + state;
   if(state === 'done') el.querySelector('.step-icon').textContent = '✓';
-  else if(state === 'active') el.querySelector('.step-icon').textContent = '⟳';
+  else if(state === 'active') {
+    el.querySelector('.step-icon').textContent = '⟳';
+    // Record when this step became active so ETA interpolation resets per step
+    window._stepStartTime = Math.round((Date.now() - (window._fetchStart || Date.now())) / 1000);
+  }
 }
 
 // ═══════════════════════════════════════════════════════
