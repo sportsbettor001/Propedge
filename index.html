@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.2</title>
+<title>PropEdge v17.3</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.2</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.3</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -7438,24 +7438,29 @@ function updateGameFilter() {
   const allProps = getAllCachedProps();
   if(allProps.length === 0) { row.style.display = 'none'; return; }
 
-  // Only show games for the currently selected sport(s)
+  // Normalize team abbreviations — Odds API uses short codes, ESPN uses standard 3-letter
+  const normTeam = s => {
+    const u = (s || '').toUpperCase().trim();
+    const map = { 'SA':'SAS','GS':'GSW','NO':'NOP','NY':'NYK','UTAH':'UTA','NJ':'BKN','WSH':'WAS','PHX':'PHO' };
+    return map[u] || u;
+  };
+
+  // Filter by active sport(s) AND active date so chips always match what is visible
   const sportsSelected = filters.sports.has('all') ? null : [...filters.sports];
-  const relevantProps = sportsSelected
+  let relevantProps = sportsSelected
     ? allProps.filter(p => sportsSelected.includes(p.sport))
     : allProps;
+  if(filters.date === 'today')    relevantProps = relevantProps.filter(p => p.date !== 'tomorrow');
+  if(filters.date === 'tomorrow') relevantProps = relevantProps.filter(p => p.date === 'tomorrow');
 
   const gameMap = {};
   relevantProps.forEach(p => {
     if(!p.team && !p.opp) return;
-    const t = (p.team || '').toUpperCase();
-    const o = (p.opp  || '').toUpperCase();
+    const t = normTeam(p.team);
+    const o = normTeam(p.opp);
     const [a, b] = [t, o].sort();
     const key = a + '_' + b;
-    if(!gameMap[key]) {
-      // Show sport prefix only when multiple sports are visible
-      const prefix = sportsSelected === null ? '' : '';
-      gameMap[key] = { key, label: t + ' vs ' + o, sport: p.sport, count: 0 };
-    }
+    if(!gameMap[key]) gameMap[key] = { key, label: t + ' vs ' + o, sport: p.sport, count: 0 };
     gameMap[key].count++;
   });
 
@@ -7532,8 +7537,9 @@ function renderProps() {
 
     // ── GAME FILTER ──
     if(filters.game !== 'all') {
-      const t = (p.team || '').toUpperCase();
-      const o = (p.opp  || '').toUpperCase();
+      const normT = s => { const u=(s||'').toUpperCase().trim(); const m={'SA':'SAS','GS':'GSW','NO':'NOP','NY':'NYK','UTAH':'UTA','NJ':'BKN','WSH':'WAS','PHX':'PHO'}; return m[u]||u; };
+      const t = normT(p.team);
+      const o = normT(p.opp);
       const [a, b] = [t, o].sort();
       const key = a + '_' + b;
       if(key !== filters.game) return false;
