@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.0</title>
+<title>PropEdge v17.1</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -6192,14 +6192,39 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       }
 
       if(snapNHL) {
-        allVals = snapNHL.games;
-        vsOppVals = snapNHL.opponents
-          ? snapNHL.games.filter((_, i) => {
-              const o = (snapNHL.opponents[i]||'').toUpperCase();
-              const oppNorm = (opp||'').toUpperCase();
-              return oppNorm && (o.includes(oppNorm.slice(0,3)) || oppNorm.includes(o.slice(0,3)));
-            })
-          : [];
+        // Extract the correct stat column for this prop type from the snapshot's allStats.
+        // The snapshot is cached stat-agnostically — allStats holds all columns (goals, assists,
+        // points, shots, blocks, ppPoints etc). snapNHL.games holds whichever stat was primary
+        // when the snapshot was first built, which may differ from statLabel on subsequent props.
+        // Always use extractStatFromSnapshot so Goals gets goals, Assists gets assists, etc.
+        const extractedVals = extractStatFromSnapshot(snapNHL, statLabel);
+        if(extractedVals && extractedVals.length >= 5) {
+          allVals = extractedVals;
+          // vsOppVals: filter extracted values to games vs today's opponent
+          const oppNorm = (opp||'').toUpperCase();
+          vsOppVals = oppNorm && extractedVals._opponents
+            ? extractedVals.map((v, i) => ({ v, o: extractedVals._opponents[i]||'' }))
+                .filter(({ o }) => o && (o.includes(oppNorm.slice(0,3)) || oppNorm.includes(o.slice(0,3))))
+                .map(({ v }) => v)
+            : snapNHL.opponents
+              ? snapNHL.games.filter((_, i) => {
+                  const o = (snapNHL.opponents[i]||'').toUpperCase();
+                  return oppNorm && (o.includes(oppNorm.slice(0,3)) || oppNorm.includes(o.slice(0,3)));
+                })
+              : [];
+          traceLog('projectionEngine', `${playerName} (NHL): extracted ${statLabel} → ${allVals.length} games, avg ${(allVals.reduce((a,b)=>a+b,0)/allVals.length).toFixed(2)}`, 'ok');
+        } else {
+          // Fallback: snapshot primary games (only correct when statLabel matches the primary prop)
+          allVals = snapNHL.games;
+          vsOppVals = snapNHL.opponents
+            ? snapNHL.games.filter((_, i) => {
+                const o = (snapNHL.opponents[i]||'').toUpperCase();
+                const oppNorm = (opp||'').toUpperCase();
+                return oppNorm && (o.includes(oppNorm.slice(0,3)) || oppNorm.includes(o.slice(0,3)));
+              })
+            : [];
+          traceLog('projectionEngine', `${playerName} (NHL): extractStatFromSnapshot failed for ${statLabel} — using primary snapshot games`, 'warn');
+        }
         contextData._snap = snapNHL;
       }
       // NHL context: opponent GA, back-to-back
