@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.1</title>
+<title>PropEdge v17.2</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v16.9</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.2</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -3353,16 +3353,21 @@ async function generateProps() {
 
 async function refetchAll() {
   if(isGenerating) return;
-  // Clear only the current mode's cache so the other mode's data is preserved
-  if(viewMode === 'analysis') {
-    STATE.analysisCache = {};
-  } else {
-    STATE.bettingCache = {};
-  }
-  STATE.sportCache = {};
+  // Scope refresh to the currently selected sports — if a filter is active (e.g. NHL only),
+  // only clear and re-fetch that sport. If "all" is selected, refresh everything.
+  const sportsToRefresh = filters.sports.has('all')
+    ? ['NBA','MLB','NFL','NHL','WNBA','GOLF']
+    : [...filters.sports];
+
+  // Clear only the relevant sports from the current mode's cache
+  // so other sports' data and the other mode's data are preserved
+  const cache = viewMode === 'analysis' ? STATE.analysisCache : STATE.bettingCache;
+  sportsToRefresh.forEach(s => {
+    if(cache) delete cache[s];
+    if(STATE.sportCache) delete STATE.sportCache[s];
+  });
   saveState();
-  const allSports = ['NBA','MLB','NFL','NHL','WNBA','GOLF'];
-  await runFetch(allSports);
+  await runFetch(sportsToRefresh);
 }
 
 async function runFetch(sportsToFetch) {
