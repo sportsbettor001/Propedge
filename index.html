@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v16.6</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v16.7</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -484,7 +484,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         <button onclick="inspectRawApi('nba_threes')" class="api-status-btn">🏀 NBA Threes<br><span style="font-size:8px;opacity:.7">Curry · fg3m lookup</span></button>
         <button onclick="inspectRawApi('nfl_gamelog')" class="api-status-btn">🏈 NFL Gamelog<br><span style="font-size:8px;opacity:.7">CMC · categories</span></button>
         <button onclick="inspectRawApi('mlb_gamelog')" class="api-status-btn">⚾ MLB Gamelog<br><span style="font-size:8px;opacity:.7">Judge · stat keys</span></button>
-        <button onclick="inspectRawApi('nhl_espn_debug')" class="api-status-btn" style="background:rgba(255,77,106,.06);border-color:rgba(255,77,106,.3)">🏒 NHL ESPN Debug<br><span style="font-size:8px;opacity:.7">McDavid · NHL API + ESPN</span></button>
+        <button onclick="inspectRawApi('nhl_espn_debug')" class="api-status-btn" style="background:rgba(255,77,106,.06);border-color:rgba(255,77,106,.3)">🏒 NHL ESPN Gamelog<br><span style="font-size:8px;opacity:.7">McDavid · reg+playoff raw</span></button>
+        <button onclick="inspectRawApi('nhl_roster_debug')" class="api-status-btn" style="background:rgba(255,77,106,.06);border-color:rgba(255,77,106,.3)">🏒 NHL ESPN Roster<br><span style="font-size:8px;opacity:.7">EDM roster structure</span></button>
         <button onclick="inspectRawApi('espn_labels')" class="api-status-btn">📋 ESPN Labels<br><span style="font-size:8px;opacity:.7">Raw topLabels dump</span></button>
         <button onclick="inspectRawApi('odds_events')" class="api-status-btn" style="background:rgba(0,229,160,.06);border-color:rgba(0,229,160,.25)">📊 Odds Events<br><span style="font-size:8px;opacity:.7">NBA today · needs key</span></button>
         <button onclick="inspectRawApi('odds_props')" class="api-status-btn" style="background:rgba(0,229,160,.06);border-color:rgba(0,229,160,.25)">📊 Odds Props<br><span style="font-size:8px;opacity:.7">First game bookmaker structure</span></button>
@@ -1276,6 +1277,53 @@ async function inspectRawApi(which) {
       if(snap) lines.push('  sampleSize=' + snap.sampleSize + ' games=' + snap.games.length);
       content.textContent = lines.join('\n');
       title.textContent = '🏒 NHL ESPN Debug — McDavid (' + combined.length + ' combined games)';
+    } catch(e) {
+      content.textContent = 'Error: ' + e.message;
+    }
+    return;
+  }
+
+  // NHL ESPN Roster debug — dump raw structure of ESPN NHL roster response
+  if(which === 'nhl_roster_debug') {
+    title.textContent = 'NHL ESPN Roster — EDM (team id:9)';
+    content.textContent = 'Fetching...';
+    try {
+      const data = await fetchWithFallback('https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams/9/roster');
+      const lines = [];
+      lines.push('Top-level keys: [' + Object.keys(data||{}).join(', ') + ']');
+      lines.push('');
+      // Show athletes array structure
+      const athletes = data?.athletes || [];
+      lines.push('athletes array length: ' + athletes.length);
+      if(athletes.length > 0) {
+        lines.push('athletes[0] keys: [' + Object.keys(athletes[0]||{}).join(', ') + ']');
+        lines.push('athletes[0].items?.length: ' + (athletes[0]?.items?.length ?? 'no items field'));
+        // Check if it has direct id
+        lines.push('athletes[0].id: ' + (athletes[0]?.id ?? 'none'));
+        lines.push('athletes[0].displayName: ' + (athletes[0]?.displayName ?? 'none'));
+        // Show first item if exists
+        const firstItem = athletes[0]?.items?.[0];
+        if(firstItem) {
+          lines.push('');
+          lines.push('First item keys: [' + Object.keys(firstItem).join(', ') + ']');
+          lines.push('First item id: ' + firstItem.id);
+          lines.push('First item fullName: ' + firstItem.fullName);
+          lines.push('First item displayName: ' + firstItem.displayName);
+        }
+        // Show all groups/categories
+        lines.push('');
+        lines.push('All athlete entries (first 5):');
+        athletes.slice(0,5).forEach((a,i) => {
+          lines.push('  [' + i + '] id=' + a.id + ' displayName=' + a.displayName + ' items=' + (a.items?.length??'none'));
+        });
+      }
+      // Also check for roster key
+      lines.push('');
+      lines.push('data.roster: ' + (data?.roster ? 'EXISTS, length=' + data.roster.length : 'not present'));
+      lines.push('data.team: ' + (data?.team?.displayName || 'not present'));
+      content.textContent = lines.join('\n');
+
+      title.textContent = 'NHL ESPN Roster — EDM raw structure';
     } catch(e) {
       content.textContent = 'Error: ' + e.message;
     }
