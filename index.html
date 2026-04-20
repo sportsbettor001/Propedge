@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.3</title>
+<title>PropEdge v17.4</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.3</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.4</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -3348,7 +3348,7 @@ async function generateProps() {
     return;
   }
 
-  await runFetch(sportsToFetch);
+  await runFetch(sportsToFetch, filters.date);
 }
 
 async function refetchAll() {
@@ -3367,10 +3367,12 @@ async function refetchAll() {
     if(STATE.sportCache) delete STATE.sportCache[s];
   });
   saveState();
-  await runFetch(sportsToRefresh);
+  await runFetch(sportsToRefresh, filters.date);
 }
 
-async function runFetch(sportsToFetch) {
+async function runFetch(sportsToFetch, dateScope) {
+  // dateScope: "today" | "tomorrow" | "all" (default "all" if not passed)
+  const _dateScope = dateScope || filters.date || "all";
   isGenerating = true;
   sportsToFetch.forEach(s => fetchingSports.add(s));
   updateSportChipStatus();
@@ -3778,11 +3780,18 @@ async function runFetch(sportsToFetch) {
             } catch(e) { return []; }
           };
 
+          // Only fetch the day(s) matching the date scope
+          // "all" = both days; "today" = today only; "tomorrow" = tomorrow only
+          const wantToday    = (_dateScope === 'all' || _dateScope === 'today');
+          const wantTomorrow = (_dateScope === 'all' || _dateScope === 'tomorrow');
           const [todayEvents, tomorrowEvents] = await Promise.all([
-            fetchDay(today, 'today'),
-            fetchDay(tomorrow, 'tomorrow'),
+            wantToday    ? fetchDay(today,    'today')    : Promise.resolve([]),
+            wantTomorrow ? fetchDay(tomorrow, 'tomorrow') : Promise.resolve([]),
           ]);
-          return { sport, events: [...todayEvents, ...tomorrowEvents] };
+          // Cap gps per day so tomorrow games aren't crowded out by today games
+          const todayCapped    = todayEvents.slice(0, gps);
+          const tomorrowCapped = tomorrowEvents.slice(0, gps);
+          return { sport, events: [...todayCapped, ...tomorrowCapped] };
         });
       const scheduleResults = await Promise.all(schedulePromises);
       scheduleResults.forEach(r => {
@@ -3818,7 +3827,7 @@ async function runFetch(sportsToFetch) {
         const [espnSport, espnLeague] = sportToESPN[sport];
         const slateEntry = slateLogSports.find(s => s.sport === sport);
 
-        for(const game of events.slice(0, gps)) {
+        for(const game of events) { // gps cap already applied per-day during fetch
           const gameId = game.id || `${sport}_${game.name || Date.now()}`;
           const comps = game.competitions?.[0]?.competitors || [];
           const homeComp = comps.find(c=>c.homeAway==='home') || comps[0] || {};
@@ -7441,7 +7450,7 @@ function updateGameFilter() {
   // Normalize team abbreviations — Odds API uses short codes, ESPN uses standard 3-letter
   const normTeam = s => {
     const u = (s || '').toUpperCase().trim();
-    const map = { 'SA':'SAS','GS':'GSW','NO':'NOP','NY':'NYK','UTAH':'UTA','NJ':'BKN','WSH':'WAS','PHX':'PHO' };
+    const map = { 'SA':'SAS','GS':'GSW' }; // only map Odds API short forms to ESPN 3-letter abbrevs
     return map[u] || u;
   };
 
@@ -7537,7 +7546,7 @@ function renderProps() {
 
     // ── GAME FILTER ──
     if(filters.game !== 'all') {
-      const normT = s => { const u=(s||'').toUpperCase().trim(); const m={'SA':'SAS','GS':'GSW','NO':'NOP','NY':'NYK','UTAH':'UTA','NJ':'BKN','WSH':'WAS','PHX':'PHO'}; return m[u]||u; };
+      const normT = s => { const u=(s||'').toUpperCase().trim(); const m={'SA':'SAS','GS':'GSW'}; return m[u]||u; };
       const t = normT(p.team);
       const o = normT(p.opp);
       const [a, b] = [t, o].sort();
