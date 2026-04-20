@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v16.7</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v16.9</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -486,6 +486,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         <button onclick="inspectRawApi('mlb_gamelog')" class="api-status-btn">⚾ MLB Gamelog<br><span style="font-size:8px;opacity:.7">Judge · stat keys</span></button>
         <button onclick="inspectRawApi('nhl_espn_debug')" class="api-status-btn" style="background:rgba(255,77,106,.06);border-color:rgba(255,77,106,.3)">🏒 NHL ESPN Gamelog<br><span style="font-size:8px;opacity:.7">McDavid · reg+playoff raw</span></button>
         <button onclick="inspectRawApi('nhl_roster_debug')" class="api-status-btn" style="background:rgba(255,77,106,.06);border-color:rgba(255,77,106,.3)">🏒 NHL ESPN Roster<br><span style="font-size:8px;opacity:.7">EDM roster structure</span></button>
+        <button onclick="inspectRawApi('nhl_statsapi_debug')" class="api-status-btn" style="background:rgba(255,77,106,.06);border-color:rgba(255,77,106,.3)">🏒 NHL Stats API<br><span style="font-size:8px;opacity:.7">api.nhle.com · McDavid game log</span></button>
         <button onclick="inspectRawApi('espn_labels')" class="api-status-btn">📋 ESPN Labels<br><span style="font-size:8px;opacity:.7">Raw topLabels dump</span></button>
         <button onclick="inspectRawApi('odds_events')" class="api-status-btn" style="background:rgba(0,229,160,.06);border-color:rgba(0,229,160,.25)">📊 Odds Events<br><span style="font-size:8px;opacity:.7">NBA today · needs key</span></button>
         <button onclick="inspectRawApi('odds_props')" class="api-status-btn" style="background:rgba(0,229,160,.06);border-color:rgba(0,229,160,.25)">📊 Odds Props<br><span style="font-size:8px;opacity:.7">First game bookmaker structure</span></button>
@@ -1224,10 +1225,11 @@ async function inspectRawApi(which) {
     title.textContent = '🏒 NHL ESPN Debug — McDavid (ESPN id:3114733) reg+playoff';
     content.textContent = 'Fetching seasontype=2 (regular) and seasontype=3 (playoffs) from ESPN...';
     try {
+      const seasonYear = (new Date().getMonth()+1) >= 10 ? new Date().getFullYear()+1 : new Date().getFullYear();
       const base = 'https://site.web.api.espn.com/apis/common/v3/sports/hockey/nhl/athletes/3114733/gamelog';
       const [reg, play] = await Promise.allSettled([
-        fetchWithFallback(base + '?limit=200&seasontype=2'),
-        fetchWithFallback(base + '?limit=200&seasontype=3'),
+        fetchWithFallback(base + '?limit=200&season=' + seasonYear + '&seasontype=2'),
+        fetchWithFallback(base + '?limit=200&season=' + seasonYear + '&seasontype=3'),
       ]);
       const lines = [];
       const dumpResponse = (label, data) => {
@@ -1324,6 +1326,53 @@ async function inspectRawApi(which) {
       content.textContent = lines.join('\n');
 
       title.textContent = 'NHL ESPN Roster — EDM raw structure';
+    } catch(e) {
+      content.textContent = 'Error: ' + e.message;
+    }
+    return;
+  }
+
+  // NHL Stats API debug — test api.nhle.com/stats/rest per-game data
+  if(which === 'nhl_statsapi_debug') {
+    title.textContent = 'NHL Stats API — McDavid per-game log';
+    content.textContent = 'Fetching api.nhle.com/stats/rest...';
+    try {
+      const lines = [];
+      // McDavid NHL ID = 8478402
+      const season = '20242025';
+      // Test 1: per-game skater summary for McDavid
+      const url1 = `https://api.nhle.com/stats/rest/en/skater/summary?isAggregate=false&isGame=true&sort=[{"property":"gameDate","direction":"DESC"}]&start=0&limit=100&cayenneExp=playerId=8478402 and gameTypeId=2 and seasonId=${season}`;
+      lines.push('Testing: api.nhle.com/stats/rest/en/skater/summary?isGame=true');
+      lines.push('URL: ' + url1.slice(0,120) + '...');
+      try {
+        const data1 = await fetchWithFallback(url1);
+        lines.push('SUCCESS! Keys: [' + Object.keys(data1||{}).join(', ') + ']');
+        lines.push('total: ' + data1?.total);
+        lines.push('data length: ' + (data1?.data?.length || 0));
+        if(data1?.data?.length > 0) {
+          lines.push('First game keys: [' + Object.keys(data1.data[0]).join(', ') + ']');
+          const g = data1.data[0];
+          lines.push('Sample: date=' + g.gameDate + ' goals=' + g.goals + ' assists=' + g.assists + ' points=' + g.points + ' shots=' + g.shots + ' toi=' + g.timeOnIce);
+        }
+      } catch(e1) {
+        lines.push('FAILED: ' + e1.message);
+      }
+      lines.push('');
+      // Test 2: playoffs
+      const url2 = `https://api.nhle.com/stats/rest/en/skater/summary?isAggregate=false&isGame=true&sort=[{"property":"gameDate","direction":"DESC"}]&start=0&limit=100&cayenneExp=playerId=8478402 and gameTypeId=3 and seasonId=${season}`;
+      lines.push('Testing playoffs (gameTypeId=3)...');
+      try {
+        const data2 = await fetchWithFallback(url2);
+        lines.push('SUCCESS! data length: ' + (data2?.data?.length || 0));
+        if(data2?.data?.length > 0) {
+          const g = data2.data[0];
+          lines.push('Sample: date=' + g.gameDate + ' goals=' + g.goals + ' assists=' + g.assists);
+        }
+      } catch(e2) {
+        lines.push('FAILED: ' + e2.message);
+      }
+      content.textContent = lines.join('\n');
+      title.textContent = 'NHL Stats API debug complete';
     } catch(e) {
       content.textContent = 'Error: ' + e.message;
     }
@@ -2179,8 +2228,11 @@ async function fetchESPNPlayerStats(sport, league, athleteId) {
 async function fetchESPNGameLog(sport, league, athleteId, seasontype) {
   // seasontype: 2 = regular season, 3 = playoffs (NBA/NHL)
   // limit=200 prevents ESPN's default ~25-game page cap truncating long seasons
+  // season: ESPN uses end-year (2024-25 season = 2025) — must be explicit or ESPN returns stale data
   const base = `https://site.web.api.espn.com/apis/common/v3/sports/${sport}/${league}/athletes/${athleteId}/gamelog`;
-  const params = ['limit=200'];
+  const now = new Date();
+  const seasonYear = (now.getMonth() + 1) >= 10 ? now.getFullYear() + 1 : now.getFullYear();
+  const params = ['limit=200', `season=${seasonYear}`];
   if(seasontype) params.push(`seasontype=${seasontype}`);
   return await fetchWithFallback(`${base}?${params.join('&')}`);
 }
@@ -2872,7 +2924,8 @@ async function syncAllNHLIds(onProgress) {
     onProgress({ done, total:totalTeams, current:`ESPN ${team.name}...`, finished:false });
     try {
       const data = await fetchWithFallback(`https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams/${team.id}/roster`);
-      const players = (data?.athletes||[]).flatMap(g => g?.items||(g?.id?[g]:[]));
+      // NHL ESPN roster: athletes = position groups [{position, items:[players]}]
+      const players = (data?.athletes||[]).flatMap(g => g?.items||[]);
       for(const p of players) {
         const fullName = p.fullName||p.displayName||'';
         const key = normKey(fullName);
@@ -4801,9 +4854,8 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
 const SNAPSHOT_TTL = { NBA:6, NHL:6, WNBA:6, NFL:6, MLB:12, GOLF:12 };
 
 function snapshotKey(playerId, sport) {
-  // NHL: pe_snap3_ prefix invalidates old pe_snap2_ snapshots built with reg-season only
-  // New snapshots combine regular season + playoffs correctly
-  if(sport === 'NHL') return `pe_snap4_${sport}_${playerId}`;
+  // NHL: pe_snap5_ busts all previous NHL snapshots built without season= param
+  if(sport === 'NHL') return `pe_snap5_${sport}_${playerId}`;
   return `pe_snap2_${sport}_${playerId}`;
 }
 
