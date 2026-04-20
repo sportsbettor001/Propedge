@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.4</title>
+<title>PropEdge v17.5</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.4</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.5</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -3808,7 +3808,10 @@ async function runFetch(sportsToFetch, dateScope) {
         const gamesUsed = Math.min(gamesDetected, gps);
         slateLogSports.push({ sport: r.sport, gamesDetected, gamesUsed, games: [] });
         const level = gamesDetected > 0 ? 'ok' : 'warn';
-        traceLog('gameIngestion', `${r.sport}: ${gamesDetected} games from ESPN, using ${gamesUsed} (limit ${gps})`, level);
+        const todayCount    = (r.events||[]).filter(e => e._dateTag !== 'tomorrow').length;
+        const tomorrowCount = (r.events||[]).filter(e => e._dateTag === 'tomorrow').length;
+        const dateBreakdown = tomorrowCount > 0 ? ` (${todayCount} today, ${tomorrowCount} tomorrow)` : ` (${todayCount} today)`;
+        traceLog('gameIngestion', `${r.sport}: ${gamesDetected} games fetched${dateBreakdown}, using ${gamesUsed} (limit ${gps}/day)`, level);
         console.log(`[PropEdge] ${r.sport}: ${gamesDetected} games from ESPN, using ${gamesUsed}`);
       });
 
@@ -3946,8 +3949,12 @@ async function runFetch(sportsToFetch, dateScope) {
             traceLog('playerDiscovery', `${sport} ${home}v${away} T2 empty — using T3 PLAYER_DB fallback`, 'warn');
             (PLAYER_DB[sport]||[])
               .filter(p => {
-                const t = p.team.toUpperCase();
-                return [home,away].some(a => a===t || a.includes(t.slice(0,3)) || t.includes(a.slice(0,3)));
+                const t = p.team.toUpperCase().trim();
+                const h = home.toUpperCase().trim();
+                const aw = away.toUpperCase().trim();
+                // Strict match: exact, or one is a prefix of the other only when >=3 chars
+                const matches = (a, b) => a === b || (a.length >= 3 && b.length >= 3 && (a.startsWith(b) || b.startsWith(a)));
+                return matches(t, h) || matches(t, aw);
               })
               .forEach(p => candidatePool.push({
                 id: p.id, name: p.name, teamAbbr: p.team, starter: true, position: '',
@@ -4003,9 +4010,10 @@ async function runFetch(sportsToFetch, dateScope) {
             .slice(0, maxPlayers);
 
           const selectedNames = ranked.map(p=>p.name).join(', ');
-          traceLog('playerDiscovery', `${sport} ${home}v${away} SELECTED (${ranked.length}): ${selectedNames}`, ranked.length>0?'pass':'fail');
+          const dateLabel = (game._dateTag === 'tomorrow') ? 'TOMORROW' : 'TODAY';
+          traceLog('playerDiscovery', `${sport} [${dateLabel}] ${home}v${away} SELECTED (${ranked.length}): ${selectedNames}`, ranked.length>0?'pass':'fail');
 
-          if(slateEntry) slateEntry.games.push({ home, away, players: ranked.map(p=>p.name) });
+          if(slateEntry) slateEntry.games.push({ home, away, players: ranked.map(p=>p.name), dateTag: game._dateTag || 'today' });
 
           for(const p of ranked) {
             // For MLB batters: the opposing pitcher is the one throwing to them
@@ -8144,8 +8152,11 @@ function renderSlateLog() {
         const playerChips = game.players.map(p =>
           `<span class="slate-player-chip">${p}</span>`
         ).join('');
+        const dayLabel = game.dateTag === 'tomorrow'
+          ? '<span style="font-family:var(--mono);font-size:8px;color:var(--amber);margin-left:4px">TOMORROW</span>'
+          : '<span style="font-family:var(--mono);font-size:8px;color:var(--accent);margin-left:4px">TODAY</span>';
         html += `<div class="slate-game-row ${rowClass}">
-          ${game.home} vs ${game.away} — ${game.players.length} player${game.players.length !== 1 ? 's' : ''} selected
+          ${game.home} vs ${game.away}${dayLabel} — ${game.players.length} player${game.players.length !== 1 ? 's' : ''} selected
           ${playerChips ? '<div style="margin-top:2px">' + playerChips + '</div>' : ''}
         </div>`;
       }
