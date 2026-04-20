@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.6</title>
+<title>PropEdge v17.3</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.6</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.3</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -3348,7 +3348,7 @@ async function generateProps() {
     return;
   }
 
-  await runFetch(sportsToFetch, filters.date);
+  await runFetch(sportsToFetch);
 }
 
 async function refetchAll() {
@@ -3367,12 +3367,10 @@ async function refetchAll() {
     if(STATE.sportCache) delete STATE.sportCache[s];
   });
   saveState();
-  await runFetch(sportsToRefresh, filters.date);
+  await runFetch(sportsToRefresh);
 }
 
-async function runFetch(sportsToFetch, dateScope) {
-  // dateScope: "today" | "tomorrow" | "all" (default "all" if not passed)
-  const _dateScope = dateScope || filters.date || "all";
+async function runFetch(sportsToFetch) {
   isGenerating = true;
   sportsToFetch.forEach(s => fetchingSports.add(s));
   updateSportChipStatus();
@@ -3780,18 +3778,11 @@ async function runFetch(sportsToFetch, dateScope) {
             } catch(e) { return []; }
           };
 
-          // Only fetch the day(s) matching the date scope
-          // "all" = both days; "today" = today only; "tomorrow" = tomorrow only
-          const wantToday    = (_dateScope === 'all' || _dateScope === 'today');
-          const wantTomorrow = (_dateScope === 'all' || _dateScope === 'tomorrow');
           const [todayEvents, tomorrowEvents] = await Promise.all([
-            wantToday    ? fetchDay(today,    'today')    : Promise.resolve([]),
-            wantTomorrow ? fetchDay(tomorrow, 'tomorrow') : Promise.resolve([]),
+            fetchDay(today, 'today'),
+            fetchDay(tomorrow, 'tomorrow'),
           ]);
-          // Cap gps per day so tomorrow games aren't crowded out by today games
-          const todayCapped    = todayEvents.slice(0, gps);
-          const tomorrowCapped = tomorrowEvents.slice(0, gps);
-          return { sport, events: [...todayCapped, ...tomorrowCapped] };
+          return { sport, events: [...todayEvents, ...tomorrowEvents] };
         });
       const scheduleResults = await Promise.all(schedulePromises);
       scheduleResults.forEach(r => {
@@ -3808,10 +3799,7 @@ async function runFetch(sportsToFetch, dateScope) {
         const gamesUsed = Math.min(gamesDetected, gps);
         slateLogSports.push({ sport: r.sport, gamesDetected, gamesUsed, games: [] });
         const level = gamesDetected > 0 ? 'ok' : 'warn';
-        const todayCount    = (r.events||[]).filter(e => e._dateTag !== 'tomorrow').length;
-        const tomorrowCount = (r.events||[]).filter(e => e._dateTag === 'tomorrow').length;
-        const dateBreakdown = tomorrowCount > 0 ? ` (${todayCount} today, ${tomorrowCount} tomorrow)` : ` (${todayCount} today)`;
-        traceLog('gameIngestion', `${r.sport}: ${gamesDetected} games fetched${dateBreakdown}, using ${gamesUsed} (limit ${gps}/day)`, level);
+        traceLog('gameIngestion', `${r.sport}: ${gamesDetected} games from ESPN, using ${gamesUsed} (limit ${gps})`, level);
         console.log(`[PropEdge] ${r.sport}: ${gamesDetected} games from ESPN, using ${gamesUsed}`);
       });
 
@@ -3830,7 +3818,7 @@ async function runFetch(sportsToFetch, dateScope) {
         const [espnSport, espnLeague] = sportToESPN[sport];
         const slateEntry = slateLogSports.find(s => s.sport === sport);
 
-        for(const game of events) { // gps cap already applied per-day during fetch
+        for(const game of events.slice(0, gps)) {
           const gameId = game.id || `${sport}_${game.name || Date.now()}`;
           const comps = game.competitions?.[0]?.competitors || [];
           const homeComp = comps.find(c=>c.homeAway==='home') || comps[0] || {};
@@ -3949,12 +3937,8 @@ async function runFetch(sportsToFetch, dateScope) {
             traceLog('playerDiscovery', `${sport} ${home}v${away} T2 empty — using T3 PLAYER_DB fallback`, 'warn');
             (PLAYER_DB[sport]||[])
               .filter(p => {
-                const t = p.team.toUpperCase().trim();
-                const h = home.toUpperCase().trim();
-                const aw = away.toUpperCase().trim();
-                // Strict match: exact, or one is a prefix of the other only when >=3 chars
-                const matches = (a, b) => a === b || (a.length >= 3 && b.length >= 3 && (a.startsWith(b) || b.startsWith(a)));
-                return matches(t, h) || matches(t, aw);
+                const t = p.team.toUpperCase();
+                return [home,away].some(a => a===t || a.includes(t.slice(0,3)) || t.includes(a.slice(0,3)));
               })
               .forEach(p => candidatePool.push({
                 id: p.id, name: p.name, teamAbbr: p.team, starter: true, position: '',
@@ -3990,25 +3974,11 @@ async function runFetch(sportsToFetch, dateScope) {
             return 0;
           };
 
-          // Min minutes thresholds — players below these are bench/DNP and shouldn't be projected
-          const MIN_MINS_THRESHOLD = { NBA:12, WNBA:12, NHL:8, NFL:10, MLB:0 };
-          const minMinsRequired = MIN_MINS_THRESHOLD[sport] || 0;
-
           const ranked = candidatePool
             .filter(p => p.name && p.name.trim().length > 1)
             .map(p => ({ ...p, _avgMins: getAvgMins(p.name, p.id, p.meta) }))
-            // Gate: drop players with zero minutes evidence (not in DB, no snapshot)
-            // These are bench/two-way players we have no data for — never project them.
-            // Exception: if the ENTIRE pool has no minutes data (e.g. fresh roster fallback
-            // with no snapshots at all), allow the top entries through so we show something.
-            .filter(p => {
-              if(p._avgMins > 0) return true;
-              // Zero mins: only keep if they have a starter flag from a live game summary (T1)
-              // T1 game summary sets starter=true only for confirmed starters — trust that.
-              return p.starter === true;
-            })
             .sort((a, b) => {
-              // Primary: avg minutes descending
+              // Primary: avg minutes descending (higher mins = more important player)
               if(a._avgMins !== b._avgMins) return b._avgMins - a._avgMins;
               // Secondary: confirmed starter flag
               if(a.starter !== b.starter) return a.starter ? -1 : 1;
@@ -4021,24 +3991,14 @@ async function runFetch(sportsToFetch, dateScope) {
               seen.add(k);
               return true;
             })
-            // Hard min-minutes gate: if we have data, require meaningful playing time
-            .filter(p => p._avgMins === 0 || p._avgMins >= minMinsRequired)
             .slice(0, maxPlayers);
 
-          // If the entire ranked pool was wiped by the mins gate (can happen for a brand-new
-          // team with no cached data), fall back to top maxPlayers by starter flag only.
-          // This prevents completely empty slates on first run.
-          const finalRanked = ranked.length > 0 ? ranked : candidatePool
-            .filter(p => p.name && p.name.trim().length > 1 && p.starter === true)
-            .slice(0, maxPlayers);
+          const selectedNames = ranked.map(p=>p.name).join(', ');
+          traceLog('playerDiscovery', `${sport} ${home}v${away} SELECTED (${ranked.length}): ${selectedNames}`, ranked.length>0?'pass':'fail');
 
-          const selectedNames = finalRanked.map(p=>p.name).join(', ');
-          const dateLabel = (game._dateTag === 'tomorrow') ? 'TOMORROW' : 'TODAY';
-          traceLog('playerDiscovery', `${sport} [${dateLabel}] ${home}v${away} SELECTED (${ranked.length}): ${selectedNames}`, ranked.length>0?'pass':'fail');
+          if(slateEntry) slateEntry.games.push({ home, away, players: ranked.map(p=>p.name) });
 
-          if(slateEntry) slateEntry.games.push({ home, away, players: finalRanked.map(p=>p.name), dateTag: game._dateTag || 'today' });
-
-          for(const p of finalRanked) {
+          for(const p of ranked) {
             // For MLB batters: the opposing pitcher is the one throwing to them
             // Home batters face the away probable pitcher, away batters face the home probable pitcher
             let opposingPitcher = null;
@@ -7481,7 +7441,7 @@ function updateGameFilter() {
   // Normalize team abbreviations — Odds API uses short codes, ESPN uses standard 3-letter
   const normTeam = s => {
     const u = (s || '').toUpperCase().trim();
-    const map = { 'SA':'SAS','GS':'GSW' }; // only map Odds API short forms to ESPN 3-letter abbrevs
+    const map = { 'SA':'SAS', 'GS':'GSW' };
     return map[u] || u;
   };
 
@@ -8175,11 +8135,8 @@ function renderSlateLog() {
         const playerChips = game.players.map(p =>
           `<span class="slate-player-chip">${p}</span>`
         ).join('');
-        const dayLabel = game.dateTag === 'tomorrow'
-          ? '<span style="font-family:var(--mono);font-size:8px;color:var(--amber);margin-left:4px">TOMORROW</span>'
-          : '<span style="font-family:var(--mono);font-size:8px;color:var(--accent);margin-left:4px">TODAY</span>';
         html += `<div class="slate-game-row ${rowClass}">
-          ${game.home} vs ${game.away}${dayLabel} — ${game.players.length} player${game.players.length !== 1 ? 's' : ''} selected
+          ${game.home} vs ${game.away} — ${game.players.length} player${game.players.length !== 1 ? 's' : ''} selected
           ${playerChips ? '<div style="margin-top:2px">' + playerChips + '</div>' : ''}
         </div>`;
       }
