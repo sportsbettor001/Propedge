@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v16.2</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v16.4</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1181,10 +1181,10 @@ async function inspectRawApi(which) {
   // NHL ESPN debug — special handler: fetches BOTH seasontype=2 and seasontype=3 via ESPN
   // exactly as the engine does, then dumps raw structure for debugging
   if(which === 'nhl_espn_debug') {
-    title.textContent = '🏒 NHL ESPN Debug — McDavid both season types';
+    title.textContent = '🏒 NHL ESPN Debug — McDavid (ESPN id:3114733) reg+playoff';
     content.textContent = 'Fetching seasontype=2 (regular) and seasontype=3 (playoffs) from ESPN...';
     try {
-      const base = 'https://site.web.api.espn.com/apis/common/v3/sports/hockey/nhl/athletes/4024123/gamelog';
+      const base = 'https://site.web.api.espn.com/apis/common/v3/sports/hockey/nhl/athletes/3114733/gamelog';
       const [reg, play] = await Promise.allSettled([
         fetchWithFallback(base + '?limit=200&seasontype=2'),
         fetchWithFallback(base + '?limit=200&seasontype=3'),
@@ -1232,7 +1232,7 @@ async function inspectRawApi(which) {
       const playCount = combined.filter(g => g.seasonType === 'playoff').length;
       lines.push('  Regular: ' + regCount + '  Playoff: ' + playCount);
       // Simulate buildSnapshot
-      const snap = buildSnapshot('4024123', 'NHL', combined, 'debug');
+      const snap = buildSnapshot('3114733', 'NHL', combined, 'debug');
       lines.push('buildSnapshot result: ' + (snap ? snap.sampleSize + ' games in snapshot' : 'NULL — insufficient data'));
       if(snap) lines.push('  sampleSize=' + snap.sampleSize + ' games=' + snap.games.length);
       content.textContent = lines.join('\n');
@@ -5762,84 +5762,82 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     }
 
     // ── NHL: NHL API primary (api-web.nhle.com), ESPN fallback ──
-    // NHL API uses the NHL player ID (stored in playerMeta.mlbId from discovery)
-    // Returns regular season + playoff game logs separately, both fetched and combined
+    // NHL player ID is stored in playerMeta.mlbId (reused field from discovery)
+    // ESPN ID (playerId) is the fallback identifier for ESPN calls
     if(sport === 'NHL') {
       let snapNHL = loadSnapshot(playerId, sport);
       if(snapNHL) {
         traceLog('projectionEngine', `${playerName} (NHL): using cached snapshot (${snapNHL.sampleSize} games)`, 'ok');
       } else {
-        const nhlPlayerId = playerMeta?.mlbId || playerId;
+        const nhlPlayerId = playerMeta?.mlbId || null;
         const season = (() => { const y = new Date().getFullYear(); const m = new Date().getMonth()+1; return m >= 10 ? `${y}${y+1}` : `${y-1}${y}`; })();
+        traceLog('projectionEngine', `${playerName} (NHL): espnId=${playerId} nhlId=${nhlPlayerId} season=${season}`, 'ok');
 
-        // Stat mapping: NHL API field → our stat label
+        // Stat field mapping: NHL API game log fields → our stat label
         const nhlStatMap = {
-          'Points':     g => (g.goals||0) + (g.assists||0),
-          'Goals':      g => g.goals || 0,
-          'Assists':    g => g.assists || 0,
-          'Shots on Goal': g => g.shots || 0,
+          'Points':            g => (g.goals||0) + (g.assists||0),
+          'Goals':             g => g.goals || 0,
+          'Assists':           g => g.assists || 0,
+          'Shots on Goal':     g => g.shots || 0,
           'Power Play Points': g => (g.ppGoals||0) + (g.ppAssists||0),
-          'Blocks':     g => g.blockedShots || 0,
-          'Saves':      g => g.saves || 0,
-          'Goals Against': g => g.goalsAgainst || 0,
+          'Blocks':            g => g.blockedShots || 0,
+          'Saves':             g => g.saves || 0,
+          'Goals Against':     g => g.goalsAgainst || 0,
         };
         const nhlExtract = nhlStatMap[statLabel] || (g => (g.goals||0) + (g.assists||0));
 
+        const toRawGame = (g, seasonType) => ({
+          value:      nhlExtract(g),
+          allStats:   [g.goals||0, g.assists||0, (g.goals||0)+(g.assists||0), g.shots||0, g.blockedShots||0, g.pim||0, g.saves||0, g.goalsAgainst||0, (g.ppGoals||0)+(g.ppAssists||0)],
+          labels:     ['goals','assists','points','shots','blocks','pim','saves','goalsAgainst','ppPoints'],
+          minutes:    g.toi ? parseFloat(g.toi.split(':')[0]) + parseFloat((g.toi.split(':')[1]||'0'))/60 : 0,
+          opponent:   (g.opponentAbbrev || '').toUpperCase(),
+          date:       g.gameDate || '',
+          gameId:     String(g.gameId || g.gameDate || Math.random()),
+          seasonType,
+        });
+
         let rawGamesNHL = [];
-        try {
-          // Fetch regular season + playoffs in parallel
-          const [regRes, playRes] = await Promise.allSettled([
-            fetchWithFallback(`${NHL_BASE}/player/${nhlPlayerId}/game-log/${season}/2`),
-            fetchWithFallback(`${NHL_BASE}/player/${nhlPlayerId}/game-log/${season}/3`),
-          ]);
-          const regLog  = regRes.status  === 'fulfilled' ? (regRes.value?.gameLog  || []) : [];
-          const playLog = playRes.status === 'fulfilled' ? (playRes.value?.gameLog || []) : [];
-          traceLog('projectionEngine', `${playerName} (NHL): NHL API — reg=${regLog.length} playoff=${playLog.length} games`, regLog.length > 0 || playLog.length > 0 ? 'ok' : 'warn');
 
-          const toRawGame = (g, seasonType) => ({
-            value:      nhlExtract(g),
-            allStats:   [g.goals||0, g.assists||0, (g.goals||0)+(g.assists||0), g.shots||0, g.blockedShots||0, g.pim||0, g.saves||0, g.goalsAgainst||0, (g.ppGoals||0)+(g.ppAssists||0)],
-            labels:     ['goals','assists','points','shots','blocks','pim','saves','goalsAgainst','ppPoints'],
-            minutes:    g.toi ? parseFloat(g.toi.split(':')[0]) + parseFloat((g.toi.split(':')[1]||0))/60 : 0,
-            opponent:   (g.opponentAbbrev || '').toUpperCase(),
-            date:       g.gameDate || '',
-            gameId:     String(g.gameId || g.gameDate || Math.random()),
-            seasonType,
-          });
-
-          rawGamesNHL = [
-            ...regLog.map(g => toRawGame(g, 'regular')),
-            ...playLog.map(g => toRawGame(g, 'playoff')),
-          ];
-        } catch(e) {
-          traceLog('projectionEngine', `${playerName} (NHL): NHL API failed — ${e.message}`, 'warn');
-        }
-
-        // Build snapshot from NHL API data
-        if(rawGamesNHL.length >= 5) {
-          snapNHL = buildSnapshot(playerId, sport, rawGamesNHL, 'NHL API');
-          if(snapNHL) {
-            saveSnapshot(snapNHL);
-            traceLog('projectionEngine', `${playerName} (NHL): NHL API snapshot — ${snapNHL.sampleSize} games`, 'ok');
+        // Primary: NHL API — only if we have a valid NHL player ID
+        if(nhlPlayerId) {
+          try {
+            const [regRes, playRes] = await Promise.allSettled([
+              fetchWithFallback(`${NHL_BASE}/player/${nhlPlayerId}/game-log/${season}/2`),
+              fetchWithFallback(`${NHL_BASE}/player/${nhlPlayerId}/game-log/${season}/3`),
+            ]);
+            const regLog  = regRes.status  === 'fulfilled' ? (regRes.value?.gameLog  || []) : [];
+            const playLog = playRes.status === 'fulfilled' ? (playRes.value?.gameLog || []) : [];
+            rawGamesNHL = [
+              ...regLog.map(g => toRawGame(g, 'regular')),
+              ...playLog.map(g => toRawGame(g, 'playoff')),
+            ];
+            traceLog('projectionEngine', `${playerName} (NHL): NHL API nhlId=${nhlPlayerId} → reg=${regLog.length} playoff=${playLog.length} games`, rawGamesNHL.length > 0 ? 'ok' : 'warn');
+          } catch(e) {
+            traceLog('projectionEngine', `${playerName} (NHL): NHL API failed (nhlId=${nhlPlayerId}) — ${e.message}`, 'warn');
           }
+        } else {
+          traceLog('projectionEngine', `${playerName} (NHL): no NHL player ID — skipping NHL API, going to ESPN`, 'warn');
         }
 
-        // Fallback to ESPN if NHL API gave insufficient data
-        if(!snapNHL) {
-          traceLog('projectionEngine', `${playerName} (NHL): NHL API insufficient — falling back to ESPN`, 'warn');
+        // Fallback: ESPN if NHL API gave nothing
+        if(rawGamesNHL.length < 5) {
           try {
             const mergedData = await fetchESPNGameLogAllSeasonTypes('hockey', 'nhl', playerId);
-            const rawGames = extractESPNRawGames(mergedData, statLabel, opp);
-            snapNHL = buildSnapshot(playerId, sport, rawGames, 'ESPN');
-            if(snapNHL) {
-              saveSnapshot(snapNHL);
-              traceLog('projectionEngine', `${playerName} (NHL): ESPN fallback snapshot — ${snapNHL.sampleSize} games`, 'ok');
-            } else {
-              traceLog('projectionEngine', `${playerName} (NHL): ESPN fallback also insufficient`, 'warn');
-            }
+            const espnGames = extractESPNRawGames(mergedData, statLabel, opp);
+            traceLog('projectionEngine', `${playerName} (NHL): ESPN fallback espnId=${playerId} → ${espnGames.length} games`, espnGames.length > 0 ? 'ok' : 'warn');
+            if(espnGames.length > rawGamesNHL.length) rawGamesNHL = espnGames;
           } catch(e) {
             traceLog('projectionEngine', `${playerName} (NHL): ESPN fallback failed — ${e.message}`, 'warn');
           }
+        }
+
+        snapNHL = buildSnapshot(playerId, sport, rawGamesNHL, rawGamesNHL.length >= 5 ? 'NHL API' : 'ESPN');
+        if(snapNHL) {
+          saveSnapshot(snapNHL);
+          traceLog('projectionEngine', `${playerName} (NHL): snapshot — ${snapNHL.sampleSize} games`, 'ok');
+        } else {
+          traceLog('projectionEngine', `${playerName} (NHL): insufficient data — ${rawGamesNHL.length} raw games total`, 'warn');
         }
       }
 
