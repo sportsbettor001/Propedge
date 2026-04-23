@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.5</title>
+<title>PropEdge v17.7</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.5</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.7</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -511,6 +511,21 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         <button onclick="runMLBIdSync()" id="btn-sync-mlb" style="grid-column:1/-1;font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.5);border-radius:8px;padding:9px;color:var(--amber);cursor:pointer;font-weight:700">⚾ Sync MLB<br><span style="font-size:8px;font-weight:400;opacity:.7">MLB Stats API · 30 teams</span></button>
       </div>
       <div id="sync-ids-progress" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg2);border-radius:8px;padding:10px;margin-bottom:14px"></div>
+
+      <div class="section-title" style="margin-top:4px">Roster Tiers Sync</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+        Pulls every team's roster from ESPN, ranks players by avg minutes played, and saves tier rankings to local storage permanently.<br>
+        Run at the start of each season or after major trades. Data is never deleted — only overwritten when you re-sync.
+      </div>
+      <div id="roster-tiers-status" style="font-family:var(--mono);font-size:9px;margin-bottom:8px;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;display:none"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+        <button onclick="runRosterTiersSync('NBA')" id="btn-roster-nba" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏀 Sync NBA Tiers<br><span style="font-size:8px;font-weight:400;opacity:.7">All 30 teams · ranks by minutes</span></button>
+        <button onclick="runRosterTiersSync('NHL')" id="btn-roster-nhl" style="font-family:var(--mono);font-size:10px;background:rgba(77,184,255,.15);border:1px solid rgba(77,184,255,.5);border-radius:8px;padding:9px;color:var(--blue);cursor:pointer;font-weight:700">🏒 Sync NHL Tiers<br><span style="font-size:8px;font-weight:400;opacity:.7">All 32 teams · ranks by TOI</span></button>
+        <button onclick="viewRosterTiers()" id="btn-roster-view" style="grid-column:1/-1;font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:9px;color:var(--muted);cursor:pointer">👁 View Saved Tiers<br><span style="font-size:8px;font-weight:400;opacity:.7">Inspect what's currently stored</span></button>
+      </div>
+      <div id="roster-tiers-detail" style="display:none;margin-bottom:14px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:340px;overflow-y:auto">
+        <div id="roster-tiers-detail-inner" style="font-family:var(--mono);font-size:9px;color:var(--text)"></div>
+      </div>
 
       <div class="section-title">Odds API Quota</div>
       <div id="odds-quota-card" style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px">
@@ -4056,8 +4071,10 @@ async function runFetch(sportsToFetch) {
             .filter(p => p.name && p.name.trim().length > 1)
             .map(p => {
               const side    = resolveSide(p);
-              const teamKey = side === 'home' ? home : side === 'away' ? away : (p.meta?.team || p.teamAbbr || '');
-              const rolePts = getRoleTierScore(p.name, teamKey);
+              // Normalize ESPN short codes so getRoleTierScore finds the right ROLE_TIERS entry
+              const _nAbbr = a => { const m={'NY':'NYK','SA':'SAS','GS':'GSW','NO':'NOP','PHO':'PHX','UTAH':'UTA'}; return m[(a||'').toUpperCase()]||(a||''); };
+              const teamKey = _nAbbr(side === 'home' ? home : side === 'away' ? away : (p.meta?.team || p.teamAbbr || ''));
+              const rolePts = getRoleTierScore(p.name, teamKey, sport);
               const avgMins = getAvgMins(p.name, p.id, p.meta);
               const starterB = p.starter ? 5 : 0;
               return { ...p, _side: side, _score: rolePts * 10 + avgMins + starterB };
@@ -4144,11 +4161,14 @@ async function runFetch(sportsToFetch) {
             };
             const propTypes = propsForSport[sport] || [p.prop || defaultPropForSport(sport)];
             for(const propType of propTypes) {
+              // Normalize ESPN short codes (NY→NYK, SA→SAS, GS→GSW) so
+              // game chips always use canonical abbreviations and don't create duplicates
+              const _normAbbr = a => { const m={'NY':'NYK','SA':'SAS','GS':'GSW','NO':'NOP','PHO':'PHX','UTAH':'UTA'}; return m[(a||'').toUpperCase()]||(a||''); };
               playersToProcess.push({
                 name: p.name, sport, espnSport, espnLeague, gameId,
                 prop: propType,
                 line: (p.prop === propType && p.lineBase) ? p.lineBase : 0,
-                homeTeam: home, awayTeam: away,
+                homeTeam: _normAbbr(home), awayTeam: _normAbbr(away),
                 espnId: p.id || null,
                 dateTag: game._dateTag || 'today',
                 meta: { ...(p.meta || {}), opposingPitcher },
@@ -4744,7 +4764,7 @@ const ROLE_TIERS = {
   MIL: [{name:'Giannis Antetokounmpo',tier:1},{name:'Damian Lillard',tier:1},{name:'Khris Middleton',tier:2},{name:'Brook Lopez',tier:2},{name:'Bobby Portis',tier:2},{name:'Gary Trent Jr.',tier:2}],
   MIA: [{name:'Bam Adebayo',tier:1},{name:'Tyler Herro',tier:1},{name:'Jimmy Butler',tier:1},{name:'Terry Rozier',tier:2},{name:'Duncan Robinson',tier:2},{name:'Haywood Highsmith',tier:2}],
   ORL: [{name:'Paolo Banchero',tier:1},{name:'Franz Wagner',tier:1},{name:'Jalen Suggs',tier:2},{name:'Wendell Carter Jr.',tier:2},{name:'Cole Anthony',tier:2},{name:'Moritz Wagner',tier:2}],
-  ATL: [{name:'Trae Young',tier:1},{name:'Dejounte Murray',tier:1},{name:'Clint Capela',tier:2},{name:'Bogdan Bogdanovic',tier:2},{name:'Onyeka Okongwu',tier:2},{name:'Saddiq Bey',tier:2}],
+  ATL: [{name:'Dyson Daniels',tier:1},{name:'Jalen Johnson',tier:1},{name:'Zaccharie Risacher',tier:1},{name:'Onyeka Okongwu',tier:2},{name:'Bogdan Bogdanovic',tier:2},{name:'Larry Nance Jr.',tier:2},{name:'Garrison Mathews',tier:3}],
   PHX: [{name:'Kevin Durant',tier:1},{name:'Devin Booker',tier:1},{name:'Bradley Beal',tier:2},{name:'Jusuf Nurkic',tier:2},{name:'Grayson Allen',tier:2},{name:"Royce O'Neale",tier:2}],
   SAC: [{name:'Domantas Sabonis',tier:1},{name:'Malik Monk',tier:1},{name:'Keegan Murray',tier:2},{name:'Harrison Barnes',tier:2},{name:'Kevin Huerter',tier:2},{name:'DeMar DeRozan',tier:2}],
   DAL: [{name:'Klay Thompson',tier:1},{name:'Kyrie Irving',tier:1},{name:'PJ Washington',tier:2},{name:'Daniel Gafford',tier:2},{name:'Dereck Lively II',tier:2},{name:'Naji Marshall',tier:2},{name:'Tim Hardaway Jr.',tier:2}],
@@ -4763,24 +4783,190 @@ const ROLE_TIERS = {
   TBL: [{name:'Nikita Kucherov',tier:1},{name:'Brayden Point',tier:1},{name:'Steven Stamkos',tier:2},{name:'Andrei Vasilevskiy',tier:1},{name:'Victor Hedman',tier:1}],
 };
 
-// Get ROLE_TIERS priority score for ranking only — 100/50/20/0.
-// A stale or missing entry just returns 0; it never blocks a player from appearing.
-function getRoleTierScore(playerName, teamAbbr) {
+// ===================================================
+// DYNAMIC ROLE TIERS — persisted to localStorage, never deleted.
+// Built by runRosterTiersSync(). Falls back to static ROLE_TIERS.
+// ===================================================
+const ROLE_TIERS_STORAGE_KEY = 'pe_role_tiers_v1';
+function loadDynamicRoleTiers() {
+  try { return JSON.parse(localStorage.getItem(ROLE_TIERS_STORAGE_KEY) || 'null'); } catch(e) { return null; }
+}
+function saveDynamicRoleTiers(data) {
+  try { localStorage.setItem(ROLE_TIERS_STORAGE_KEY, JSON.stringify(data)); return true; } catch(e) { return false; }
+}
+
+// Get ROLE_TIERS priority score for ranking only. Checks live synced tiers first, then static.
+// Returns 100/50/20/0. Never blocks a player from appearing.
+function getRoleTierScore(playerName, teamAbbr, sport) {
   if(!playerName || !teamAbbr) return 0;
-  const norm = s => (s||'').toLowerCase().trim().replace(/[\x27’'.,-]/g,'');
+  const norm = s => (s||'').toLowerCase().trim().replace(/[\x27''.,-]/g,'');
   const target = norm(playerName);
-  const tier = ROLE_TIERS[teamAbbr.toUpperCase()];
-  if(!tier) return 0;
-  const entry = tier.find(p => {
+  const abbrMap = { 'NY':'NYK','SA':'SAS','GS':'GSW','NO':'NOP','PHO':'PHX','UTAH':'UTA' };
+  const abbr = abbrMap[teamAbbr.toUpperCase()] || teamAbbr.toUpperCase();
+  const findIn = list => list && list.find(p => {
     const pn = norm(p.name);
     if(pn === target) return true;
-    const tLast = target.split(' ').pop();
-    const pLast = pn.split(' ').pop();
-    // Last-name match only if last name is >3 chars (avoids "Lee"/"Fox" false matches)
-    return tLast.length > 3 && tLast === pLast;
+    const tL = target.split(' ').pop(), pL = pn.split(' ').pop();
+    return tL.length > 3 && tL === pL;
   });
-  if(!entry) return 0;
-  return entry.tier === 1 ? 100 : entry.tier === 2 ? 50 : 20;
+  const toScore = e => e ? (e.tier === 1 ? 100 : e.tier === 2 ? 50 : 20) : 0;
+  // 1. Dynamic synced tiers (most current — from Roster Tiers Sync button)
+  const dynamic = loadDynamicRoleTiers();
+  const dynTeam = dynamic?.[(sport||'NBA').toUpperCase()]?.[abbr];
+  if(dynTeam && dynTeam.length > 0) { const e = findIn(dynTeam); if(e) return toScore(e); }
+  // 2. Static fallback
+  return toScore(findIn(ROLE_TIERS[abbr]));
+}
+
+// ===================================================
+// ROSTER TIERS SYNC — pulls all rosters + minutes from ESPN,
+// ranks players by avg minutes, saves to localStorage permanently.
+// Run from Trace tab > Roster Tiers Sync. Never deleted on clear.
+// ===================================================
+const ROSTER_SYNC_TEAM_IDS = {
+  NBA: [
+    {id:'1',abbr:'ATL'},{id:'2',abbr:'BOS'},{id:'3',abbr:'BKN'},
+    {id:'4',abbr:'CHA'},{id:'5',abbr:'CHI'},{id:'6',abbr:'CLE'},
+    {id:'7',abbr:'DAL'},{id:'8',abbr:'DEN'},{id:'9',abbr:'DET'},
+    {id:'10',abbr:'GSW'},{id:'11',abbr:'HOU'},{id:'12',abbr:'IND'},
+    {id:'13',abbr:'LAC'},{id:'14',abbr:'LAL'},{id:'15',abbr:'MEM'},
+    {id:'16',abbr:'MIA'},{id:'17',abbr:'MIL'},{id:'18',abbr:'MIN'},
+    {id:'19',abbr:'NOP'},{id:'20',abbr:'NYK'},{id:'21',abbr:'OKC'},
+    {id:'22',abbr:'ORL'},{id:'23',abbr:'PHI'},{id:'24',abbr:'PHX'},
+    {id:'25',abbr:'POR'},{id:'26',abbr:'SAC'},{id:'27',abbr:'SAS'},
+    {id:'28',abbr:'TOR'},{id:'29',abbr:'UTA'},{id:'30',abbr:'WAS'},
+  ],
+  NHL: [
+    {id:'1',abbr:'ANA'},{id:'2',abbr:'ARI'},{id:'3',abbr:'BOS'},
+    {id:'4',abbr:'BUF'},{id:'5',abbr:'CGY'},{id:'6',abbr:'CAR'},
+    {id:'7',abbr:'CHI'},{id:'8',abbr:'COL'},{id:'9',abbr:'CBJ'},
+    {id:'10',abbr:'DAL'},{id:'11',abbr:'DET'},{id:'12',abbr:'EDM'},
+    {id:'13',abbr:'FLA'},{id:'14',abbr:'LAK'},{id:'15',abbr:'MIN'},
+    {id:'16',abbr:'MTL'},{id:'17',abbr:'NSH'},{id:'18',abbr:'NJD'},
+    {id:'19',abbr:'NYI'},{id:'20',abbr:'NYR'},{id:'21',abbr:'OTT'},
+    {id:'22',abbr:'PHI'},{id:'23',abbr:'PIT'},{id:'24',abbr:'STL'},
+    {id:'25',abbr:'SJS'},{id:'26',abbr:'SEA'},{id:'27',abbr:'TBL'},
+    {id:'28',abbr:'TOR'},{id:'29',abbr:'VAN'},{id:'30',abbr:'VGK'},
+    {id:'31',abbr:'WSH'},{id:'32',abbr:'WPG'},
+  ],
+};
+
+async function runRosterTiersSync(sport) {
+  sport = (sport || 'NBA').toUpperCase();
+  const statusEl = document.getElementById('roster-tiers-status');
+  const detailEl = document.getElementById('roster-tiers-detail');
+  const btn = document.getElementById(sport === 'NBA' ? 'btn-roster-nba' : 'btn-roster-nhl');
+  const espnSport = sport === 'NBA' ? 'basketball' : 'hockey';
+  const espnLeague = sport === 'NBA' ? 'nba' : 'nhl';
+  if(statusEl) { statusEl.style.display = 'block'; statusEl.innerHTML = 'Starting sync...'; }
+  if(detailEl) detailEl.style.display = 'none';
+  if(btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+
+  const teams = ROSTER_SYNC_TEAM_IDS[sport] || [];
+  const allTiers = loadDynamicRoleTiers() || {};
+  allTiers[sport] = {};
+  let doneTeams = 0, totalPlayers = 0;
+
+  const pBar = (d, t) => {
+    const pct = t > 0 ? Math.round(d/t*100) : 0;
+    return '<div style="background:var(--bg3);border-radius:4px;margin-top:5px;height:3px">' +
+           '<div style="background:var(--accent);height:3px;border-radius:4px;width:' + pct + '%;transition:width .2s"></div></div>';
+  };
+
+  for(const team of teams) {
+    if(statusEl) statusEl.innerHTML =
+      '<div>Syncing <b>' + sport + '</b> — team ' + (doneTeams+1) + '/' + teams.length + ': <b>' + team.abbr + '</b></div>' + pBar(doneTeams, teams.length);
+    try {
+      const rData = await fetchWithFallback(
+        'https://site.api.espn.com/apis/site/v2/sports/' + espnSport + '/' + espnLeague + '/teams/' + team.id + '/roster'
+      );
+      const athletes = (rData?.athletes || []).flatMap(g => g?.items || (g?.id ? [g] : []));
+      if(!athletes.length) { doneTeams++; continue; }
+
+      // Fetch stats in small batches to avoid hammering ESPN
+      const BATCH = 6;
+      const playerData = [];
+      for(let i = 0; i < athletes.length; i += BATCH) {
+        const batch = athletes.slice(i, i + BATCH);
+        const results = await Promise.allSettled(batch.map(async a => {
+          if(!a?.id) return null;
+          let avgMins = 0;
+          try {
+            const sd = await fetchWithFallback(
+              'https://site.api.espn.com/apis/site/v2/sports/' + espnSport + '/' + espnLeague + '/athletes/' + a.id + '/statistics'
+            );
+            for(const cat of (sd?.splits?.categories || [])) {
+              const names = cat.names || cat.labels || [];
+              const vals  = cat.totals || cat.values || [];
+              const mIdx  = names.findIndex(n => n === 'MIN' || n === 'avgMinutes' || n === 'timeOnIce');
+              if(mIdx >= 0 && vals[mIdx]) { avgMins = parseFloat(vals[mIdx]) || 0; if(avgMins > 0) break; }
+            }
+            if(!avgMins) {
+              const ds = (sd?.statistics?.displayStats || sd?.displayStats || []);
+              const ms = ds.find(s => /^min/i.test(s.name||'') && !isNaN(parseFloat(s.displayValue)));
+              if(ms) avgMins = parseFloat(ms.displayValue) || 0;
+            }
+          } catch(e2) {}
+          return { name: a.displayName||a.fullName||'', position: a.position?.abbreviation||'', avgMins };
+        }));
+        results.forEach(r => { if(r.status === 'fulfilled' && r.value?.name) playerData.push(r.value); });
+        await new Promise(r => setTimeout(r, 60));
+      }
+
+      // Sort by minutes, assign tiers
+      const sorted = playerData.filter(p => p.name.length > 1).sort((a,b) => b.avgMins - a.avgMins);
+      const tiered = sorted.map((p, idx) => ({
+        name: p.name,
+        tier: sport === 'NBA'
+          ? ((p.avgMins >= 28 || idx < 5) ? 1 : (p.avgMins >= 14 || idx < 10) ? 2 : 3)
+          : (idx < 6 ? 1 : idx < 14 ? 2 : 3),
+        avgMins: parseFloat(p.avgMins.toFixed(1)),
+        position: p.position,
+      }));
+      allTiers[sport][team.abbr] = tiered;
+      totalPlayers += tiered.length;
+    } catch(e) { /* skip failed team */ }
+    doneTeams++;
+    await new Promise(r => setTimeout(r, 100));
+  }
+
+  saveDynamicRoleTiers(allTiers);
+  if(statusEl) statusEl.innerHTML =
+    '<div style="color:var(--accent);font-weight:700">✓ ' + sport + ' tiers synced — ' + totalPlayers + ' players, ' + doneTeams + ' teams</div>' +
+    '<div style="color:var(--muted);margin-top:3px;font-size:9px">Saved ' + new Date().toLocaleString() + ' · Never deleted · Re-sync anytime after trades</div>';
+  if(btn) { btn.disabled = false; btn.style.opacity = '1'; }
+}
+
+function viewRosterTiers() {
+  const detailEl = document.getElementById('roster-tiers-detail');
+  const innerEl  = document.getElementById('roster-tiers-detail-inner');
+  if(!detailEl || !innerEl) return;
+  if(detailEl.style.display !== 'none') { detailEl.style.display = 'none'; return; }
+  const data = loadDynamicRoleTiers();
+  if(!data) {
+    innerEl.innerHTML = '<div style="color:var(--muted)">No synced tiers yet — run a sync first.</div>';
+    detailEl.style.display = 'block'; return;
+  }
+  let html = '';
+  for(const [sp, teams] of Object.entries(data)) {
+    html += '<div style="color:var(--accent);font-weight:700;margin-bottom:5px;margin-top:8px">' + sp + '</div>';
+    for(const [abbr, players] of Object.entries(teams)) {
+      if(!players?.length) continue;
+      const t1 = players.filter(p=>p.tier===1).map(p=>
+        '<span style="color:var(--accent)">' + p.name + (p.avgMins ? ' ('+p.avgMins+'m)' : '') + '</span>'
+      ).join(', ');
+      const t2 = players.filter(p=>p.tier===2).map(p=>
+        '<span style="color:var(--text)">' + p.name + '</span>'
+      ).join(', ');
+      html += '<div style="margin-bottom:4px">'
+        + '<span style="color:var(--blue);display:inline-block;min-width:38px">' + abbr + '</span>'
+        + '<span style="color:var(--muted);font-size:8px"> T1: </span>' + (t1 || '<span style="color:var(--muted)">—</span>')
+        + '<span style="color:var(--muted);font-size:8px"> · T2: </span>' + (t2 || '<span style="color:var(--muted)">—</span>')
+        + '</div>';
+    }
+  }
+  innerEl.innerHTML = html || '<div style="color:var(--muted)">No data.</div>';
+  detailEl.style.display = 'block';
 }
 
 function mlbTeamAbbrev(teamName) {
@@ -7613,7 +7799,9 @@ function updateGameFilter() {
   // Normalize team abbreviations — Odds API uses short codes, ESPN uses standard 3-letter
   const normTeam = s => {
     const u = (s || '').toUpperCase().trim();
-    const map = { 'SA':'SAS', 'GS':'GSW' };
+    // ESPN scoreboard uses short codes for some teams — normalize to standard 3-letter
+    const map = { 'SA':'SAS', 'GS':'GSW', 'NY':'NYK', 'NJ':'NJN', 'NO':'NOP',
+                  'GSD':'GSW', 'PHO':'PHX', 'UTAH':'UTA', 'CHA':'CHA' };
     return map[u] || u;
   };
 
