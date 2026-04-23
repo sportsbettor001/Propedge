@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.4</title>
+<title>PropEdge v17.5</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.4</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.5</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -921,7 +921,40 @@ function loadState() {
   } catch(e) { return null; }
 }
 function saveState() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(STATE)); } catch(e) { console.warn('Storage save failed', e); }
+  try {
+    // Strip heavy non-essential fields before persisting to avoid 5MB quota errors.
+    // slateLog and trace are rebuilt on each run — no need to persist them.
+    const toSave = { ...STATE };
+    delete toSave.trace; // rebuilt every run, often large
+    // Keep slateLog but strip verbose per-game player lists to save space
+    if(toSave.slateLog?.sports) {
+      toSave.slateLog = {
+        ...toSave.slateLog,
+        sports: toSave.slateLog.sports.map(s => ({
+          ...s,
+          games: (s.games||[]).map(g => ({ home: g.home, away: g.away, playerCount: (g.players||[]).length }))
+        }))
+      };
+    }
+    const serialized = JSON.stringify(toSave);
+    localStorage.setItem(STORAGE_KEY, serialized);
+  } catch(e) {
+    console.warn('Storage save failed:', e);
+    // If quota exceeded, try saving just the essential props + settings
+    try {
+      const minimal = {
+        sportCache: STATE.sportCache,
+        bettingCache: STATE.bettingCache,
+        analysisCache: STATE.analysisCache,
+        settings: STATE.settings,
+        savedSlips: STATE.savedSlips,
+        lastGenerated: STATE.lastGenerated,
+        slip: STATE.slip,
+        history: STATE.history,
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(minimal));
+    } catch(e2) { console.warn('Minimal save also failed:', e2); }
+  }
 }
 
 let STATE = loadState() || {
@@ -1843,15 +1876,27 @@ document.addEventListener('DOMContentLoaded', function() {
   );
 
   if(hasCachedData) {
-    // Show restore prompt instead of silently loading stale data
-    showCacheRestorePrompt();
+    // Auto-restore cached data — no prompt, no blank screen on return.
+    // User can always hit Generate to refresh.
+    const hasBetting = STATE.bettingCache && Object.values(STATE.bettingCache).some(e => e?.props?.length > 0);
+    const hasAnalysis = STATE.analysisCache && Object.values(STATE.analysisCache).some(e => e?.props?.length > 0);
+    if(hasBetting) viewMode = 'betting';
+    else if(hasAnalysis) viewMode = 'analysis';
+    setViewMode(viewMode);
+    renderProps();
+    updateMetrics();
+    updateCacheStatusBar();
+    updateModeBanner();
+    updateProxyBadge();
+    const age = STATE.lastGenerated ? Math.round((Date.now() - new Date(STATE.lastGenerated).getTime()) / 60000) : null;
+    const ageStr = age !== null ? ` (${age < 60 ? age + 'm' : Math.round(age/60) + 'h'} ago)` : '';
+    showToast(`✓ Cached props restored${ageStr} — tap Generate to refresh`, 'success');
   } else {
     // No cache — clean start
     renderProps();
     updateMetrics();
     updateModeBanner();
-  updateProxyBadge();
-    // Don't render slate log — nothing fetched yet
+    updateProxyBadge();
   }
 });
 
@@ -2204,11 +2249,10 @@ async function fetchESPNSchedule(sport, league, date) {
   const dateStr = date.replace(/-/g,'');
   const base = `${ESPN_BASE}/${sport}/${league}/scoreboard`;
 
-  // For NBA: try postseason-specific URLs first. Return on FIRST success —
-  // do NOT cascade to the regular-season default once a postseason URL returns
-  // events, because mixing results from different URL variants is what causes
-  // phantom games (e.g. a stale NO vs TOR regular-season game appearing
-  // alongside the real CLE vs TOR playoff game).
+  // NBA: try postseason URLs first and STOP on first success — never cascade to
+  // the regular-season default once a postseason URL returns events. Mixing
+  // results from different URL variants creates phantom games (e.g. a stale
+  // NO vs TOR regular-season entry appearing beside the real CLE vs TOR playoff game).
   if(league === 'nba') {
     const postseasonUrls = [
       `${base}?dates=${dateStr}&groups=50`,    // postseason / play-in (most reliable)
@@ -2219,7 +2263,8 @@ async function fetchESPNSchedule(sport, league, date) {
       try {
         const data = await fetchWithFallback(url);
         if(data?.events?.length > 0) {
-          // Dedup within this single response (ESPN can duplicate across season-type boundaries)
+          // Dedup within this response — ESPN can include the same game twice
+          // when the season type boundary overlaps
           const seen = new Set();
           data.events = data.events.filter(e => {
             if(!e.id) return true;
@@ -2231,7 +2276,7 @@ async function fetchESPNSchedule(sport, league, date) {
         }
       } catch(e) { continue; }
     }
-    // All postseason URLs empty — regular season or off-season
+    // All postseason URLs empty — fall back to regular season
     try { return await fetchWithFallback(`${base}?dates=${dateStr}`); }
     catch(e) { return { events: [] }; }
   }
@@ -3794,9 +3839,8 @@ async function runFetch(sportsToFetch) {
             fetchDay(today, 'today'),
             fetchDay(tomorrow, 'tomorrow'),
           ]);
-          // Dedup by game.id across today+tomorrow (today wins), and drop any
-          // game ESPN has already marked final/cancelled — stale events from prior
-          // dates that bleed through postseason endpoints cause phantom matchups.
+          // Dedup by game.id across today+tomorrow (today wins), and drop events
+          // ESPN has already marked final/cancelled — stale postseason endpoint bleed.
           const _seenEvIds = new Set();
           const _mergedEvts = [...todayEvents, ...tomorrowEvents].filter(e => {
             if(e.id) {
@@ -3938,7 +3982,7 @@ async function runFetch(sportsToFetch) {
           if(candidatePool.length === 0 && sport !== 'MLB') {
             traceLog('playerDiscovery', `${sport} ${home}v${away} T1 empty — trying T2 rosters (homeId=${homeTeamId} awayId=${awayTeamId})`, 'warn');
             const rFetches = [];
-            // Tag _side + teamAbbr so home/away balancer knows which team each player is on
+            // Tag _side + teamAbbr so home/away balancer can split correctly
             if(homeTeamId) rFetches.push(fetchESPNTeamRoster(espnSport, espnLeague, homeTeamId).then(r => r.map(p => ({...p, _side:'home', teamAbbr: home}))));
             if(awayTeamId)  rFetches.push(fetchESPNTeamRoster(espnSport, espnLeague, awayTeamId).then(r => r.map(p => ({...p, _side:'away', teamAbbr: away}))));
             const rosters = await Promise.all(rFetches);
@@ -3973,17 +4017,12 @@ async function runFetch(sportsToFetch) {
           }
 
           // ── RANK + SELECT — ROLE_TIERS priority + balanced home/away split ──
-          // Sort order (highest wins):
-          //   1. ROLE_TIERS score — known star/starter ranking, works even with cold cache
-          //   2. Avg minutes from ESPN snapshot / mins cache
-          //   3. PLAYER_DB usage proxy (usage * 100)
-          //   4. Confirmed starter flag
-          //   5. Alphabetical tiebreak
-          // After sorting by quality, the pool is split into home/away buckets so that
-          // N players per game = floor(N/2) home + floor(N/2) away (+ 1 home if N is odd).
+          // Sort order: ROLE_TIERS score → avg minutes → PLAYER_DB usage → starter flag → alpha
+          // After ranking, pool is split into home/away halves:
+          //   N=10 → 5 home + 5 away | N=5 → 3 home + 2 away | N=6 → 3+3
           const maxPlayers = STATE.settings.analysisPlayersPerGame || 5;
           const _perSide   = Math.floor(maxPlayers / 2);
-          const _extraSlot = maxPlayers % 2; // odd count gives home the extra slot
+          const _extraSlot = maxPlayers % 2; // odd total: home gets +1
 
           const minsCache = loadMinsCache();
           const getAvgMins = (playerName, knownId, meta) => {
@@ -4002,7 +4041,6 @@ async function runFetch(sportsToFetch) {
             return 0;
           };
 
-          // Resolve a candidate's home/away side from available signals
           const resolveSide = (p) => {
             if(p._side === 'home' || p._side === 'away') return p._side;
             const ta = (p.teamAbbr || '').toUpperCase();
@@ -4014,7 +4052,6 @@ async function runFetch(sportsToFetch) {
             return null;
           };
 
-          // Score every candidate — ROLE_TIERS dominates when mins cache is cold
           const _scoredPool = candidatePool
             .filter(p => p.name && p.name.trim().length > 1)
             .map(p => {
@@ -4027,7 +4064,6 @@ async function runFetch(sportsToFetch) {
             })
             .sort((a, b) => b._score !== a._score ? b._score - a._score : a.name.localeCompare(b.name));
 
-          // Fill home and away buckets independently to their caps
           const _seenH = new Set(), _seenA = new Set();
           const _homeBkt = [], _awayBkt = [], _unknBkt = [];
           for(const p of _scoredPool) {
@@ -4041,13 +4077,14 @@ async function runFetch(sportsToFetch) {
             }
           }
 
-          // Interleave home+away for display, then backfill if a side is short
+          // Interleave home+away for natural display
           let ranked = [];
-          const _bktLen = Math.max(_homeBkt.length, _awayBkt.length);
-          for(let _bi = 0; _bi < _bktLen; _bi++) {
+          const _bktMax = Math.max(_homeBkt.length, _awayBkt.length);
+          for(let _bi = 0; _bi < _bktMax; _bi++) {
             if(_homeBkt[_bi]) ranked.push(_homeBkt[_bi]);
             if(_awayBkt[_bi]) ranked.push(_awayBkt[_bi]);
           }
+          // Backfill if a side was short (e.g. injury-depleted roster)
           if(ranked.length < maxPlayers) {
             const _allSeen = new Set(ranked.map(p => p.name.toLowerCase().trim()));
             for(const p of [..._unknBkt, ..._scoredPool]) {
@@ -4685,15 +4722,13 @@ const PLAYER_DB = {
 };
 
 // ═══════════════════════════════════════════════════════
-// ROLE_TIERS — Authoritative starter/rotation priority per team
-// Used ONLY for ranking/prioritization — never for filtering eligibility.
-// ESPN live API determines which players actually play in a game.
-// ROLE_TIERS just ensures stars sort above bench players when mins cache is cold.
-// tier:1 = clear star/starter, tier:2 = rotation, tier:3 = end-of-bench
-// Keep current with actual rosters — wrong entries score 0 (harmless, not wrong).
+// ROLE_TIERS — Starter/rotation priority for ranking only.
+// NEVER used to filter which players are eligible — ESPN live API owns that.
+// Only affects sort order when the minutes cache is cold.
+// tier:1 = star/clear starter, tier:2 = rotation, tier:3 = bench/end-of-rotation
 // ═══════════════════════════════════════════════════════
 const ROLE_TIERS = {
-  // NBA 2024-25 — verified current rosters
+  // NBA 2024-25 verified current rosters
   OKC: [{name:'Shai Gilgeous-Alexander',tier:1},{name:'Jalen Williams',tier:1},{name:'Chet Holmgren',tier:1},{name:'Luguentz Dort',tier:2},{name:'Isaiah Hartenstein',tier:2},{name:'Aaron Wiggins',tier:2},{name:'Alex Caruso',tier:2},{name:'Isaiah Joe',tier:3}],
   MEM: [{name:'Ja Morant',tier:1},{name:'Desmond Bane',tier:1},{name:'Jaren Jackson Jr.',tier:1},{name:'Marcus Smart',tier:2},{name:'Santi Aldama',tier:2},{name:'Scotty Pippen Jr.',tier:2},{name:'GG Jackson II',tier:2}],
   GSW: [{name:'Stephen Curry',tier:1},{name:'Draymond Green',tier:1},{name:'Andrew Wiggins',tier:2},{name:'Jonathan Kuminga',tier:2},{name:'Brandin Podziemski',tier:2},{name:'Moses Moody',tier:2},{name:'Kyle Anderson',tier:2}],
@@ -4711,10 +4746,8 @@ const ROLE_TIERS = {
   ORL: [{name:'Paolo Banchero',tier:1},{name:'Franz Wagner',tier:1},{name:'Jalen Suggs',tier:2},{name:'Wendell Carter Jr.',tier:2},{name:'Cole Anthony',tier:2},{name:'Moritz Wagner',tier:2}],
   ATL: [{name:'Trae Young',tier:1},{name:'Dejounte Murray',tier:1},{name:'Clint Capela',tier:2},{name:'Bogdan Bogdanovic',tier:2},{name:'Onyeka Okongwu',tier:2},{name:'Saddiq Bey',tier:2}],
   PHX: [{name:'Kevin Durant',tier:1},{name:'Devin Booker',tier:1},{name:'Bradley Beal',tier:2},{name:'Jusuf Nurkic',tier:2},{name:'Grayson Allen',tier:2},{name:"Royce O'Neale",tier:2}],
-  // De'Aaron Fox traded to SAS — SAC no longer has him
   SAC: [{name:'Domantas Sabonis',tier:1},{name:'Malik Monk',tier:1},{name:'Keegan Murray',tier:2},{name:'Harrison Barnes',tier:2},{name:'Kevin Huerter',tier:2},{name:'DeMar DeRozan',tier:2}],
   DAL: [{name:'Klay Thompson',tier:1},{name:'Kyrie Irving',tier:1},{name:'PJ Washington',tier:2},{name:'Daniel Gafford',tier:2},{name:'Dereck Lively II',tier:2},{name:'Naji Marshall',tier:2},{name:'Tim Hardaway Jr.',tier:2}],
-  // De'Aaron Fox now on SAS
   SAS: [{name:'Victor Wembanyama',tier:1},{name:"De'Aaron Fox",tier:1},{name:'Stephon Castle',tier:2},{name:'Devin Vassell',tier:2},{name:'Chris Paul',tier:2},{name:'Keldon Johnson',tier:2},{name:'Zach Collins',tier:2},{name:'Blake Wesley',tier:3}],
   PHI: [{name:'Joel Embiid',tier:1},{name:'Tyrese Maxey',tier:1},{name:'Paul George',tier:1},{name:'Kelly Oubre Jr.',tier:2},{name:'Caleb Martin',tier:2},{name:'Kyle Lowry',tier:2}],
   CHI: [{name:'Zach LaVine',tier:1},{name:'Nikola Vucevic',tier:1},{name:'Coby White',tier:2},{name:'Patrick Williams',tier:2},{name:'Ayo Dosunmu',tier:2},{name:'Matas Buzelis',tier:2}],
@@ -4722,9 +4755,7 @@ const ROLE_TIERS = {
   NO:  [{name:'Zion Williamson',tier:1},{name:'Brandon Ingram',tier:1},{name:'CJ McCollum',tier:2},{name:'Herb Jones',tier:2},{name:'Jonas Valanciunas',tier:2},{name:'Trey Murphy III',tier:2}],
   DET: [{name:'Cade Cunningham',tier:1},{name:'Jalen Duren',tier:2},{name:'Ausar Thompson',tier:2},{name:'Isaiah Stewart',tier:2},{name:'Malik Beasley',tier:2},{name:'Tim Hardaway Jr.',tier:2}],
   CHA: [{name:'LaMelo Ball',tier:1},{name:'Miles Bridges',tier:2},{name:'Brandon Miller',tier:2},{name:'Grant Williams',tier:2},{name:'Nick Richards',tier:2}],
-  // Deni Avdija traded to POR — WAS no longer has him
   WAS: [{name:'Kyle Kuzma',tier:1},{name:'Jordan Poole',tier:1},{name:'Alexandre Sarr',tier:2},{name:'Tyus Jones',tier:2},{name:'Bilal Coulibaly',tier:2},{name:'Marvin Bagley III',tier:2}],
-  // Deni Avdija now on POR
   POR: [{name:'Scoot Henderson',tier:1},{name:'Jerami Grant',tier:1},{name:'Anfernee Simons',tier:1},{name:'Deni Avdija',tier:1},{name:'Deandre Ayton',tier:2},{name:'Toumani Camara',tier:2},{name:'Robert Williams III',tier:2},{name:'Malcolm Brogdon',tier:2}],
   UTA: [{name:'Lauri Markkanen',tier:1},{name:'Jordan Clarkson',tier:2},{name:'Walker Kessler',tier:2},{name:'Keyonte George',tier:2},{name:'Collin Sexton',tier:2}],
   // NHL playoff teams
@@ -4732,8 +4763,8 @@ const ROLE_TIERS = {
   TBL: [{name:'Nikita Kucherov',tier:1},{name:'Brayden Point',tier:1},{name:'Steven Stamkos',tier:2},{name:'Andrei Vasilevskiy',tier:1},{name:'Victor Hedman',tier:1}],
 };
 
-// Get ROLE_TIERS priority score for ranking — 100/50/20/0.
-// ONLY affects sort order. Never used to gate or filter players.
+// Get ROLE_TIERS priority score for ranking only — 100/50/20/0.
+// A stale or missing entry just returns 0; it never blocks a player from appearing.
 function getRoleTierScore(playerName, teamAbbr) {
   if(!playerName || !teamAbbr) return 0;
   const norm = s => (s||'').toLowerCase().trim().replace(/[\x27’'.,-]/g,'');
@@ -4743,9 +4774,9 @@ function getRoleTierScore(playerName, teamAbbr) {
   const entry = tier.find(p => {
     const pn = norm(p.name);
     if(pn === target) return true;
-    // Last-name match as fallback (e.g. "Jokic" matches "Nikola Jokic")
     const tLast = target.split(' ').pop();
     const pLast = pn.split(' ').pop();
+    // Last-name match only if last name is >3 chars (avoids "Lee"/"Fox" false matches)
     return tLast.length > 3 && tLast === pLast;
   });
   if(!entry) return 0;
@@ -6867,13 +6898,21 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     // ── OPPONENT CONTEXT ──
     const vsOppAvg = sharpResult.vsOppAvg;
 
-    // ── HIT RATES (informational, using the sportsbook line) ──
+    // ── HIT RATES (informational) ──
+    // Use sportsbook line when available; fall back to model projection so that
+    // analysis mode always shows a hit rate instead of hiding it entirely.
     const seasonAvg = parseFloat((allVals.reduce((a,b)=>a+b,0)/allVals.length).toFixed(1));
-    const hitRateRef = (hasRealLine && line > 0) ? line : (line > 0 ? line : null);
+    const hitRateRef = (hasRealLine && line > 0) ? line
+                     : (line > 0)                ? line
+                     : (finalProjection > 0)     ? parseFloat(finalProjection.toFixed(1))
+                     : null;
+    const hitRateIsProjection = hitRateRef !== null && !(hasRealLine && line > 0) && !(line > 0);
     const hitRateSeason = (hitRateRef && allVals.length >= 5) ? {
       hits: allVals.filter(v=>v>=hitRateRef).length,
       total: allVals.length,
-      pct: Math.round(allVals.filter(v=>v>=hitRateRef).length / allVals.length * 100)
+      pct: Math.round(allVals.filter(v=>v>=hitRateRef).length / allVals.length * 100),
+      refIsProjection: hitRateIsProjection,   // flag for UI to label correctly
+      ref: hitRateRef
     } : null;
 
     // ══════════════════════════════════════════════════════
@@ -7775,7 +7814,7 @@ function propCardHTML(p) {
       <div class="hit-rate-track"><div class="hit-rate-fill" style="width:${pct}%;background:${barColor}"></div></div>
       <div class="hit-rate-pct" style="color:${pctColor}">${pct}%</div>
     </div>
-    <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:6px">${p.hitRateSeason.hits}/${p.hitRateSeason.total} games this season${p.line != null ? ' over ' + p.line + ' ' + p.prop.toLowerCase() : ''}</div>`;
+    <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:6px">${p.hitRateSeason.hits}/${p.hitRateSeason.total} games this season ${p.hitRateSeason.refIsProjection ? 'at or above proj ' + p.hitRateSeason.ref + ' ' + p.prop.toLowerCase() : p.line != null ? 'over ' + p.line + ' ' + p.prop.toLowerCase() : ''}</div>`;
   }
 
   // Analysis view banner: show proj vs sportsbook line comparison when forcing analysis on betting props
