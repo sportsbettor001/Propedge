@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.8</title>
+<title>PropEdge v17.10</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.8</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.10</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -4891,10 +4891,11 @@ async function runRosterTiersSync(sport) {
   const cfg = espnConfig[sport];
   if(!cfg) { if(STATUS_EL) STATUS_EL.innerHTML = 'Unknown sport: ' + sport; return; }
 
+  // Load existing data to preserve other sports, then overwrite this sport fresh.
+  // Hitting the button always gives you a clean slate for that sport.
   const allTiers = loadDynamicRoleTiers() || {};
-  // Preserve _meta and other sports — only overwrite this sport
   if(!allTiers._meta) allTiers._meta = {};
-  allTiers[sport] = {};
+  allTiers[sport] = {}; // full overwrite for this sport — no merge with old data
 
   let doneTeams = 0, totalPlayers = 0;
   const pBar = (d, t) => {
@@ -6829,7 +6830,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
           traceLog('projectionEngine', `${playerName} (${sport}): extracted ${statLabel} column — ${extractedVals.length} games`, 'ok');
         }
       }
-      // NBA context: opponent defense, pace, back-to-back
+      // NBA context: opponent defense, pace, back-to-back, teammate injuries
       if(sport === 'NBA') {
         try {
           const oppTeamId = playerMeta?.oppTeamId || null;
@@ -6842,6 +6843,53 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
           contextData.nbaOppDef = oppDef;
           contextData.nbaPace   = pace;
           contextData.isB2B     = b2b;
+        } catch(e) {}
+
+        // ── Teammate injury check ──
+        // Look at the injury report for players on the same team as this player.
+        // If a key teammate is Out or Doubtful, boost this player's projection.
+        // Severity is determined by the absent player's ROLE_TIERS tier:
+        //   tier 1 (star/starter) = major, tier 2 (rotation) = moderate, unknown = minor
+        try {
+          const myTeam = (team || '').toUpperCase();
+          const normName = s => (s||'').toLowerCase().trim();
+          const injMap = injuries || {}; // { "jalen johnson": "Out", ... }
+          let bestTeammateOut = null;
+          let bestSeverity = null;
+          let bestTier = 99;
+
+          for(const [injName, injStatus] of Object.entries(injMap)) {
+            // Only care about Out or Doubtful — Questionable is too uncertain
+            const isOut = injStatus === 'Out' || injStatus === 'Doubtful';
+            if(!isOut) continue;
+            // Skip if this IS the player being projected
+            if(normName(injName) === normName(playerName)) continue;
+            // Check if this injured player is on the same team using ROLE_TIERS
+            // We check both dynamic and static tiers for team membership
+            const dynData = loadDynamicRoleTiers();
+            const normAbbr = a => { const m={'NY':'NYK','SA':'SAS','GS':'GSW','NO':'NOP'}; return m[(a||'').toUpperCase()]||(a||'').toUpperCase(); };
+            const teamKey = normAbbr(myTeam);
+            const teamPlayers = dynData?.NBA?.[teamKey] || ROLE_TIERS[teamKey] || [];
+            const normInjName = s => (s||'').toLowerCase().replace(/[^a-z ]/g,'');
+            const injLast = normInjName(injName).split(' ').pop();
+            const teamEntry = teamPlayers.find(p => {
+              const pn = normInjName(p.name);
+              return pn === normInjName(injName) || pn.split(' ').pop() === injLast && injLast.length > 3;
+            });
+            if(!teamEntry) continue; // not on this team in our data — skip
+            // Found a teammate who is out — track the most impactful one
+            const entryTier = teamEntry.tier || 3;
+            if(entryTier < bestTier) {
+              bestTier = entryTier;
+              bestTeammateOut = teamEntry.name; // use canonical name from tiers
+              bestSeverity = entryTier === 1 ? 'major' : entryTier === 2 ? 'moderate' : 'minor';
+            }
+          }
+
+          if(bestTeammateOut) {
+            contextData.keyTeammateOut = bestTeammateOut;
+            contextData.teammateAbsenceSeverity = bestSeverity;
+          }
         } catch(e) {}
       }
     }
@@ -7586,6 +7634,24 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     ];
     if(hitRateSeason) reasoning.push(`Historical hit rate: went over ${line} ${statLabel.toLowerCase()} in ${hitRateSeason.hits} of ${hitRateSeason.total} games this season (${hitRateSeason.pct}%)`);
     if(injuryStatus) reasoning.push(`⚠ Injury status: ${injuryStatus} — projection adjusted down accordingly. Confirm before betting.`);
+    // Teammate injury uplift explanation — makes the boost transparent to the user
+    if(contextData.keyTeammateOut) {
+      const severity = contextData.teammateAbsenceSeverity || 'moderate';
+      const usage = playerMeta?.usage || 0.22;
+      const isstar = usage >= 0.28;
+      const isRole = usage <= 0.18;
+      const roleLabel = isstar ? 'star' : isRole ? 'role player' : 'starter';
+      const boostPct = severity === 'major' ? (isstar ? 10 : isRole ? 3 : 7) :
+                       severity === 'minor'  ? (isstar ? 3  : isRole ? 1 : 2) :
+                                               (isstar ? 7  : isRole ? 2 : 5);
+      const severityLabels = { major: 'key starter', moderate: 'rotation piece', minor: 'role player' };
+      reasoning.push(
+        `📈 ${contextData.keyTeammateOut} is out (${severityLabels[severity]}). ` +
+        `As a ${roleLabel} on this team, ${firstName} is projected to absorb ~${boostPct}% more usage — ` +
+        `more touches, more shot attempts, potentially more minutes. ` +
+        `This is reflected in the projection above.`
+      );
+    }
     contextNotes.forEach(n => reasoning.push(`Context: ${n}`));
 
     // ── NARRATIVE ──
