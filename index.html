@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.29</title>
+<title>PropEdge v17.30</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.29</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.30</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1593,16 +1593,25 @@ async function runApiColumnTest(which) {
           lines.push('Count: ' + items.length);
           if(items.length > 0) {
             lines.push('First item keys: ' + Object.keys(items[0]||{}).join(', '));
-            lines.push('athlete.displayName: ' + (items[0]?.athlete?.displayName || 'MISSING'));
-            lines.push('status: ' + (items[0]?.status || 'MISSING'));
-            lines.push('details: ' + JSON.stringify(items[0]?.details || {}).slice(0,120));
+            lines.push('displayName (top level): ' + (items[0]?.displayName || 'MISSING'));
+            lines.push('nested injuries[]: ' + JSON.stringify((items[0]?.injuries||[{}])[0]).slice(0,150));
             lines.push('');
-            lines.push('First 5:');
+            lines.push('First 5 players:');
             items.slice(0,5).forEach(i => {
-              lines.push('  ' + (i.athlete?.displayName||'?') + ' → ' + (i.status||i.details?.type||i.type?.description||'?'));
+              const name   = i.displayName || i.athlete?.displayName || '?';
+              const nested = (i.injuries||[i])[0] || {};
+              const status = nested.status || nested.details?.type || nested.type || i.status || '?';
+              lines.push('  ' + name + ' → ' + status);
             });
-            const luka = items.find(i => (i.athlete?.displayName||'').toLowerCase().includes('doncic'));
-            lines.push('Luka: ' + (luka ? 'YES — ' + (luka.status||luka.details?.type||'?') : 'NOT FOUND'));
+            const luka = items.find(i =>
+              (i.displayName||i.athlete?.displayName||'').toLowerCase().includes('doncic')
+            );
+            if(luka) {
+              const nested = (luka.injuries||[luka])[0] || {};
+              lines.push('Luka: YES — status="' + (nested.status||'?') + '" details=' + JSON.stringify(nested.details||{}).slice(0,80));
+            } else {
+              lines.push('Luka: NOT FOUND in injury report');
+            }
           }
         } catch(e2) { lines.push('Failed: ' + e2.message); }
         lines.push('');
@@ -4715,19 +4724,23 @@ async function runFetch(sportsToFetch) {
         if(!es) return;
         const data = await fetchESPNInjuries(es,el);
         const map = {};
-        // site API returns injuries array; fallback to items for other endpoints
+        // Confirmed site API structure (Apr 2026):
+        // { injuries: [{ id, displayName, injuries: [{ status, details:{type} }] }] }
+        // Each top-level entry = one player; nested injuries[] = their injury records
         const injList = data?.injuries || data?.items || [];
         injList.forEach(inj=>{
-          const n = inj.athlete?.displayName || inj.fullName || inj.displayName;
+          // Player name is at top level as displayName (not nested under athlete)
+          const n = inj.displayName || inj.athlete?.displayName || inj.fullName;
           if(!n) return;
-          // Parse from multiple possible status fields across ESPN response variants
+          // Actual injury status is inside the nested injuries[] array
+          const injDetails = (inj.injuries || [inj])[0] || {};
           const rawStatus = (
+            injDetails.status ||
+            injDetails.details?.type ||
+            injDetails.type ||
             inj.status ||
             inj.details?.type ||
-            inj.injury?.type ||
             inj.type?.description ||
-            inj.fantasyStatus?.description ||
-            inj.details?.fantasyStatus?.description ||
             ''
           ).toLowerCase();
           let normalized;
