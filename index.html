@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.18</title>
+<title>PropEdge v17.21</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.18</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.21</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -476,6 +476,45 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         <button onclick="checkApiStatus('nba_proxy')" class="api-status-btn api-status-btn-accent" id="apibtn-nba_proxy" style="grid-column:1/-1">🏀 NBA Proxy (stats.nba.com)</button>
       </div>
       <div id="api-status-results" style="margin-bottom:14px"></div>
+
+      <div class="section-title">Team ID Sync</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+        Stores ESPN team IDs for all sports — needed for stat-specific opponent adjustments.<br>
+        Run once per season. Stored permanently, never cleared with regular cache.
+      </div>
+      <div id="team-id-sync-status" style="font-family:var(--mono);font-size:9px;margin-bottom:8px;display:none;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+        <button onclick="syncTeamIds('NBA')" id="btn-teamid-nba" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏀 Sync NBA Team IDs<br><span style="font-size:8px;font-weight:400;opacity:.7">30 teams · ESPN IDs</span></button>
+        <button onclick="syncTeamIds('WNBA')" id="btn-teamid-wnba" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏀 Sync WNBA Team IDs<br><span style="font-size:8px;font-weight:400;opacity:.7">15 teams · ESPN IDs</span></button>
+        <button onclick="syncTeamIds('NHL')" id="btn-teamid-nhl" style="font-family:var(--mono);font-size:10px;background:rgba(77,184,255,.15);border:1px solid rgba(77,184,255,.5);border-radius:8px;padding:9px;color:var(--blue);cursor:pointer;font-weight:700">🏒 Sync NHL Team IDs<br><span style="font-size:8px;font-weight:400;opacity:.7">32 teams · ESPN + NHL API IDs</span></button>
+        <button onclick="syncTeamIds('NFL')" id="btn-teamid-nfl" style="font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.5);border-radius:8px;padding:9px;color:var(--amber);cursor:pointer;font-weight:700">🏈 Sync NFL Team IDs<br><span style="font-size:8px;font-weight:400;opacity:.7">32 teams · ESPN IDs</span></button>
+        <button onclick="syncTeamIds('MLB')" id="btn-teamid-mlb" style="font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.5);border-radius:8px;padding:9px;color:var(--amber);cursor:pointer;font-weight:700">⚾ Sync MLB Team IDs<br><span style="font-size:8px;font-weight:400;opacity:.7">30 teams · MLB Stats API IDs</span></button>
+        <button onclick="viewTeamIds()" id="btn-teamid-view" style="font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:9px;color:var(--muted);cursor:pointer">👁 View Stored Team IDs<br><span style="font-size:8px;font-weight:400;opacity:.7">Inspect what's stored</span></button>
+      </div>
+      <div id="team-id-detail" style="display:none;margin-bottom:14px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:260px;overflow-y:auto;font-family:var(--mono);font-size:9px"></div>
+
+      <div class="section-title" style="margin-top:4px">API Column Inspector</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+        Test live ESPN / NHL / MLB API responses to verify available columns for opportunity metrics.<br>
+        Results show exact column names, indices, and sample values.
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+        <button onclick="runApiColumnTest('nba_opportunity')" class="api-status-btn">🏀 NBA Opportunity Cols<br><span style="font-size:8px;opacity:.7">FGA, FTA, OREB indices</span></button>
+        <button onclick="runApiColumnTest('wnba_opportunity')" class="api-status-btn">🏀 WNBA Opportunity Cols<br><span style="font-size:8px;opacity:.7">Same structure as NBA</span></button>
+        <button onclick="runApiColumnTest('nfl_targets')" class="api-status-btn">🏈 NFL Targets Column<br><span style="font-size:8px;opacity:.7">TGT label lookup</span></button>
+        <button onclick="runApiColumnTest('nhl_toi')" class="api-status-btn">🏒 NHL TOI Column<br><span style="font-size:8px;opacity:.7">TOI per game from NHL API</span></button>
+        <button onclick="runApiColumnTest('mlb_pa')" class="api-status-btn">⚾ MLB Plate Appearances<br><span style="font-size:8px;opacity:.7">PA from MLB Stats API gamelog</span></button>
+        <button onclick="runApiColumnTest('nba_opp_stats')" class="api-status-btn">🏀 NBA Opp Team Stats<br><span style="font-size:8px;opacity:.7">Points/Reb/Ast allowed</span></button>
+        <button onclick="runApiColumnTest('nhl_advanced')" class="api-status-btn">🏒 NHL Advanced Stats<br><span style="font-size:8px;opacity:.7">Shot attempts/Corsi avail?</span></button>
+        <button onclick="runApiColumnTest('mlb_bf')" class="api-status-btn">⚾ MLB Batters Faced<br><span style="font-size:8px;opacity:.7">BF column from pitching log</span></button>
+      </div>
+      <div id="api-col-output" style="display:none;margin-bottom:14px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;overflow-x:auto">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span id="api-col-title" style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--accent)"></span>
+          <button onclick="navigator.clipboard?.writeText(document.getElementById('api-col-content').textContent)" style="font-family:var(--mono);font-size:9px;background:var(--bg2);border:1px solid rgba(0,229,160,.3);border-radius:5px;padding:2px 8px;color:var(--accent);cursor:pointer">⎘ copy</button>
+        </div>
+        <pre id="api-col-content" style="font-family:var(--mono);font-size:9px;color:var(--text);white-space:pre-wrap;word-break:break-all;margin:0;max-height:400px;overflow-y:auto"></pre>
+      </div>
 
       <div class="section-title">Player ID Sync</div>
       <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.6">
@@ -942,8 +981,8 @@ function saveState() {
       };
     }
 
-    // Strip heavy per-prop fields that are rebuilt on render anyway.
-    // reasoning[] and narrative strings can be large — keep all numeric/decision fields.
+    // Slim props: strip only completenessBreakdown (large nested object not needed for display).
+    // Keep reasoning[] and narrative — these are the card content, not rebuilt on render.
     const slimProps = cache => {
       if(!cache || typeof cache !== 'object') return cache;
       const out = {};
@@ -952,8 +991,9 @@ function saveState() {
         out[sport] = {
           ...entry,
           props: entry.props.map(p => {
-            const { reasoning, narrative, ...rest } = p;
-            return rest;
+            const slim = { ...p };
+            if(slim.dataSource) slim.dataSource = { ...slim.dataSource, completenessBreakdown: undefined };
+            return slim;
           })
         };
       }
@@ -1236,6 +1276,335 @@ async function checkApiStatus(which) {
     if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' fail'; btn.textContent = `${test.label} ✗ down`; }
     if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:rgba(255,77,106,.06);border:1px solid var(--red);border-radius:8px">✗ ${test.label} unreachable — ${e.message}</div>`;
   }
+}
+
+// ═══════════════════════════════════════════════════════
+// ESPN / SPORT-SPECIFIC TEAM ID CACHE
+// Stored at pe_team_ids_v1 — never cleared, never expires.
+// Format: { NBA: { ATL: { espnId:'1', mlbId:null, nhlId:null } }, NHL: {...}, MLB: {...} }
+// ═══════════════════════════════════════════════════════
+const TEAM_ID_STORAGE_KEY = 'pe_team_ids_v1';
+
+function loadTeamIdCache() {
+  try { return JSON.parse(localStorage.getItem(TEAM_ID_STORAGE_KEY) || 'null') || {}; } catch(e) { return {}; }
+}
+function saveTeamIdCache(data) {
+  try { localStorage.setItem(TEAM_ID_STORAGE_KEY, JSON.stringify(data)); return true; } catch(e) { return false; }
+}
+
+// Resolve ESPN team ID for a given sport + abbreviation.
+// Uses live cache first, falls back to hardcoded maps (NBA_TEAM_IDS etc.)
+function getEspnTeamId(sport, abbr) {
+  if(!abbr) return null;
+  const normAbbr = abbr => {
+    const m = {'NY':'NYK','SA':'SAS','GS':'GSW','NO':'NOP','PHO':'PHX','UTAH':'UTA'};
+    return m[(abbr||'').toUpperCase()] || (abbr||'').toUpperCase();
+  };
+  const a = normAbbr(abbr);
+  // 1. Live cache (from syncTeamIds)
+  const cache = loadTeamIdCache();
+  const cached = cache[sport]?.[a];
+  if(cached?.espnId) return cached.espnId;
+  // 2. Hardcoded fallback maps
+  const maps = {
+    NBA:  NBA_TEAM_IDS,
+    WNBA: WNBA_TEAM_IDS,
+    NHL:  NHL_ESPN_TEAM_IDS,
+    NFL:  NFL_TEAM_IDS,
+  };
+  const list = maps[sport] || [];
+  const entry = list.find(t => normAbbr(t.name || t.abbr || '') === a);
+  return entry?.id || null;
+}
+
+// Resolve sport-specific ID (NHL player ID, MLB player ID) from caches
+function getSportSpecificTeamId(sport, abbr) {
+  const cache = loadTeamIdCache();
+  const a = (abbr||'').toUpperCase();
+  if(sport === 'NHL') return cache?.NHL?.[a]?.nhlId || null;   // NHL API team abbr (same as abbr for NHL)
+  if(sport === 'MLB') return cache?.MLB?.[a]?.mlbId || null;
+  return getEspnTeamId(sport, abbr);
+}
+
+async function syncTeamIds(sport) {
+  sport = (sport||'NBA').toUpperCase();
+  const statusEl = document.getElementById('team-id-sync-status');
+  const btn = document.getElementById('btn-teamid-' + sport.toLowerCase());
+  if(statusEl) { statusEl.style.display = 'block'; statusEl.innerHTML = 'Syncing ' + sport + ' team IDs...'; }
+  if(btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+
+  const cache = loadTeamIdCache();
+  if(!cache[sport]) cache[sport] = {};
+
+  try {
+    if(sport === 'MLB') {
+      // MLB Stats API — dynamically fetches all teams with MLB IDs
+      const data = await fetchWithFallback('https://statsapi.mlb.com/api/v1/teams?sportId=1&activeStatus=Y');
+      for(const t of (data?.teams || [])) {
+        const abbr = (t.abbreviation || t.teamCode || '').toUpperCase();
+        if(abbr) cache.MLB[abbr] = { espnId: null, mlbId: String(t.id), name: t.name };
+      }
+      if(statusEl) statusEl.innerHTML = '✓ MLB: ' + Object.keys(cache.MLB).length + ' teams stored (MLB Stats API IDs)';
+
+    } else if(sport === 'NHL') {
+      // NHL: both ESPN IDs and NHL API abbrevs (NHL uses abbrev directly, not numeric IDs)
+      for(const t of NHL_ESPN_TEAM_IDS) {
+        const abbr = (t.name||'').toUpperCase();
+        if(!cache.NHL[abbr]) cache.NHL[abbr] = {};
+        cache.NHL[abbr].espnId = t.id;
+        cache.NHL[abbr].nhlAbbr = abbr; // NHL API uses abbrev directly
+      }
+      // Also store NHL API team abbreviations (used for /roster/{abbr}/current)
+      for(const abbr of NHL_TEAM_ABBREVS) {
+        if(!cache.NHL[abbr]) cache.NHL[abbr] = {};
+        cache.NHL[abbr].nhlAbbr = abbr;
+      }
+      if(statusEl) statusEl.innerHTML = '✓ NHL: ' + Object.keys(cache.NHL).length + ' teams stored (ESPN IDs + NHL API abbrevs)';
+
+    } else {
+      // ESPN-based sports: fetch team list from ESPN scoreboard to get confirmed IDs
+      const espnSport = sport === 'NBA' || sport === 'WNBA' ? 'basketball' : 'football';
+      const espnLeague = sport === 'NBA' ? 'nba' : sport === 'WNBA' ? 'wnba' : 'nfl';
+      const data = await fetchWithFallback(
+        'https://site.api.espn.com/apis/site/v2/sports/' + espnSport + '/' + espnLeague + '/teams?limit=50'
+      );
+      const teams = (data?.sports?.[0]?.leagues?.[0]?.teams || data?.teams || []);
+      let count = 0;
+      for(const entry of teams) {
+        const t = entry?.team || entry;
+        const abbr = (t?.abbreviation || '').toUpperCase();
+        const id = String(t?.id || '');
+        if(abbr && id) {
+          cache[sport][abbr] = { espnId: id, name: t?.displayName || t?.name || abbr };
+          count++;
+        }
+      }
+      cache[sport]._syncedAt = new Date().toISOString();
+      if(statusEl) statusEl.innerHTML = '✓ ' + sport + ': ' + count + ' teams stored from ESPN';
+    }
+
+    cache[sport]._syncedAt = new Date().toISOString();
+    saveTeamIdCache(cache);
+  } catch(e) {
+    if(statusEl) { statusEl.innerHTML = '✗ ' + sport + ' sync failed: ' + e.message; statusEl.style.color = 'var(--red)'; }
+  }
+  if(btn) { btn.disabled = false; btn.style.opacity = '1'; }
+}
+
+function viewTeamIds() {
+  const el = document.getElementById('team-id-detail');
+  if(!el) return;
+  if(el.style.display !== 'none') { el.style.display = 'none'; return; }
+  const cache = loadTeamIdCache();
+  if(!Object.keys(cache).length) { el.innerHTML = '<div style="color:var(--muted)">No team IDs stored — run a sync first.</div>'; el.style.display = 'block'; return; }
+  let html = '';
+  for(const [sport, teams] of Object.entries(cache)) {
+    if(typeof teams !== 'object' || !teams) continue;
+    const entries = Object.entries(teams).filter(([k]) => k !== '_syncedAt');
+    const synced = teams._syncedAt ? ' · synced ' + new Date(teams._syncedAt).toLocaleDateString() : '';
+    html += '<div style="color:var(--accent);font-weight:700;margin-bottom:4px;margin-top:8px">' + sport + ' (' + entries.length + ' teams)' + synced + '</div>';
+    html += entries.map(([abbr, d]) => {
+      const ids = [d.espnId ? 'ESPN:' + d.espnId : null, d.mlbId ? 'MLB:' + d.mlbId : null, d.nhlAbbr ? 'NHL:' + d.nhlAbbr : null].filter(Boolean).join(' ');
+      return '<span style="color:var(--blue)">' + abbr + '</span><span style="color:var(--muted)">=' + ids + '</span> ';
+    }).join('');
+  }
+  el.innerHTML = html || '<div style="color:var(--muted)">Empty.</div>';
+  el.style.display = 'block';
+}
+
+// ═══════════════════════════════════════════════════════
+// API COLUMN INSPECTOR — test live endpoints for opportunity metrics
+// ═══════════════════════════════════════════════════════
+async function runApiColumnTest(which) {
+  const out = document.getElementById('api-col-output');
+  const titleEl = document.getElementById('api-col-title');
+  const contentEl = document.getElementById('api-col-content');
+  if(!out || !titleEl || !contentEl) return;
+  out.style.display = 'block';
+  titleEl.textContent = '⟳ Fetching...';
+  contentEl.textContent = 'Running test...';
+
+  const year = new Date().getMonth()+1 >= 10 ? new Date().getFullYear()+1 : new Date().getFullYear();
+  const lines = [];
+
+  try {
+    if(which === 'nba_opportunity' || which === 'wnba_opportunity') {
+      const sport = which === 'wnba_opportunity' ? 'wnba' : 'nba';
+      const league = sport;
+      const espnSport = 'basketball';
+      // Use Jokic for NBA, A'ja Wilson for WNBA
+      const testId   = sport === 'nba' ? '3112335' : '3149391';
+      const testName = sport === 'nba' ? 'Nikola Jokic' : "A'ja Wilson";
+      titleEl.textContent = (sport === 'wnba' ? 'WNBA' : 'NBA') + ' Opportunity Columns — ' + testName;
+      const url = 'https://site.web.api.espn.com/apis/common/v3/sports/' + espnSport + '/' + league + '/athletes/' + testId + '/gamelog?limit=30&season=' + year + '&seasontype=2';
+      const data = await fetchWithFallback(url);
+      const topLabels = (data?.labels || []).map((l,i) => i + ':' + l);
+      lines.push('URL: ' + url);
+      lines.push('');
+      lines.push('ALL COLUMNS (index:label):');
+      lines.push(topLabels.join(', '));
+      lines.push('');
+      // Check specific opportunity columns
+      const checkCols = ['fga','fg3a','fta','oreb','dreb','treb','reb','usg','min','pts','ast','stl','blk','to'];
+      const lbls = (data?.labels || []).map(l => (l||'').toLowerCase());
+      for(const col of checkCols) {
+        const idx = lbls.findIndex(l => l === col || l.includes(col));
+        lines.push((idx >= 0 ? '✓' : '✗') + ' "' + col + '" → index ' + idx);
+      }
+      // Show first game values mapped
+      const st = data?.seasonTypes?.[0];
+      const cat = st?.categories?.[0];
+      const evRaw = cat?.events || {};
+      const evArr = Array.isArray(evRaw) ? evRaw : Object.values(evRaw);
+      if(evArr.length > 0) {
+        lines.push('');
+        lines.push('First game stats array: [' + (evArr[0].stats||[]).join(', ') + ']');
+        lines.push('Mapped: ' + lbls.map((l,i) => l + '=' + ((evArr[0].stats||[])[i] ?? '-')).join(', '));
+      }
+
+    } else if(which === 'nfl_targets') {
+      titleEl.textContent = 'NFL Targets Column — CeeDee Lamb (4241479)';
+      const url = 'https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/4241479/gamelog?limit=20&season=' + year + '&seasontype=2';
+      const data = await fetchWithFallback(url);
+      const lbls = (data?.labels || []).map((l,i) => i + ':' + l);
+      lines.push('ALL COLUMNS: ' + lbls.join(', '));
+      const check = ['tgt','targets','rec','yds','td','att','car'];
+      const ll = (data?.labels || []).map(l => (l||'').toLowerCase());
+      for(const c of check) {
+        const idx = ll.findIndex(l => l === c || l.includes(c));
+        lines.push((idx >= 0 ? '✓' : '✗') + ' "' + c + '" → index ' + idx);
+      }
+      const st = data?.seasonTypes?.[0]?.categories?.[0];
+      const ev = (Array.isArray(st?.events) ? st.events : Object.values(st?.events||{}))[0];
+      if(ev) lines.push('First game: [' + (ev.stats||[]).join(', ') + ']');
+
+    } else if(which === 'nhl_toi') {
+      titleEl.textContent = 'NHL TOI Column — McDavid (8478402) NHL Stats API';
+      const seasonStr = (year-1) + year;
+      const url = NHL_BASE + '/player/8478402/game-log/' + seasonStr + '/2';
+      const data = await fetchWithFallback(url);
+      lines.push('URL: ' + url);
+      const games = data?.gameLog || [];
+      lines.push('Games returned: ' + games.length);
+      if(games.length > 0) {
+        const g = games[0];
+        lines.push('First game keys: ' + Object.keys(g).join(', '));
+        lines.push('First game: ' + JSON.stringify(g).slice(0, 400));
+        lines.push('');
+        lines.push('TOI field check:');
+        lines.push('  toi: ' + (g.toi ?? 'MISSING'));
+        lines.push('  timeOnIce: ' + (g.timeOnIce ?? 'MISSING'));
+        lines.push('  pim: ' + (g.pim ?? '-'));
+        lines.push('  goals: ' + (g.goals ?? '-'));
+        lines.push('  points: ' + (g.points ?? '-'));
+        lines.push('  shots: ' + (g.shots ?? '-'));
+        lines.push('  shotAttempts: ' + (g.shotAttempts ?? 'MISSING — corsi not in standard gamelog'));
+      }
+      // Also check ESPN gamelog for TOI
+      const espnUrl = 'https://site.web.api.espn.com/apis/common/v3/sports/hockey/nhl/athletes/3114733/gamelog?limit=20&season=' + year + '&seasontype=2';
+      const espnData = await fetchWithFallback(espnUrl);
+      const espnLabels = (espnData?.labels || []).map((l,i) => i + ':' + l);
+      lines.push('');
+      lines.push('ESPN NHL gamelog labels: ' + espnLabels.join(', '));
+
+    } else if(which === 'mlb_pa') {
+      titleEl.textContent = 'MLB Plate Appearances — Aaron Judge (592450)';
+      const url = 'https://statsapi.mlb.com/api/v1/people/592450/stats?stats=gameLog&season=' + year + '&group=hitting';
+      const data = await fetchWithFallback(url);
+      lines.push('URL: ' + url);
+      const splits = data?.stats?.[0]?.splits || [];
+      lines.push('Games: ' + splits.length);
+      if(splits.length > 0) {
+        const s = splits[0].stat || {};
+        lines.push('First game stat keys: ' + Object.keys(s).join(', '));
+        lines.push('');
+        lines.push('Key opportunity fields:');
+        lines.push('  plateAppearances (PA): ' + (s.plateAppearances ?? 'MISSING'));
+        lines.push('  atBats (AB): ' + (s.atBats ?? 'MISSING'));
+        lines.push('  hits: ' + (s.hits ?? '-'));
+        lines.push('  homeRuns: ' + (s.homeRuns ?? '-'));
+        lines.push('  baseOnBalls (BB): ' + (s.baseOnBalls ?? '-'));
+        lines.push('  strikeOuts (K): ' + (s.strikeOuts ?? '-'));
+        lines.push('');
+        lines.push('First 3 games PA: ' + splits.slice(0,3).map(s => s.stat?.plateAppearances ?? '?').join(', '));
+      }
+
+    } else if(which === 'nba_opp_stats') {
+      titleEl.textContent = 'NBA Opponent Team Stats — BOS (id:2) points/reb/ast allowed';
+      const url = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/2/statistics';
+      const data = await fetchWithFallback(url);
+      lines.push('URL: ' + url);
+      lines.push('Root keys: ' + Object.keys(data||{}).join(', '));
+      const cats = data?.results?.stats?.categories || data?.stats?.splits?.categories || data?.statistics || [];
+      lines.push('Categories/stats arrays found: ' + cats.length);
+      // Walk all stats and show ones that contain allowed/defensive
+      const allStats = [];
+      const walk = (arr) => {
+        for(const item of arr) {
+          if(item?.name) allStats.push({ name: item.name, displayName: item.displayName, value: item.value || item.displayValue });
+          if(item?.stats) walk(item.stats);
+          if(item?.categories) walk(item.categories);
+          if(item?.athletes) for(const a of item.athletes) if(a?.stats) walk(a.stats.map(v => ({name:'stat',value:v})));
+        }
+      };
+      walk(cats);
+      lines.push('All stat names found (' + allStats.length + '):');
+      for(const s of allStats.slice(0, 40)) {
+        lines.push('  ' + s.name + (s.displayName && s.displayName !== s.name ? ' / ' + s.displayName : '') + ': ' + s.value);
+      }
+
+    } else if(which === 'nhl_advanced') {
+      titleEl.textContent = 'NHL Advanced Stats — shot attempts / Corsi availability';
+      // Try NHL Stats API advanced endpoint
+      const url1 = 'https://api.nhle.com/stats/rest/en/skater/realtime?isAggregate=false&isGame=false&sort=%5B%7B%22property%22:%22satTotal%22,%22direction%22:%22DESC%22%7D%5D&start=0&limit=5&cayenneExp=seasonId=20252026%20and%20gameTypeId=2';
+      lines.push('Testing NHL Stats REST API (api.nhle.com) for Corsi/shot attempts...');
+      lines.push('URL: ' + url1);
+      try {
+        const data = await fetchWithFallback(url1);
+        lines.push('Status: got response');
+        lines.push('Root keys: ' + Object.keys(data||{}).join(', '));
+        const d = data?.data || [];
+        lines.push('Records: ' + d.length);
+        if(d.length > 0) {
+          lines.push('First record keys: ' + Object.keys(d[0]).join(', '));
+          lines.push('satTotal (shot attempts for): ' + (d[0].satTotal ?? 'MISSING'));
+          lines.push('satAgainst: ' + (d[0].satAgainst ?? 'MISSING'));
+          lines.push('corsiForPct: ' + (d[0].corsiForPct ?? 'MISSING'));
+        }
+      } catch(e) { lines.push('✗ Failed: ' + e.message); }
+      // Also check player-level game log for TOI
+      lines.push('');
+      lines.push('NHL API gamelog TOI check already done in "NHL TOI Column" test.');
+
+    } else if(which === 'mlb_bf') {
+      titleEl.textContent = 'MLB Batters Faced — Gerrit Cole (543243) pitcher gamelog';
+      const url = 'https://statsapi.mlb.com/api/v1/people/543243/stats?stats=gameLog&season=' + year + '&group=pitching';
+      const data = await fetchWithFallback(url);
+      lines.push('URL: ' + url);
+      const splits = data?.stats?.[0]?.splits || [];
+      lines.push('Games: ' + splits.length);
+      if(splits.length > 0) {
+        const s = splits[0].stat || {};
+        lines.push('First game stat keys: ' + Object.keys(s).join(', '));
+        lines.push('');
+        lines.push('Key pitcher opportunity fields:');
+        lines.push('  battersFaced (BF): ' + (s.battersFaced ?? 'MISSING'));
+        lines.push('  strikeOuts (K): ' + (s.strikeOuts ?? '-'));
+        lines.push('  inningsPitched (IP): ' + (s.inningsPitched ?? '-'));
+        lines.push('  baseOnBalls (BB): ' + (s.baseOnBalls ?? '-'));
+        lines.push('  hits: ' + (s.hits ?? '-'));
+        lines.push('  homeRuns: ' + (s.homeRuns ?? '-'));
+        lines.push('');
+        lines.push('First 3 starts BF: ' + splits.slice(0,3).map(s => s.stat?.battersFaced ?? '?').join(', '));
+      }
+    }
+  } catch(e) {
+    lines.push('ERROR: ' + e.message);
+    lines.push(e.stack || '');
+  }
+
+  titleEl.textContent = titleEl.textContent.replace('⟳ Fetching...', '').trim() || which;
+  contentEl.textContent = lines.join('\n');
 }
 
 async function inspectRawApi(which) {
@@ -3116,6 +3485,65 @@ async function fetchPlayerPropsOdds(sportKey, eventId) {
 // No Math.random(). No simulation. Same inputs → same output.
 // ═══════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════
+// OPPORTUNITY LAYER — augments EWMA stat projection with volume-based estimate
+// For each sport, tracks opportunity metrics (FGA, targets, etc.) alongside outputs.
+// Final projection = (EWMA stat * 0.6) + (opportunity-derived estimate * 0.4)
+// Only blends when opportunity data is actually available — degrades gracefully.
+// ═══════════════════════════════════════════════════════
+
+// NBA/WNBA opportunity column indices in ESPN game log (confirmed structure):
+// 0:GP, 1:GS, 2:MIN, 3:FG3M, 4:STL, 5:BLK, 6:REB, 7:TO, 8:AST, 9:FGM, 10:FGA, 11:FTA, 12:FG%, 13:PTS
+// FG3A is typically at index 14 or 15 depending on ESPN response version
+const NBA_OPPORTUNITY_COL = { FGA: 10, FTA: 11, FGM: 9, REB: 6, AST: 8, FG3M: 3 };
+// NFL opportunity column confirmed: RushAtt=0, RecYds=1, PassAtt=2; Targets label-based
+const NFL_OPPORTUNITY_COL = { RushAtt: 0, Receptions: 0, PassAtt: 2 };
+
+// Extract opportunity series from raw game objects (same format as allVals)
+// rawGames: array of { value, stats[], opponent, date, minutes } from _extractESPNRawGamesSingle
+function extractOpportunityFromGames(rawGames, oppMetric, sportOpportunityCols) {
+  if(!rawGames || !rawGames.length) return [];
+  const colIdx = sportOpportunityCols[oppMetric];
+  if(colIdx === undefined || colIdx < 0) return [];
+  return rawGames
+    .map(g => {
+      const v = (g.stats||[])[colIdx];
+      return v !== undefined && v !== null && !isNaN(parseFloat(v)) ? parseFloat(v) : null;
+    })
+    .filter(v => v !== null && v >= 0);
+}
+
+// Compute EWMA over an array (matches existing EWMA in the codebase)
+function ewmaOpportunity(vals, lambda) {
+  if(!vals || !vals.length) return 0;
+  const L = lambda || 0.88;
+  let w = 1, sum = 0, wSum = 0;
+  for(let i = vals.length - 1; i >= 0; i--) {
+    sum  += w * vals[i];
+    wSum += w;
+    w    *= L;
+  }
+  return wSum > 0 ? sum / wSum : 0;
+}
+
+// Blend EWMA projection with opportunity-derived projection
+// statProj: existing EWMA output
+// oppSeries: array of opportunity values (e.g. FGA per game)
+// efficiency: historical stat/opportunity rate (e.g. points per FGA)
+// Returns blended projection or statProj if opportunity unavailable
+function blendWithOpportunity(statProj, oppSeries, statSeries, blendWeight) {
+  if(!oppSeries || oppSeries.length < 5 || !statSeries || statSeries.length < 5) return statProj;
+  const bw = blendWeight || 0.4;
+  const ewmaOpp  = ewmaOpportunity(oppSeries, 0.88);
+  const ewmaStat = ewmaOpportunity(statSeries, 0.88);
+  if(ewmaOpp <= 0) return statProj;
+  const effRate  = ewmaStat / ewmaOpp; // e.g. points per FGA attempt
+  const oppDerived = ewmaOpp * effRate;
+  // Sanity bounds — opportunity-derived can't be more than 40% away from stat projection
+  const oppCapped = Math.max(statProj * 0.6, Math.min(statProj * 1.4, oppDerived));
+  return parseFloat(((statProj * (1 - bw)) + (oppCapped * bw)).toFixed(2));
+}
+
 // Core projection: weighted average of real game log values
 // L5 gets 60% weight, L6-L10 gets 30%, rest of season 10%
 // ══════════════════════════════════════════════════════════════
@@ -4439,11 +4867,18 @@ async function runFetch(sportsToFetch) {
         // For MLB roster players: use mlbId as the primary ID, espnId may be null
         const effectiveId = espnId || mlbIdForGate || null;
         // Merge mlbId into playerMeta so buildPlayerProp can use it for MLB API fetch
+        // Resolve opponent ESPN team ID for stat-specific opponent adjustments.
+        // Uses live-synced team ID cache first, falls back to hardcoded maps.
+        const _oppAbbr = opp || player.awayTeam || '';
+        const _oppTeamId = getEspnTeamId(player.sport, _oppAbbr) || null;
+        const _myTeamId  = getEspnTeamId(player.sport, player.homeTeam || dbEntry?.team || '') || null;
         const playerMetaMerged = { ...(dbEntry||{}), ...(player.meta||{}),
           mlbId: resolvedMlbId || null,
           nbaId: dbEntry?.nbaId || null,
-          overOdds:  player.overOdds  ?? -110,
-          underOdds: player.underOdds ?? -110 };
+          oppTeamId:  _oppTeamId,
+          teamId:     _myTeamId,
+          overOdds:   player.overOdds  ?? -110,
+          underOdds:  player.underOdds ?? -110 };
         let prop = await buildPlayerProp(
           effectiveId, player.name, player.sport, player.espnSport, player.espnLeague,
           dbEntry?.team||player.homeTeam, opp, player.dateTag || 'today',
@@ -6205,31 +6640,79 @@ async function isBackToBack(espnSport, espnLeague, teamId, gameDate) {
 
 // ── NBA Opponent defense (points allowed) ──
 // ESPN team stats — fetched once per opposing team per session
-async function fetchNBAOppDefense(oppTeamId) {
+// ── Stat-specific opponent adjustments (replaces generic defense) ──
+// Returns { pts, reb, ast, fg3, stl, blk } allowed per game by the opponent team.
+// Each stat maps to the specific thing the opponent gives up — not a generic rating.
+async function fetchNBAOppStatProfile(oppTeamId) {
   if(!oppTeamId) return null;
-  const key = ctxKey('nba_def', oppTeamId);
+  const key = ctxKey('nba_opp_profile', oppTeamId);
   if(CONTEXT_CACHE[key] !== undefined) return CONTEXT_CACHE[key];
   try {
     const data = await fetchWithFallback(
       `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/${oppTeamId}/statistics`
     );
-    // ESPN team stats: find points allowed per game
-    const cats = data?.results?.stats?.categories || data?.stats?.splits?.categories || [];
-    let ptAllowed = null;
-    for(const cat of cats) {
-      const stats = cat?.stats || cat?.athletes?.[0]?.stats || [];
-      for(const s of stats) {
-        if((s?.name||'').toLowerCase().includes('pointsallowed') ||
-           (s?.displayName||'').toLowerCase().includes('points allowed')) {
-          ptAllowed = parseFloat(s.value || s.displayValue);
-          break;
+    const result = { pts: null, reb: null, ast: null, fg3: null, stl: null, blk: null };
+    // Walk all stat nodes and extract opponent-allowed averages
+    const walkStats = (arr) => {
+      for(const item of (arr||[])) {
+        const n = (item?.name||'').toLowerCase();
+        const dn = (item?.displayName||'').toLowerCase();
+        const v = parseFloat(item?.value || item?.displayValue || 0);
+        if(!v || isNaN(v)) { if(item?.stats) walkStats(item.stats); if(item?.categories) walkStats(item.categories); continue; }
+        if(n.includes('pointsallowed') || dn.includes('points allowed') || n === 'opppoints')   result.pts = v;
+        else if(n.includes('reboundsallowed') || dn.includes('rebounds allowed'))               result.reb = v;
+        else if(n.includes('assistsallowed')  || dn.includes('assists allowed'))                result.ast = v;
+        else if(n.includes('threesallowed')   || dn.includes('3-pointers allowed') || n.includes('fg3allowed')) result.fg3 = v;
+        if(item?.stats)      walkStats(item.stats);
+        if(item?.categories) walkStats(item.categories);
+      }
+    };
+    const cats = data?.results?.stats?.categories || data?.statistics || [];
+    walkStats(cats);
+    // Fallback: if we got nothing useful, try a simpler path
+    if(!result.pts) {
+      for(const cat of cats) {
+        for(const s of (cat?.stats||[])) {
+          const n = (s?.name||'').toLowerCase();
+          const v = parseFloat(s?.value || s?.displayValue || 0);
+          if(n.includes('points') && n.includes('allow') && v > 80) result.pts = v;
+          if(n.includes('rebound') && n.includes('allow') && v > 30) result.reb = v;
+          if(n.includes('assist')  && n.includes('allow') && v > 15) result.ast = v;
         }
       }
-      if(ptAllowed !== null) break;
     }
-    CONTEXT_CACHE[key] = ptAllowed;
-    return ptAllowed;
+    CONTEXT_CACHE[key] = result;
+    return result;
   } catch(e) { CONTEXT_CACHE[key] = null; return null; }
+}
+
+// Backward-compatible shim — existing code calls fetchNBAOppDefense expecting pts allowed
+async function fetchNBAOppDefense(oppTeamId) {
+  const profile = await fetchNBAOppStatProfile(oppTeamId);
+  return profile?.pts ?? null;
+}
+
+// NBA league averages (2025-26 season approximations) — used for opponent multiplier
+const NBA_LEAGUE_AVG = { pts: 114.5, reb: 43.8, ast: 25.4, fg3: 12.9, stl: 7.3, blk: 4.7 };
+
+// Get stat-specific opponent multiplier for a given prop
+// Returns a multiplier: 1.05 means opponent allows 5% more than league average
+function getNBAOppMultiplier(oppProfile, statLabel) {
+  if(!oppProfile) return 1.0;
+  const propMap = {
+    'Points': { field: 'pts', leagueAvg: NBA_LEAGUE_AVG.pts },
+    'Rebounds': { field: 'reb', leagueAvg: NBA_LEAGUE_AVG.reb },
+    'Assists': { field: 'ast', leagueAvg: NBA_LEAGUE_AVG.ast },
+    'Threes Made': { field: 'fg3', leagueAvg: NBA_LEAGUE_AVG.fg3 },
+    'Steals': { field: 'stl', leagueAvg: NBA_LEAGUE_AVG.stl },
+    'Blocks': { field: 'blk', leagueAvg: NBA_LEAGUE_AVG.blk },
+  };
+  const cfg = propMap[statLabel];
+  if(!cfg) return 1.0;
+  const oppVal = oppProfile[cfg.field];
+  if(!oppVal || oppVal <= 0) return 1.0;
+  // Cap multiplier at ±15% to prevent outlier blowup
+  return Math.max(0.85, Math.min(1.15, oppVal / cfg.leagueAvg));
 }
 
 // ── NBA Pace proxy (team total scores from recent games) ──
@@ -6372,15 +6855,23 @@ async function applyContextEngine(sport, statLabel, contextData, playerMeta, tea
   // Per spec: ALL adjustments affect projected_minutes or per_minute_rate
   // NO direct probability adjustments for NBA
   if(sport === 'NBA' || sport === 'WNBA') {
-    // 1. Opponent defense → affects per_minute_rate (efficiency)
-    const oppDef = contextData.nbaOppDef;
-    if(oppDef !== null && oppDef !== undefined) {
-      // League avg ~113 pts allowed. Affects scoring efficiency → per-min rate
+    // 1. Stat-specific opponent adjustment (replaces generic pts-allowed defense)
+    // Each prop maps to the specific stat that opponent allows — not a generic rating.
+    const oppProfile = contextData.nbaOppProfile;
+    const oppMult = getNBAOppMultiplier(oppProfile, statLabel);
+    if(oppMult !== 1.0 && Math.abs(oppMult - 1.0) > 0.005) {
+      contextData._rateAdj = (contextData._rateAdj || 0) + (oppMult - 1.0);
+      const pct = ((oppMult - 1) * 100);
+      notes.push(`Opp ${statLabel} allowed: ${pct >= 0 ? '+' : ''}${pct.toFixed(1)}% vs league avg → rate ×${oppMult.toFixed(3)}`);
+      confBoost += 0.3;
+    } else if(!oppProfile && contextData.nbaOppDef !== null && contextData.nbaOppDef !== undefined) {
+      // Fallback to generic pts-allowed when no stat-specific profile available
+      const oppDef = contextData.nbaOppDef;
       const defRateAdj = oppDef > 116 ? 0.04 : oppDef > 113 ? 0.02 : oppDef < 108 ? -0.04 : oppDef < 111 ? -0.02 : 0;
       if(defRateAdj !== 0) {
         contextData._rateAdj = (contextData._rateAdj || 0) + defRateAdj;
-        notes.push(`Opp defense: ${oppDef.toFixed(1)} pts/g → rate ×${(1+defRateAdj).toFixed(2)} (ESPN team stats)`);
-        confBoost += 0.3;
+        notes.push(`Opp defense (generic): ${oppDef.toFixed(1)} pts/g → rate ×${(1+defRateAdj).toFixed(2)} (ESPN)`);
+        confBoost += 0.2;
       }
     }
 
@@ -6401,28 +6892,28 @@ async function applyContextEngine(sport, statLabel, contextData, playerMeta, tea
       notes.push(`Back-to-back → -4% minutes (ESPN schedule)`);
     }
 
-    // 4. Injury: key teammate out → dynamic usage boost based on player role + absence severity
+    // 4. Role-based injury redistribution — structured, not flat boost
     if(contextData.keyTeammateOut) {
-      // Role-based scaling: stars absorb more usage when a teammate is out
-      const usage = playerMeta.usage || 0.22; // default to average usage
+      const usage = playerMeta.usage || 0.22;
       const isstar = usage >= 0.28;
       const isRole = usage <= 0.18;
-      // Absence severity: stored in contextData.teammateAbsenceSeverity ('major'|'minor'|'moderate')
       const severity = contextData.teammateAbsenceSeverity || 'moderate';
-      let usageBoost;
-      if(severity === 'major') {
-        // Starting ball-handler / high-usage player out
-        usageBoost = isstar ? 0.10 : isRole ? 0.03 : 0.07;
-      } else if(severity === 'minor') {
-        // Bench/role player out — minimal ripple effect
-        usageBoost = isstar ? 0.03 : isRole ? 0.01 : 0.02;
-      } else {
-        // Moderate: starter but not ball-dominant
-        usageBoost = isstar ? 0.07 : isRole ? 0.02 : 0.05;
-      }
-      contextData._rateAdj = (contextData._rateAdj || 0) + usageBoost;
+      const outTier = contextData.outPlayerTier || 2; // 1=star,2=rotation,3=bench
+
+      // Vacated usage by tier of missing player
+      const vacated = outTier === 1 ? 0.28 : outTier === 2 ? 0.18 : 0.09;
+      // This player absorbs based on their own role (stars get more)
+      const absorb = isstar ? 0.50 : isRole ? 0.15 : 0.30;
+      // Stat-specific: Points/3PT benefit most, Rebounds/Assists less so
+      const statFactor = {
+        'Points':1.0,'Threes Made':1.0,'Assists':0.7,
+        'Rebounds':0.5,'Steals':0.3,'Blocks':0.2
+      }[statLabel] || 0.5;
+
+      const boost = Math.min(0.18, vacated * absorb * statFactor); // cap 18%
+      contextData._rateAdj = (contextData._rateAdj || 0) + boost;
       confBoost += 0.5;
-      notes.push(`${contextData.keyTeammateOut} out (${severity}) → rate +${(usageBoost*100).toFixed(0)}% usage (role: ${isstar?'star':isRole?'role':'starter'}, usage=${(usage*100).toFixed(0)}%)`);
+      notes.push(`${contextData.keyTeammateOut} out (T${outTier}, ~${(vacated*100).toFixed(0)}% usage vacated) → ${statLabel} +${(boost*100).toFixed(1)}% rate (${isstar?'star':isRole?'role':'starter'} absorbs ${(absorb*100).toFixed(0)}%)`);
     }
 
     // 5. 3PT% for threes prop → affects per_minute_rate only
@@ -6634,6 +7125,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     let allVals = [];
     let vsOppVals = [];
     let contextData = {};
+    let gameLogDataRef = null; // stored for opportunity metric extraction
     const season = new Date().getFullYear();
 
     // ── MLB: Try BOTH official MLB API and ESPN — use whichever returns more data ──
@@ -6978,14 +7470,16 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         try {
           const oppTeamId = playerMeta?.oppTeamId || null;
           const teamId = playerMeta?.teamId || null;
-          const [oppDef, pace, b2b] = await Promise.all([
+          const [oppDef, oppProfile, pace, b2b] = await Promise.all([
             fetchNBAOppDefense(oppTeamId),
+            fetchNBAOppStatProfile(oppTeamId),
             fetchNBAPace(oppTeamId),
             teamId ? isBackToBack('basketball', 'nba', teamId, date) : Promise.resolve(false),
           ]);
-          contextData.nbaOppDef = oppDef;
-          contextData.nbaPace   = pace;
-          contextData.isB2B     = b2b;
+          contextData.nbaOppDef     = oppDef;
+          contextData.nbaOppProfile = oppProfile; // stat-specific allowed averages
+          contextData.nbaPace       = pace;
+          contextData.isB2B         = b2b;
         } catch(e) {}
 
         // ── Teammate injury check ──
@@ -7032,6 +7526,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
           if(bestTeammateOut) {
             contextData.keyTeammateOut = bestTeammateOut;
             contextData.teammateAbsenceSeverity = bestSeverity;
+            contextData.outPlayerTier = bestTier; // 1=star,2=rotation,3=bench — drives redistribution amount
           }
         } catch(e) {}
       }
@@ -7041,6 +7536,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     if(sport === 'NFL') {
       try {
         const gameLogData = await fetchESPNGameLog(espnSport, espnLeague, playerId);
+        gameLogDataRef = gameLogData; // store for opportunity layer
         const parsed = parseESPNGameLog(gameLogData, statLabel, opp);
         allVals = parsed.allVals; vsOppVals = parsed.vsOppVals;
         contextData.snapShareNote = 'UNAVAILABLE IN FREE DATA LAYER';
@@ -7390,6 +7886,32 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     }
 
     // StdDev: variance-based from per-minute data + minutes uncertainty component
+    // ── Opportunity layer: blend projection with opportunity-derived estimate (NBA/WNBA) ──
+    // FGA series → Points, REB series → Rebounds, AST series → Assists
+    // Uses raw game stat arrays already fetched — no extra API calls needed.
+    // 60% existing projection + 40% opportunity-derived keeps model stable.
+    if((sport === 'NBA' || sport === 'WNBA') && allVals.length >= 5) {
+      // rawGameObjects: full stats arrays per game from ESPN game log
+      const _rawGames = typeof extractESPNRawGames === 'function'
+        ? extractESPNRawGames(gameLogDataRef, statLabel, null)
+        : [];
+      if(_rawGames.length >= 5) {
+        const _oppColMap = { 'Points':'FGA', 'Rebounds':'REB', 'Assists':'AST', 'Threes Made':'FG3M' };
+        const _oppMetric = _oppColMap[statLabel];
+        if(_oppMetric) {
+          const _oppSeries = extractOpportunityFromGames(_rawGames, _oppMetric, NBA_OPPORTUNITY_COL);
+          if(_oppSeries.length >= 5) {
+            const _blended = blendWithOpportunity(finalProjection, _oppSeries, allVals, 0.4);
+            if(Math.abs(_blended - finalProjection) > 0.15) {
+              traceLog('projectionEngine', `${playerName}: opportunity blend (${_oppMetric}) EWMA=${finalProjection.toFixed(2)} → blended=${_blended.toFixed(2)}`, 'ok');
+              notes.push(`Opportunity blend (${_oppMetric} series, ${_oppSeries.length} games): ${finalProjection.toFixed(2)} → ${_blended.toFixed(2)}`);
+              finalProjection = _blended;
+            }
+          }
+        }
+      }
+    }
+
     let stdDev = sharpResult.stdDev;
     if(perMinData && projectedMinutes) {
       const profile = getDistributionProfile(statLabel, sport);
