@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.28</title>
+<title>PropEdge v17.29</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.28</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.29</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -507,6 +507,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         <button onclick="runApiColumnTest('nba_opp_stats')" class="api-status-btn">🏀 NBA Opp Team Stats<br><span style="font-size:8px;opacity:.7">Points/Reb/Ast allowed</span></button>
         <button onclick="runApiColumnTest('nhl_advanced')" class="api-status-btn">🏒 NHL Advanced Stats<br><span style="font-size:8px;opacity:.7">Shot attempts/Corsi avail?</span></button>
         <button onclick="runApiColumnTest('mlb_bf')" class="api-status-btn">⚾ MLB Batters Faced<br><span style="font-size:8px;opacity:.7">BF column from pitching log</span></button>
+        <button onclick="runApiColumnTest('nba_injuries')" class="api-status-btn">🏥 NBA Injuries Raw<br><span style="font-size:8px;opacity:.7">ESPN injury report structure</span></button>
       </div>
       <div id="api-col-output" style="display:none;margin-bottom:14px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;overflow-x:auto">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -1469,40 +1470,30 @@ async function runApiColumnTest(which) {
   try {
     if(which === 'nba_opportunity' || which === 'wnba_opportunity') {
       const sport = which === 'wnba_opportunity' ? 'wnba' : 'nba';
-      const league = sport;
-      const espnSport = 'basketball';
-      // Use Jokic for NBA, A'ja Wilson for WNBA
       const testId   = sport === 'nba' ? '3112335' : '3149391';
       const testName = sport === 'nba' ? 'Nikola Jokic' : "A'ja Wilson";
       titleEl.textContent = (sport === 'wnba' ? 'WNBA' : 'NBA') + ' Opportunity Columns — ' + testName;
-      const url = 'https://site.web.api.espn.com/apis/common/v3/sports/' + espnSport + '/' + league + '/athletes/' + testId + '/gamelog?limit=30&season=' + year + '&seasontype=2';
+      const url = 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/' + sport + '/athletes/' + testId + '/gamelog?limit=30&season=' + year + '&seasontype=2';
       const data = await fetchWithFallback(url);
       const topLabels = (data?.labels || []).map((l,i) => i + ':' + l);
       lines.push('URL: ' + url);
-      lines.push('');
-      lines.push('ALL COLUMNS (index:label):');
-      lines.push(topLabels.join(', '));
-      lines.push('');
-      // Check specific opportunity columns
+      lines.push('ALL COLUMNS: ' + topLabels.join(', '));
       const checkCols = ['fga','fg3a','fta','oreb','dreb','treb','reb','usg','min','pts','ast','stl','blk','to'];
       const lbls = (data?.labels || []).map(l => (l||'').toLowerCase());
+      lines.push('');
       for(const col of checkCols) {
         const idx = lbls.findIndex(l => l === col || l.includes(col));
         lines.push((idx >= 0 ? '✓' : '✗') + ' "' + col + '" → index ' + idx);
       }
-      // Show first game values mapped
-      const st = data?.seasonTypes?.[0];
-      const cat = st?.categories?.[0];
-      const evRaw = cat?.events || {};
-      const evArr = Array.isArray(evRaw) ? evRaw : Object.values(evRaw);
+      const st = data?.seasonTypes?.[0]?.categories?.[0];
+      const evArr = Object.values(st?.events || {});
       if(evArr.length > 0) {
         lines.push('');
-        lines.push('First game stats array: [' + (evArr[0].stats||[]).join(', ') + ']');
-        lines.push('Mapped: ' + lbls.map((l,i) => l + '=' + ((evArr[0].stats||[])[i] ?? '-')).join(', '));
+        lines.push('First game: [' + (evArr[0].stats||[]).join(', ') + ']');
       }
 
     } else if(which === 'nfl_targets') {
-      titleEl.textContent = 'NFL Targets Column — CeeDee Lamb (4241479)';
+      titleEl.textContent = 'NFL Targets Column — CeeDee Lamb';
       const url = 'https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/4241479/gamelog?limit=20&season=' + year + '&seasontype=2';
       const data = await fetchWithFallback(url);
       const lbls = (data?.labels || []).map((l,i) => i + ':' + l);
@@ -1513,41 +1504,28 @@ async function runApiColumnTest(which) {
         const idx = ll.findIndex(l => l === c || l.includes(c));
         lines.push((idx >= 0 ? '✓' : '✗') + ' "' + c + '" → index ' + idx);
       }
-      const st = data?.seasonTypes?.[0]?.categories?.[0];
-      const ev = (Array.isArray(st?.events) ? st.events : Object.values(st?.events||{}))[0];
-      if(ev) lines.push('First game: [' + (ev.stats||[]).join(', ') + ']');
 
     } else if(which === 'nhl_toi') {
-      titleEl.textContent = 'NHL TOI Column — McDavid (8478402) NHL Stats API';
-      const seasonStr = (year-1) + year;
+      titleEl.textContent = 'NHL TOI Column — McDavid';
+      const seasonStr = (year-1) + '' + year;
       const url = NHL_BASE + '/player/8478402/game-log/' + seasonStr + '/2';
-      const data = await fetchWithFallback(url);
       lines.push('URL: ' + url);
-      const games = data?.gameLog || [];
-      lines.push('Games returned: ' + games.length);
-      if(games.length > 0) {
-        const g = games[0];
-        lines.push('First game keys: ' + Object.keys(g).join(', '));
-        lines.push('First game: ' + JSON.stringify(g).slice(0, 400));
-        lines.push('');
-        lines.push('TOI field check:');
-        lines.push('  toi: ' + (g.toi ?? 'MISSING'));
-        lines.push('  timeOnIce: ' + (g.timeOnIce ?? 'MISSING'));
-        lines.push('  pim: ' + (g.pim ?? '-'));
-        lines.push('  goals: ' + (g.goals ?? '-'));
-        lines.push('  points: ' + (g.points ?? '-'));
-        lines.push('  shots: ' + (g.shots ?? '-'));
-        lines.push('  shotAttempts: ' + (g.shotAttempts ?? 'MISSING — corsi not in standard gamelog'));
-      }
-      // Also check ESPN gamelog for TOI
-      const espnUrl = 'https://site.web.api.espn.com/apis/common/v3/sports/hockey/nhl/athletes/3114733/gamelog?limit=20&season=' + year + '&seasontype=2';
-      const espnData = await fetchWithFallback(espnUrl);
-      const espnLabels = (espnData?.labels || []).map((l,i) => i + ':' + l);
-      lines.push('');
-      lines.push('ESPN NHL gamelog labels: ' + espnLabels.join(', '));
+      try {
+        const data = await fetchWithFallback(url);
+        const games = data?.gameLog || [];
+        lines.push('Games: ' + games.length);
+        if(games.length > 0) {
+          const g = games[0];
+          lines.push('First game keys: ' + Object.keys(g).join(', '));
+          lines.push('toi: ' + (g.toi ?? 'MISSING'));
+          lines.push('goals: ' + (g.goals ?? '-'));
+          lines.push('shots: ' + (g.shots ?? '-'));
+          lines.push('points: ' + (g.points ?? '-'));
+        }
+      } catch(e2) { lines.push('Failed: ' + e2.message); }
 
     } else if(which === 'mlb_pa') {
-      titleEl.textContent = 'MLB Plate Appearances — Aaron Judge (592450)';
+      titleEl.textContent = 'MLB Plate Appearances — Aaron Judge';
       const url = 'https://statsapi.mlb.com/api/v1/people/592450/stats?stats=gameLog&season=' + year + '&group=hitting';
       const data = await fetchWithFallback(url);
       lines.push('URL: ' + url);
@@ -1555,68 +1533,38 @@ async function runApiColumnTest(which) {
       lines.push('Games: ' + splits.length);
       if(splits.length > 0) {
         const s = splits[0].stat || {};
-        lines.push('First game stat keys: ' + Object.keys(s).join(', '));
-        lines.push('');
-        lines.push('Key opportunity fields:');
-        lines.push('  plateAppearances (PA): ' + (s.plateAppearances ?? 'MISSING'));
-        lines.push('  atBats (AB): ' + (s.atBats ?? 'MISSING'));
-        lines.push('  hits: ' + (s.hits ?? '-'));
-        lines.push('  homeRuns: ' + (s.homeRuns ?? '-'));
-        lines.push('  baseOnBalls (BB): ' + (s.baseOnBalls ?? '-'));
-        lines.push('  strikeOuts (K): ' + (s.strikeOuts ?? '-'));
-        lines.push('');
-        lines.push('First 3 games PA: ' + splits.slice(0,3).map(s => s.stat?.plateAppearances ?? '?').join(', '));
+        lines.push('plateAppearances: ' + (s.plateAppearances ?? 'MISSING'));
+        lines.push('atBats: ' + (s.atBats ?? '-'));
+        lines.push('hits: ' + (s.hits ?? '-'));
+        lines.push('First 3 PA: ' + splits.slice(0,3).map(g => g.stat?.plateAppearances ?? '?').join(', '));
       }
 
     } else if(which === 'nba_opp_stats') {
-      titleEl.textContent = 'NBA Opponent Team Stats — BOS (id:2) points/reb/ast allowed';
+      titleEl.textContent = 'NBA Opp Team Stats — BOS (id:2)';
       const url = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/2/statistics';
       const data = await fetchWithFallback(url);
-      lines.push('URL: ' + url);
       lines.push('Root keys: ' + Object.keys(data||{}).join(', '));
-      const cats = data?.results?.stats?.categories || data?.stats?.splits?.categories || data?.statistics || [];
-      lines.push('Categories/stats arrays found: ' + cats.length);
-      // Walk all stats and show ones that contain allowed/defensive
+      const cats = data?.results?.stats?.categories || data?.statistics || [];
+      lines.push('Categories: ' + cats.length);
       const allStats = [];
-      const walk = (arr) => {
-        for(const item of arr) {
-          if(item?.name) allStats.push({ name: item.name, displayName: item.displayName, value: item.value || item.displayValue });
-          if(item?.stats) walk(item.stats);
-          if(item?.categories) walk(item.categories);
-          if(item?.athletes) for(const a of item.athletes) if(a?.stats) walk(a.stats.map(v => ({name:'stat',value:v})));
-        }
-      };
+      const walk = arr => { for(const item of (arr||[])) { if(item?.name) allStats.push(item); if(item?.stats) walk(item.stats); if(item?.categories) walk(item.categories); } };
       walk(cats);
-      lines.push('All stat names found (' + allStats.length + '):');
-      for(const s of allStats.slice(0, 40)) {
-        lines.push('  ' + s.name + (s.displayName && s.displayName !== s.name ? ' / ' + s.displayName : '') + ': ' + s.value);
-      }
+      lines.push('Stats (' + allStats.length + '):');
+      for(const s of allStats.slice(0,40)) lines.push('  ' + s.name + ': ' + (s.value || s.displayValue));
 
     } else if(which === 'nhl_advanced') {
-      titleEl.textContent = 'NHL Advanced Stats — shot attempts / Corsi availability';
-      // Try NHL Stats API advanced endpoint
-      const url1 = 'https://api.nhle.com/stats/rest/en/skater/realtime?isAggregate=false&isGame=false&sort=%5B%7B%22property%22:%22satTotal%22,%22direction%22:%22DESC%22%7D%5D&start=0&limit=5&cayenneExp=seasonId=20252026%20and%20gameTypeId=2';
-      lines.push('Testing NHL Stats REST API (api.nhle.com) for Corsi/shot attempts...');
-      lines.push('URL: ' + url1);
+      titleEl.textContent = 'NHL Advanced Stats — Corsi availability';
+      const url = 'https://api.nhle.com/stats/rest/en/skater/realtime?isAggregate=false&isGame=false&sort=%5B%7B%22property%22:%22satTotal%22,%22direction%22:%22DESC%22%7D%5D&start=0&limit=5&cayenneExp=seasonId=20252026%20and%20gameTypeId=2';
+      lines.push('URL: ' + url);
       try {
-        const data = await fetchWithFallback(url1);
-        lines.push('Status: got response');
-        lines.push('Root keys: ' + Object.keys(data||{}).join(', '));
+        const data = await fetchWithFallback(url);
         const d = data?.data || [];
         lines.push('Records: ' + d.length);
-        if(d.length > 0) {
-          lines.push('First record keys: ' + Object.keys(d[0]).join(', '));
-          lines.push('satTotal (shot attempts for): ' + (d[0].satTotal ?? 'MISSING'));
-          lines.push('satAgainst: ' + (d[0].satAgainst ?? 'MISSING'));
-          lines.push('corsiForPct: ' + (d[0].corsiForPct ?? 'MISSING'));
-        }
-      } catch(e) { lines.push('✗ Failed: ' + e.message); }
-      // Also check player-level game log for TOI
-      lines.push('');
-      lines.push('NHL API gamelog TOI check already done in "NHL TOI Column" test.');
+        if(d.length > 0) { lines.push('Keys: ' + Object.keys(d[0]).join(', ')); lines.push('satTotal: ' + (d[0].satTotal ?? 'MISSING')); }
+      } catch(e2) { lines.push('Failed: ' + e2.message); }
 
     } else if(which === 'mlb_bf') {
-      titleEl.textContent = 'MLB Batters Faced — Gerrit Cole (543243) pitcher gamelog';
+      titleEl.textContent = 'MLB Batters Faced — Gerrit Cole';
       const url = 'https://statsapi.mlb.com/api/v1/people/543243/stats?stats=gameLog&season=' + year + '&group=pitching';
       const data = await fetchWithFallback(url);
       lines.push('URL: ' + url);
@@ -1624,28 +1572,50 @@ async function runApiColumnTest(which) {
       lines.push('Games: ' + splits.length);
       if(splits.length > 0) {
         const s = splits[0].stat || {};
-        lines.push('First game stat keys: ' + Object.keys(s).join(', '));
+        lines.push('battersFaced: ' + (s.battersFaced ?? 'MISSING'));
+        lines.push('strikeOuts: ' + (s.strikeOuts ?? '-'));
+        lines.push('inningsPitched: ' + (s.inningsPitched ?? '-'));
+        lines.push('First 3 BF: ' + splits.slice(0,3).map(g => g.stat?.battersFaced ?? '?').join(', '));
+      }
+
+    } else if(which === 'nba_injuries') {
+      titleEl.textContent = 'NBA Injury Report — raw structure';
+      for(const [label, url] of [
+        ['site API', 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/injuries'],
+        ['core API', 'https://sports.core.api.espn.com/v2/sports/basketball/nba/injuries?limit=10'],
+      ]) {
+        lines.push('=== ' + label + ' ===');
+        lines.push('URL: ' + url);
+        try {
+          const data = await fetchWithFallback(url);
+          lines.push('Root keys: ' + Object.keys(data||{}).join(', '));
+          const items = data?.injuries || data?.items || [];
+          lines.push('Count: ' + items.length);
+          if(items.length > 0) {
+            lines.push('First item keys: ' + Object.keys(items[0]||{}).join(', '));
+            lines.push('athlete.displayName: ' + (items[0]?.athlete?.displayName || 'MISSING'));
+            lines.push('status: ' + (items[0]?.status || 'MISSING'));
+            lines.push('details: ' + JSON.stringify(items[0]?.details || {}).slice(0,120));
+            lines.push('');
+            lines.push('First 5:');
+            items.slice(0,5).forEach(i => {
+              lines.push('  ' + (i.athlete?.displayName||'?') + ' → ' + (i.status||i.details?.type||i.type?.description||'?'));
+            });
+            const luka = items.find(i => (i.athlete?.displayName||'').toLowerCase().includes('doncic'));
+            lines.push('Luka: ' + (luka ? 'YES — ' + (luka.status||luka.details?.type||'?') : 'NOT FOUND'));
+          }
+        } catch(e2) { lines.push('Failed: ' + e2.message); }
         lines.push('');
-        lines.push('Key pitcher opportunity fields:');
-        lines.push('  battersFaced (BF): ' + (s.battersFaced ?? 'MISSING'));
-        lines.push('  strikeOuts (K): ' + (s.strikeOuts ?? '-'));
-        lines.push('  inningsPitched (IP): ' + (s.inningsPitched ?? '-'));
-        lines.push('  baseOnBalls (BB): ' + (s.baseOnBalls ?? '-'));
-        lines.push('  hits: ' + (s.hits ?? '-'));
-        lines.push('  homeRuns: ' + (s.homeRuns ?? '-'));
-        lines.push('');
-        lines.push('First 3 starts BF: ' + splits.slice(0,3).map(s => s.stat?.battersFaced ?? '?').join(', '));
       }
     }
+
   } catch(e) {
     lines.push('ERROR: ' + e.message);
-    lines.push(e.stack || '');
   }
 
   titleEl.textContent = titleEl.textContent.replace('⟳ Fetching...', '').trim() || which;
   contentEl.textContent = lines.join('\n');
 }
-
 async function inspectRawApi(which) {
   const out = document.getElementById('raw-api-output');
   const title = document.getElementById('raw-api-title');
@@ -2756,12 +2726,12 @@ async function fetchESPNGameLogAllSeasonTypes(sport, league, athleteId) {
   return { _regular: regData, _playoffs: playData, _merged: true };
 }
 async function fetchESPNInjuries(sport, league) {
-  // Cache injuries in memory — sports.core.api.espn.com is rate-limited
   const key = `inj_${sport}_${league}`;
   if(CONTEXT_CACHE[key] !== undefined) return CONTEXT_CACHE[key];
   try {
+    // Use the site API which returns inline injury data (not $ref links)
     const data = await fetchWithFallback(
-      `https://sports.core.api.espn.com/v2/sports/${sport}/leagues/${league}/injuries?limit=300`
+      `https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/injuries`
     );
     CONTEXT_CACHE[key] = data;
     return data;
@@ -4745,12 +4715,21 @@ async function runFetch(sportsToFetch) {
         if(!es) return;
         const data = await fetchESPNInjuries(es,el);
         const map = {};
-        (data?.items||[]).forEach(inj=>{
-          const n = inj.athlete?.displayName;
+        // site API returns injuries array; fallback to items for other endpoints
+        const injList = data?.injuries || data?.items || [];
+        injList.forEach(inj=>{
+          const n = inj.athlete?.displayName || inj.fullName || inj.displayName;
           if(!n) return;
-          // ESPN returns varied status strings — normalize to standard values
-          // so the Out check in buildPlayerProp works reliably
-          const rawStatus = (inj.status || inj.type?.description || inj.injury?.status || '').toLowerCase();
+          // Parse from multiple possible status fields across ESPN response variants
+          const rawStatus = (
+            inj.status ||
+            inj.details?.type ||
+            inj.injury?.type ||
+            inj.type?.description ||
+            inj.fantasyStatus?.description ||
+            inj.details?.fantasyStatus?.description ||
+            ''
+          ).toLowerCase();
           let normalized;
           if(rawStatus.includes('out') || rawStatus.includes('injured reserve') ||
              rawStatus.includes('ir') || rawStatus.includes('did not play') ||
