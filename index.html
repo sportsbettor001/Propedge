@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.26</title>
+<title>PropEdge v17.28</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.26</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.28</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1008,18 +1008,35 @@ function saveState() {
     localStorage.setItem(STORAGE_KEY, serialized);
   } catch(e) {
     console.warn('Storage save failed:', e);
-    // Quota exceeded — save bare minimum
+    // Quota exceeded — prune oldest snapshots first then retry
     try {
-      const bare = {
-        bettingCache:  STATE.bettingCache,
-        analysisCache: STATE.analysisCache,
-        settings:      STATE.settings,
-        savedSlips:    STATE.savedSlips,
-        lastGenerated: STATE.lastGenerated,
-        slip:          STATE.slip,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(bare));
-    } catch(e2) { console.warn('Bare save also failed:', e2); }
+      // Remove oldest ESPN snapshots to free space (pe_snap* keys)
+      const snapKeys = [];
+      for(let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if(k && (k.startsWith('pe_snap') || k.startsWith('pe_mins_cache'))) snapKeys.push(k);
+      }
+      // Sort by key name (older keys have earlier timestamps embedded) and remove oldest half
+      snapKeys.sort();
+      const toRemove = snapKeys.slice(0, Math.ceil(snapKeys.length * 0.5));
+      toRemove.forEach(k => { try { localStorage.removeItem(k); } catch(e3) {} });
+      // Retry full save after pruning
+      const serialized2 = JSON.stringify(toSave);
+      localStorage.setItem(STORAGE_KEY, serialized2);
+    } catch(e2) {
+      // Last resort: bare minimum
+      try {
+        const bare = {
+          bettingCache:  STATE.bettingCache,
+          analysisCache: STATE.analysisCache,
+          settings:      STATE.settings,
+          savedSlips:    STATE.savedSlips,
+          lastGenerated: STATE.lastGenerated,
+          slip:          STATE.slip,
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(bare));
+      } catch(e3) { console.warn('All save attempts failed:', e3); }
+    }
   }
 }
 
@@ -4730,7 +4747,29 @@ async function runFetch(sportsToFetch) {
         const map = {};
         (data?.items||[]).forEach(inj=>{
           const n = inj.athlete?.displayName;
-          if(n) map[n.toLowerCase()] = inj.status||'Questionable';
+          if(!n) return;
+          // ESPN returns varied status strings — normalize to standard values
+          // so the Out check in buildPlayerProp works reliably
+          const rawStatus = (inj.status || inj.type?.description || inj.injury?.status || '').toLowerCase();
+          let normalized;
+          if(rawStatus.includes('out') || rawStatus.includes('injured reserve') ||
+             rawStatus.includes('ir') || rawStatus.includes('did not play') ||
+             rawStatus.includes('dnp') || rawStatus.includes('inactive') ||
+             rawStatus.includes('suspended')) {
+            normalized = 'Out';
+          } else if(rawStatus.includes('doubtful')) {
+            normalized = 'Doubtful';
+          } else if(rawStatus.includes('questionable') || rawStatus.includes('day-to-day') ||
+                    rawStatus.includes('dtd') || rawStatus.includes('limited')) {
+            normalized = 'Questionable';
+          } else if(rawStatus.includes('probable')) {
+            normalized = 'Probable';
+          } else if(rawStatus) {
+            normalized = inj.status || 'Questionable';
+          } else {
+            return; // skip if no meaningful status
+          }
+          map[n.toLowerCase()] = normalized;
         });
         injuriesBySport[sport] = map;
       } catch(e) {}
@@ -4750,6 +4789,13 @@ async function runFetch(sportsToFetch) {
     for(const player of playersToProcess) {
       try {
         const injuries = injuriesBySport[player.sport] || {};
+        // Pre-filter: skip Out players before making any API calls
+        // Saves fetch time and prevents projecting injured players
+        const preCheckStatus = injuries[player.name?.toLowerCase()] || null;
+        if(preCheckStatus === 'Out') {
+          traceLog('filteringLog', `${player.name} (${player.sport}): skipped — injury status Out`, 'warn');
+          continue;
+        }
         // ── DB ENRICHMENT: exact name match only — no fuzzy fallbacks ──
         // Player was already discovered via ESPN API (has real ID).
         // DB is optional enrichment for prop type / line hints only.
@@ -6044,12 +6090,18 @@ function loadSnapshotRaw(rawKey) {
 }
 
 function saveSnapshotRaw(rawKey, snap) {
-  try { localStorage.setItem(rawKey, JSON.stringify(snap)); } catch(e) {}
+  try {
+    const { rawGameObjects: _drop, ...snapToStore } = snap;
+    localStorage.setItem(rawKey, JSON.stringify(snapToStore));
+  } catch(e) {}
 }
 
 function saveSnapshot(snap) {
   try {
-    localStorage.setItem(snapshotKey(snap.playerId, snap.sport), JSON.stringify(snap));
+    // Strip rawGameObjects before persisting — rebuilt from ESPN on every Generate run.
+    // This cuts each snapshot from ~5KB to ~1KB, reducing total storage by ~3MB.
+    const { rawGameObjects: _drop, ...snapToStore } = snap;
+    localStorage.setItem(snapshotKey(snap.playerId, snap.sport), JSON.stringify(snapToStore));
     // Also write avg minutes to a lightweight persistent cache used for pre-projection ranking.
     // This survives snapshot TTL expiry so ranking stays accurate across sessions.
     if(snap.minutes?.length > 0) {
@@ -6373,11 +6425,13 @@ function buildSnapshot(playerId, sport, rawGames, source) {
   }));
   const seasonAvg = parseFloat((games.reduce((a,b)=>a+b,0)/games.length).toFixed(2));
 
-  return {
+  // rawGameObjects is kept in memory for this run's opportunity layer
+  // but NOT persisted to localStorage — it's rebuilt from ESPN on every Generate.
+  // Removing it cuts each snapshot from ~5KB to ~1KB, saving ~3MB of storage overall.
+  const snapToSave = {
     playerId, sport, games, minutes, opponents, dates, gameIds, seasonAvg,
-    rawGameObjects, // full per-game data for multi-prop extraction
     sampleSize: games.length, source, lastUpdated: Date.now(),
-    espnId: String(playerId), // stored so stale snapshots from wrong IDs can be detected
+    espnId: String(playerId),
     audit: {
       rawGameCount:        audit.rawGameCount,
       filteredGameCount:   cleaned.length,
@@ -6390,6 +6444,9 @@ function buildSnapshot(playerId, sport, rawGames, source) {
     playoffCount:       normalized.playoffGames.length,
     playInCount:        normalized.playInGames.length,
   };
+  // Return full object in memory (with rawGameObjects for opportunity layer this run)
+  // saveSnapshot/saveSnapshotRaw strip rawGameObjects before writing to localStorage
+  return { ...snapToSave, rawGameObjects };
 }
 
 // ═══════════════════════════════════════════════════════
