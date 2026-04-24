@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.12</title>
+<title>PropEdge v17.13</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.12</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.13</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -2890,6 +2890,7 @@ const WNBA_TEAM_IDS = [
   {id:'1',name:'ATL'},{id:'2',name:'CHI'},{id:'3',name:'CON'},{id:'4',name:'DAL'},
   {id:'5',name:'IND'},{id:'6',name:'LVA'},{id:'7',name:'MIN'},{id:'8',name:'NYL'},
   {id:'9',name:'PHX'},{id:'10',name:'SEA'},{id:'11',name:'WAS'},{id:'14',name:'GS'},
+  {id:'16',name:'TOR'},{id:'17',name:'POR'},{id:'20',name:'CLE'},
 ];
 async function syncAllWNBAIds(onProgress) {
   const cache = loadESPNIdCache();
@@ -4839,6 +4840,7 @@ const ROSTER_SYNC_TEAM_IDS = {
     {id:'4',abbr:'DAL'},{id:'5',abbr:'IND'},{id:'6',abbr:'LVA'},
     {id:'7',abbr:'MIN'},{id:'8',abbr:'NYL'},{id:'9',abbr:'PHX'},
     {id:'10',abbr:'SEA'},{id:'11',abbr:'WAS'},{id:'14',abbr:'GS'},
+    {id:'16',abbr:'TOR'},{id:'17',abbr:'POR'},{id:'20',abbr:'CLE'},
   ],
   NHL: [
     {id:'1',abbr:'ANA'},{id:'2',abbr:'ARI'},{id:'3',abbr:'BOS'},
@@ -5193,16 +5195,28 @@ function viewRosterTiers() {
     const teams = data[sp];
     if(!teams || typeof teams !== 'object') continue;
     const meta = data._meta?.[sp];
+    const teamCount = Object.keys(teams).length;
+    const playerCount = Object.values(teams).reduce((n, arr) => n + (arr?.length||0), 0);
     const metaStr = meta
-      ? ' <span style="color:var(--muted);font-weight:400;font-size:8px">season ' + meta.season + ' · synced ' + new Date(meta.syncedAt).toLocaleDateString() + '</span>'
-      : '';
+      ? ' <span style="color:var(--muted);font-weight:400;font-size:8px">season ' + meta.season
+        + ' · synced ' + new Date(meta.syncedAt).toLocaleDateString()
+        + ' · ' + teamCount + ' teams · ' + playerCount + ' players</span>'
+      : teamCount > 0
+        ? ' <span style="color:var(--muted);font-weight:400;font-size:8px">' + teamCount + ' teams · ' + playerCount + ' players · re-sync to add season stamp</span>'
+        : '';
     html += '<div style="color:var(--accent);font-weight:700;margin-bottom:5px;margin-top:10px">' + sp + metaStr + '</div>';
+
+    if(teamCount === 0 || playerCount === 0) {
+      html += '<div style="color:var(--amber);font-size:9px;margin-bottom:8px;padding:4px 8px;background:rgba(255,181,71,.06);border-radius:5px">'
+        + 'Sync ran but returned no players — ESPN may have returned empty data. Re-sync to try again.</div>';
+      continue;
+    }
 
     const teamEntries = Object.entries(teams).sort(([a],[b]) => a.localeCompare(b));
     for(const [abbr, players] of teamEntries) {
       if(!players?.length) continue;
       const t1 = players.filter(p=>p.tier===1).map(p => {
-        const mins = p.avgMins ? ' ('+p.avgMins+'m)' : p.snapPct ? ' ('+Math.round(p.snapPct*100)+'%)' : '';
+        const mins = p.avgMins > 0 ? ' ('+p.avgMins+'m)' : p.snapPct ? ' ('+Math.round(p.snapPct*100)+'%)' : '';
         return '<span style="color:var(--accent)">' + p.name + mins + '</span>';
       }).join(', ');
       const t2 = players.filter(p=>p.tier===2).map(p =>
