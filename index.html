@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.10</title>
+<title>PropEdge v17.12</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.10</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.12</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -5014,11 +5014,31 @@ async function runRosterTiersSync(sport) {
       await new Promise(r => setTimeout(r, 100));
     }
 
-  // ── NBA / WNBA / NHL: ESPN stats endpoint, rank by avg minutes / TOI ──
+  // ── NBA / WNBA / NHL: ESPN stats endpoint for avg minutes, with intelligent fallback ──
   } else {
     const espnSport  = cfg.sport;
     const espnLeague = cfg.league;
     const teams = cfg.teams || [];
+
+    // Position priority for fallback ranking when minutes data is unavailable
+    // (e.g. pre-season, off-season, or ESPN returns empty stats)
+    const POS_PRIORITY = {
+      // NBA/WNBA — starter positions rank higher
+      'PG':10,'SG':10,'SF':9,'PF':9,'C':9,'G':8,'F':8,'G-F':7,'F-G':7,'F-C':7,'C-F':7,
+      // NHL — forwards and key D rank higher
+      'LW':10,'RW':10,'C':10,'D':8,'G':1,
+    };
+    const posScore = p => POS_PRIORITY[(p.position||'').toUpperCase()] || 5;
+
+    // PLAYER_DB usage lookup — reliable signal when ESPN stats are empty
+    const normKey = s => (s||'').toLowerCase().replace(/[^a-z ]/g,'').trim();
+    const dbUsageMap = {};
+    const dbSport = sport === 'WNBA' ? 'WNBA' : sport === 'NHL' ? 'NHL' : 'NBA';
+    for(const p of (PLAYER_DB[dbSport]||[])) {
+      if(p.name && (p.usage || p.snapPct)) {
+        dbUsageMap[normKey(p.name)] = p.usage || p.snapPct || 0;
+      }
+    }
 
     for(const team of teams) {
       if(STATUS_EL) STATUS_EL.innerHTML = '<div>Syncing ' + sport + ' — ' + (doneTeams+1) + '/' + teams.length + ': <b>' + team.abbr + '</b></div>' + pBar(doneTeams, teams.length);
@@ -5029,6 +5049,7 @@ async function runRosterTiersSync(sport) {
         const athletes = (rData?.athletes || []).flatMap(g => g?.items || (g?.id ? [g] : []));
         if(!athletes.length) { doneTeams++; continue; }
 
+        // Step 1: fetch minutes in batches
         const BATCH = 6;
         const playerData = [];
         for(let i = 0; i < athletes.length; i += BATCH) {
@@ -5040,12 +5061,34 @@ async function runRosterTiersSync(sport) {
               const sd = await fetchWithFallback(
                 'https://site.api.espn.com/apis/site/v2/sports/' + espnSport + '/' + espnLeague + '/athletes/' + a.id + '/statistics'
               );
-              for(const cat of (sd?.splits?.categories || [])) {
-                const names = cat.names || cat.labels || [];
-                const vals  = cat.totals || cat.values || [];
-                const mIdx  = names.findIndex(n => n === 'MIN' || n === 'avgMinutes' || n === 'timeOnIce');
-                if(mIdx >= 0 && vals[mIdx]) { avgMins = parseFloat(vals[mIdx]) || 0; if(avgMins > 0) break; }
+              // Correct ESPN stats structure: statistics[].type === 'total' → stats[] flat array
+              // NBA/WNBA: stats[2] = avgMinutes (same array used by getStatIndex: Points=13, Assists=8 etc.)
+              // NHL: stats[2] = avgTimeOnIce in MM:SS format
+              const minsIdx = { basketball: 2, hockey: 2 };
+              const statTotal = (sd?.statistics || []).find(s => s.type === 'total' || s.type === 'perGame' || s.displayName === 'Per Game');
+              if(statTotal?.stats) {
+                const idx = minsIdx[espnSport] ?? 2;
+                const raw = statTotal.stats[idx];
+                if(raw) {
+                  // NHL returns MM:SS string — convert to decimal minutes
+                  if(typeof raw === 'string' && raw.includes(':')) {
+                    const [mm, ss] = raw.split(':').map(Number);
+                    avgMins = mm + (ss / 60);
+                  } else {
+                    avgMins = parseFloat(raw) || 0;
+                  }
+                }
               }
+              // Fallback: try splits.categories (some ESPN endpoints use this structure)
+              if(!avgMins) {
+                for(const cat of (sd?.splits?.categories || [])) {
+                  const names = cat.names || cat.labels || [];
+                  const vals  = cat.totals || cat.values || [];
+                  const mIdx  = names.findIndex(n => n === 'MIN' || n === 'avgMinutes' || n === 'timeOnIce');
+                  if(mIdx >= 0 && vals[mIdx]) { avgMins = parseFloat(vals[mIdx]) || 0; if(avgMins > 0) break; }
+                }
+              }
+              // Last resort: displayStats array
               if(!avgMins) {
                 const ds = sd?.statistics?.displayStats || sd?.displayStats || [];
                 const ms = ds.find(s => /^min/i.test(s.name||'') && !isNaN(parseFloat(s.displayValue)));
@@ -5058,16 +5101,48 @@ async function runRosterTiersSync(sport) {
           await new Promise(r => setTimeout(r, 60));
         }
 
-        const sorted = playerData.filter(p => p.name.length > 1).sort((a,b) => b.avgMins - a.avgMins);
-        const tiered = sorted.map((p, idx) => {
+        const validPlayers = playerData.filter(p => p.name.length > 1);
+
+        // Step 2: detect if ESPN returned meaningful minutes data
+        // If >80% of players have 0 mins, ESPN stats are empty (off-season / new season)
+        const withMins = validPlayers.filter(p => p.avgMins > 0).length;
+        const minsDataAvailable = withMins > 0 && (withMins / validPlayers.length) > 0.2;
+
+        // Step 3: enrich each player with PLAYER_DB usage as fallback sort signal
+        const enriched = validPlayers.map(p => {
+          const dbUsage = dbUsageMap[normKey(p.name)] || 0;
+          // sortVal: ESPN mins if available, else PLAYER_DB usage*100 (rescaled to ~mpg range),
+          // else position priority score. This gives a meaningful rank regardless of season timing.
+          const sortVal = minsDataAvailable && p.avgMins > 0
+            ? p.avgMins
+            : dbUsage > 0
+              ? dbUsage * 100          // usage 0.30 → 30, comparable to mpg
+              : posScore(p) * 2;       // position fallback: PG/SG → 20, C/F → 18 etc.
+          return { ...p, sortVal, dbUsage };
+        }).sort((a, b) => b.sortVal - a.sortVal);
+
+        // Step 4: assign tiers based on sorted rank + thresholds
+        const tiered = enriched.map((p, idx) => {
           let tier;
           if(sport === 'NHL') {
             tier = idx < 6 ? 1 : idx < 14 ? 2 : 3;
-          } else { // NBA / WNBA
-            tier = (p.avgMins >= 28 || idx < 5) ? 1 : (p.avgMins >= 14 || idx < 10) ? 2 : 3;
+          } else {
+            // NBA/WNBA: tier by minutes if available, else by rank position
+            if(minsDataAvailable && p.avgMins > 0) {
+              tier = p.avgMins >= 28 ? 1 : p.avgMins >= 18 ? 2 : 3;
+            } else {
+              tier = idx < 5 ? 1 : idx < 10 ? 2 : 3;
+            }
           }
-          return { name: p.name, tier, avgMins: parseFloat(p.avgMins.toFixed(1)), position: p.position };
+          return {
+            name: p.name, tier,
+            avgMins: parseFloat((p.avgMins || 0).toFixed(1)),
+            position: p.position,
+            // Flag so View Tiers can show a note when mins came from fallback
+            ...(minsDataAvailable ? {} : { fallback: p.dbUsage > 0 ? 'db' : 'pos' }),
+          };
         });
+
         allTiers[sport][team.abbr] = tiered;
         totalPlayers += tiered.length;
       } catch(e) { /* skip */ }
@@ -5088,6 +5163,7 @@ async function runRosterTiersSync(sport) {
     season: nbaSeasonLabel,
     teams: doneTeams,
     players: totalPlayers,
+    note: 'Ranked by: ESPN avg minutes (if available) → PLAYER_DB usage → position',
   };
 
   saveDynamicRoleTiers(allTiers);
