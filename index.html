@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.17</title>
+<title>PropEdge v17.18</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.17</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.18</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1011,6 +1011,12 @@ let STATE = loadState() || {
   apiStatus: {},
   lastGenerated: null
 };
+
+// Guard: ensure required arrays exist even if loaded from slim/bare save
+if(!Array.isArray(STATE.history))    STATE.history    = [];
+if(!Array.isArray(STATE.slip))       STATE.slip       = [];
+if(!Array.isArray(STATE.savedSlips)) STATE.savedSlips = [];
+if(!STATE.settings)                  STATE.settings   = {};
 
 // Legacy migration: if old state had STATE.props, migrate to sportCache
 if(STATE.props && Array.isArray(STATE.props) && STATE.props.length > 0 && !STATE.sportCache) {
@@ -8415,7 +8421,24 @@ function propCardHTML(p) {
     : isAnalysis
     ? `<div style="font-family:var(--mono);font-size:9px;color:var(--amber);background:rgba(255,181,71,.06);border:1px solid rgba(255,181,71,.15);border-radius:6px;padding:5px 9px;margin-bottom:6px">⚠ NO MARKET DATA — ANALYSIS MODE. No sportsbook line available.</div>`
     : '';
-  const narrativeHTML = p.narrative ? `<div class="prop-narrative ${forceAnalysis ? (p.proj > (p.line||p.lineBase||p.proj) ? 'over' : 'under') : (isAnalysis ? 'pass' : decLow)}">${p.narrative}</div>` : '';
+
+  // Injury uplift banner — shown prominently on card when a key teammate is out
+  // Pulls from reasoning array entries that start with 📈 (teammate out) or ⚠ (player injured)
+  const injuryBannerHTML = (() => {
+    if(!p.reasoning) return '';
+    const teammateOut = (p.reasoning || []).find(r => r.startsWith('📈'));
+    const playerHurt  = (p.reasoning || []).find(r => r.startsWith('⚠ Injury status'));
+    if(playerHurt) {
+      return '<div style="font-family:var(--mono);font-size:9px;background:rgba(255,77,106,.08);border:1px solid rgba(255,77,106,.25);border-radius:6px;padding:5px 9px;margin-bottom:6px;color:var(--red)">'
+        + playerHurt + '</div>';
+    }
+    if(teammateOut) {
+      return '<div style="font-family:var(--mono);font-size:9px;background:rgba(0,229,160,.06);border:1px solid rgba(0,229,160,.2);border-radius:6px;padding:5px 9px;margin-bottom:6px;color:var(--accent)">'
+        + teammateOut + '</div>';
+    }
+    return '';
+  })();
+  const narrativeHTML = (injuryBannerHTML || '') + (p.narrative ? `<div class="prop-narrative ${forceAnalysis ? (p.proj > (p.line||p.lineBase||p.proj) ? 'over' : 'under') : (isAnalysis ? 'pass' : decLow)}">${p.narrative}</div>` : '');
 
   // Numbers row: analysis view hides EV, shows proj vs line cleanly
   const lineDisplay = forceAnalysis
