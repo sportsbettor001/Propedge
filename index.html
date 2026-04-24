@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.36</title>
+<title>PropEdge v17.37</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.36</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.37</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -4780,7 +4780,9 @@ async function runFetch(sportsToFetch) {
           } else {
             return; // skip if no meaningful status
           }
-          map[n.toLowerCase()] = normalized;
+          // Store as object with status + date so we can check how long they've been out
+          const injDate = inj.date || inj.startDate || inj.details?.date || null;
+          map[n.toLowerCase()] = { status: normalized, date: injDate };
         }); // end allPlayerInjuries.forEach
         injuriesBySport[sport] = map;
       } catch(e) {}
@@ -4802,7 +4804,8 @@ async function runFetch(sportsToFetch) {
         const injuries = injuriesBySport[player.sport] || {};
         // Pre-filter: skip Out players before making any API calls
         // Saves fetch time and prevents projecting injured players
-        const preCheckStatus = injuries[player.name?.toLowerCase()] || null;
+        const preCheckEntry = injuries[player.name?.toLowerCase()] || null;
+        const preCheckStatus = preCheckEntry?.status || preCheckEntry || null;
         if(preCheckStatus === 'Out') {
           traceLog('filteringLog', `${player.name} (${player.sport}): skipped — injury status Out`, 'warn');
           continue;
@@ -7223,7 +7226,8 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     let statLabel = propTypeOverride || (sport==='NBA'?'Points':sport==='MLB'?'Hits':sport==='NFL'?'Pass Yards':'Points');
     let dataPoints = 0;
     let hasMatchupData = false;
-    let injuryStatus = injuries[playerName.toLowerCase()] || null;
+    const _injEntry = injuries[playerName.toLowerCase()] || null;
+    let injuryStatus = _injEntry?.status || _injEntry || null;
     const hasRealLine = realLine !== null && realLine > 0;
     // Betting mode: real sportsbook line from Odds API
     // Analysis mode: use lineBase from PLAYER_DB as estimated line for probability calc
@@ -7667,8 +7671,20 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
 
           for(const [injName, injStatus] of Object.entries(injMap)) {
             // Only care about Out or Doubtful — Questionable is too uncertain
-            const isOut = injStatus === 'Out' || injStatus === 'Doubtful';
+            const _injEntry = typeof injStatus === 'object' ? injStatus : { status: injStatus, date: null };
+            const _normStatus = _injEntry.status || injStatus;
+            const isOut = _normStatus === 'Out' || _normStatus === 'Doubtful';
             if(!isOut) continue;
+            // Skip long-term absences (>10 games missed) — teammates' game logs already
+            // reflect playing without them, so boosting would be double-counting
+            if(_injEntry.date) {
+              const injDaysAgo = (Date.now() - new Date(_injEntry.date).getTime()) / (1000*60*60*24);
+              // NBA plays ~4-5 games per 2 weeks. >10 games ≈ ~30+ days out
+              if(injDaysAgo > 30) {
+                traceLog('filteringLog', `${injName}: injury dated ${_injEntry.date} (${Math.round(injDaysAgo)}d ago) — long-term absence, skipping boost`, 'warn');
+                continue;
+              }
+            }
             // Skip if this IS the player being projected
             if(normName(injName) === normName(playerName)) continue;
             // Check if this injured player is on the same team using ROLE_TIERS
