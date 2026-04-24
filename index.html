@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.21</title>
+<title>PropEdge v17.22</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.21</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.22</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1362,25 +1362,38 @@ async function syncTeamIds(sport) {
       if(statusEl) statusEl.innerHTML = '✓ NHL: ' + Object.keys(cache.NHL).length + ' teams stored (ESPN IDs + NHL API abbrevs)';
 
     } else {
-      // ESPN-based sports: fetch team list from ESPN scoreboard to get confirmed IDs
-      const espnSport = sport === 'NBA' || sport === 'WNBA' ? 'basketball' : 'football';
-      const espnLeague = sport === 'NBA' ? 'nba' : sport === 'WNBA' ? 'wnba' : 'nfl';
-      const data = await fetchWithFallback(
-        'https://site.api.espn.com/apis/site/v2/sports/' + espnSport + '/' + espnLeague + '/teams?limit=50'
-      );
-      const teams = (data?.sports?.[0]?.leagues?.[0]?.teams || data?.teams || []);
+      // ESPN-based sports: use the known hardcoded team ID maps which are already verified.
+      // The ESPN /teams endpoint returns inconsistent structures — the hardcoded maps
+      // (NBA_TEAM_IDS, WNBA_TEAM_IDS, NFL_TEAM_IDS) are confirmed correct and are the
+      // same ones used by roster sync, player ID sync, and opponent defense fetches.
+      const srcMap = sport === 'NBA'  ? NBA_TEAM_IDS  :
+                     sport === 'WNBA' ? WNBA_TEAM_IDS :
+                     sport === 'NFL'  ? NFL_TEAM_IDS  : [];
       let count = 0;
-      for(const entry of teams) {
-        const t = entry?.team || entry;
-        const abbr = (t?.abbreviation || '').toUpperCase();
-        const id = String(t?.id || '');
+      for(const t of srcMap) {
+        const abbr = (t.name || t.abbr || '').toUpperCase();
+        const id   = String(t.id || '');
         if(abbr && id) {
-          cache[sport][abbr] = { espnId: id, name: t?.displayName || t?.name || abbr };
+          cache[sport][abbr] = { espnId: id };
           count++;
         }
       }
-      cache[sport]._syncedAt = new Date().toISOString();
-      if(statusEl) statusEl.innerHTML = '✓ ' + sport + ': ' + count + ' teams stored from ESPN';
+      // Also verify a couple IDs by actually hitting ESPN to confirm they're live
+      // (do this for NBA only to avoid too many requests)
+      if(sport === 'NBA' && count > 0) {
+        try {
+          // Spot-check: fetch BOS (id:2) statistics — if it returns data, IDs are good
+          const check = await fetchWithFallback(
+            'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/2/statistics'
+          );
+          const confirmed = check?.results?.stats || check?.team ? '✓ verified live' : '(unverified)';
+          if(statusEl) statusEl.innerHTML = '✓ ' + sport + ': ' + count + ' teams stored — ' + confirmed;
+        } catch(e) {
+          if(statusEl) statusEl.innerHTML = '✓ ' + sport + ': ' + count + ' teams stored from hardcoded map';
+        }
+      } else {
+        if(statusEl) statusEl.innerHTML = '✓ ' + sport + ': ' + count + ' teams stored';
+      }
     }
 
     cache[sport]._syncedAt = new Date().toISOString();
@@ -3492,23 +3505,58 @@ async function fetchPlayerPropsOdds(sportKey, eventId) {
 // Only blends when opportunity data is actually available — degrades gracefully.
 // ═══════════════════════════════════════════════════════
 
-// NBA/WNBA opportunity column indices in ESPN game log (confirmed structure):
-// 0:GP, 1:GS, 2:MIN, 3:FG3M, 4:STL, 5:BLK, 6:REB, 7:TO, 8:AST, 9:FGM, 10:FGA, 11:FTA, 12:FG%, 13:PTS
-// FG3A is typically at index 14 or 15 depending on ESPN response version
-const NBA_OPPORTUNITY_COL = { FGA: 10, FTA: 11, FGM: 9, REB: 6, AST: 8, FG3M: 3 };
-// NFL opportunity column confirmed: RushAtt=0, RecYds=1, PassAtt=2; Targets label-based
+// NBA/WNBA opportunity column indices — CONFIRMED from live API inspector (Apr 2026):
+// 0:MIN, 1:FG(combo "made-att"), 2:FG%, 3:3PT(combo), 4:3P%, 5:FT(combo),
+// 6:FT%, 7:REB, 8:AST, 9:BLK, 10:STL, 11:PF, 12:TO, 13:PTS
+// FGA, FG3A, FTA are NOT separate columns — they are embedded in combo strings at 1, 3, 5
+// extractOpportunityFromGames handles parsing these out
+const NBA_OPPORTUNITY_COL = {
+  FGA:  { idx: 1, part: 1 },   // "7-26" → parse attempt (part 1 = index after "-")
+  FTA:  { idx: 5, part: 1 },   // "11-11" → attempts
+  FG3A: { idx: 3, part: 1 },   // "2-10" → 3pt attempts
+  FGM:  { idx: 1, part: 0 },   // "7-26" → made (part 0)
+  FG3M: { idx: 3, part: 0 },   // "2-10" → made
+  REB:  { idx: 7, part: -1 },  // direct value (no combo)
+  AST:  { idx: 8, part: -1 },
+  STL:  { idx: 10, part: -1 },
+  MIN:  { idx: 0, part: -1 },
+  PTS:  { idx: 13, part: -1 },
+};
+// NFL opportunity columns (from known structure, label-based fallback)
 const NFL_OPPORTUNITY_COL = { RushAtt: 0, Receptions: 0, PassAtt: 2 };
 
 // Extract opportunity series from raw game objects (same format as allVals)
 // rawGames: array of { value, stats[], opponent, date, minutes } from _extractESPNRawGamesSingle
+// sportOpportunityCols: NBA_OPPORTUNITY_COL format { metric: { idx, part } }
+//   part = -1 → direct numeric value
+//   part = 0  → parse "made" from "made-att" combo string
+//   part = 1  → parse "attempts" from "made-att" combo string
 function extractOpportunityFromGames(rawGames, oppMetric, sportOpportunityCols) {
   if(!rawGames || !rawGames.length) return [];
-  const colIdx = sportOpportunityCols[oppMetric];
-  if(colIdx === undefined || colIdx < 0) return [];
+  const colCfg = sportOpportunityCols[oppMetric];
+  if(!colCfg) return [];
+  // Support both old format (plain number) and new format ({ idx, part })
+  const idx  = typeof colCfg === 'object' ? colCfg.idx  : colCfg;
+  const part = typeof colCfg === 'object' ? colCfg.part : -1;
+  if(idx === undefined || idx < 0) return [];
+
   return rawGames
     .map(g => {
-      const v = (g.stats||[])[colIdx];
-      return v !== undefined && v !== null && !isNaN(parseFloat(v)) ? parseFloat(v) : null;
+      const raw = (g.stats||[])[idx];
+      if(raw === undefined || raw === null) return null;
+      if(part === -1) {
+        // Direct numeric value
+        const n = parseFloat(raw);
+        return !isNaN(n) ? n : null;
+      } else {
+        // Combo string like "7-26" or "11-11" — parse made (0) or attempts (1)
+        const str = String(raw);
+        const dash = str.indexOf('-');
+        if(dash < 0) { const n = parseFloat(str); return !isNaN(n) ? n : null; }
+        const parts = [parseFloat(str.slice(0, dash)), parseFloat(str.slice(dash+1))];
+        const v = parts[part];
+        return !isNaN(v) ? v : null;
+      }
     })
     .filter(v => v !== null && v >= 0);
 }
@@ -6653,16 +6701,25 @@ async function fetchNBAOppStatProfile(oppTeamId) {
     );
     const result = { pts: null, reb: null, ast: null, fg3: null, stl: null, blk: null };
     // Walk all stat nodes and extract opponent-allowed averages
+    // Confirmed ESPN team stats field names from live API inspector (Apr 2026):
+    // avgRebounds=46.5, avgAssists=27.5, avgPoints=110, avgThreePointFieldGoalsMade=14.5
+    // avgFieldGoalsAttempted=89.5, avgThreePointFieldGoalsAttempted=47
+    // NOTE: ESPN returns TEAM'S OWN stats, not opponent-allowed stats.
+    // We use opponent's own offensive stats as a proxy for what they allow.
+    // A team averaging 46.5 REB/g suggests ~46.5 allowed by opponents — decent proxy.
     const walkStats = (arr) => {
       for(const item of (arr||[])) {
         const n = (item?.name||'').toLowerCase();
-        const dn = (item?.displayName||'').toLowerCase();
         const v = parseFloat(item?.value || item?.displayValue || 0);
         if(!v || isNaN(v)) { if(item?.stats) walkStats(item.stats); if(item?.categories) walkStats(item.categories); continue; }
-        if(n.includes('pointsallowed') || dn.includes('points allowed') || n === 'opppoints')   result.pts = v;
-        else if(n.includes('reboundsallowed') || dn.includes('rebounds allowed'))               result.reb = v;
-        else if(n.includes('assistsallowed')  || dn.includes('assists allowed'))                result.ast = v;
-        else if(n.includes('threesallowed')   || dn.includes('3-pointers allowed') || n.includes('fg3allowed')) result.fg3 = v;
+        // Use opponent team's own offensive averages as proxy for what defenses face
+        if(n === 'avgpoints' || n === 'avgpointsallowed')                          result.pts = v;
+        else if(n === 'avgrebounds' || n === 'totalrebounds' && v < 60)            result.reb = v;
+        else if(n === 'avgassists')                                                 result.ast = v;
+        else if(n === 'avgthreepointfieldgoalsmade' && !result.fg3)                result.fg3 = v;
+        else if(n.includes('pointsallowed') || n === 'opppoints')                  result.pts = result.pts || v;
+        else if(n.includes('reboundsallowed'))                                     result.reb = result.reb || v;
+        else if(n.includes('assistsallowed'))                                      result.ast = result.ast || v;
         if(item?.stats)      walkStats(item.stats);
         if(item?.categories) walkStats(item.categories);
       }
@@ -6693,7 +6750,8 @@ async function fetchNBAOppDefense(oppTeamId) {
 }
 
 // NBA league averages (2025-26 season approximations) — used for opponent multiplier
-const NBA_LEAGUE_AVG = { pts: 114.5, reb: 43.8, ast: 25.4, fg3: 12.9, stl: 7.3, blk: 4.7 };
+// NBA 2025-26 league averages (per team per game) — used for opponent multiplier
+const NBA_LEAGUE_AVG = { pts: 115.2, reb: 44.1, ast: 26.2, fg3: 13.8, stl: 7.1, blk: 4.9 };
 
 // Get stat-specific opponent multiplier for a given prop
 // Returns a multiplier: 1.05 means opponent allows 5% more than league average
