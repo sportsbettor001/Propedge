@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.31</title>
+<title>PropEdge v17.33</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.31</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.33</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -4599,7 +4599,21 @@ async function runFetch(sportsToFetch) {
               const rolePts = getRoleTierScore(p.name, teamKey, sport);
               const avgMins = getAvgMins(p.name, p.id, p.meta);
               const starterB = p.starter ? 5 : 0;
-              return { ...p, _side: side, _score: rolePts * 10 + avgMins + starterB };
+              // Penalize players with no snapshot data (likely inactive/retired)
+              // A cached snapshot with <5 games means ESPN has insufficient data for them
+              const verifiedId = getVerifiedESPNId(p.name, p.id || null);
+              let dataBonus = 0;
+              if(verifiedId) {
+                try {
+                  const snap = loadSnapshot(verifiedId, sport);
+                  if(snap && snap.sampleSize >= 10) dataBonus = 20;      // active player confirmed
+                  else if(snap && snap.sampleSize >= 5) dataBonus = 5;   // marginal
+                  else if(!snap) dataBonus = -50;                        // no snapshot = likely inactive
+                } catch(e) {}
+              } else if(rolePts === 0) {
+                dataBonus = -30; // no ROLE_TIERS entry AND no ESPN ID = fringe/inactive
+              }
+              return { ...p, _side: side, _score: rolePts * 10 + avgMins + starterB + dataBonus };
             })
             .sort((a, b) => b._score !== a._score ? b._score - a._score : a.name.localeCompare(b.name));
 
@@ -5321,7 +5335,7 @@ const ROLE_TIERS = {
   OKC: [{name:'Shai Gilgeous-Alexander',tier:1},{name:'Jalen Williams',tier:1},{name:'Chet Holmgren',tier:1},{name:'Luguentz Dort',tier:2},{name:'Isaiah Hartenstein',tier:2},{name:'Aaron Wiggins',tier:2},{name:'Alex Caruso',tier:2},{name:'Isaiah Joe',tier:3}],
   MEM: [{name:'Ja Morant',tier:1},{name:'Desmond Bane',tier:1},{name:'Jaren Jackson Jr.',tier:1},{name:'Marcus Smart',tier:2},{name:'Santi Aldama',tier:2},{name:'Scotty Pippen Jr.',tier:2},{name:'GG Jackson II',tier:2}],
   GSW: [{name:'Stephen Curry',tier:1},{name:'Draymond Green',tier:1},{name:'Andrew Wiggins',tier:2},{name:'Jonathan Kuminga',tier:2},{name:'Brandin Podziemski',tier:2},{name:'Moses Moody',tier:2},{name:'Kyle Anderson',tier:2}],
-  HOU: [{name:'Alperen Sengun',tier:1},{name:'Jalen Green',tier:1},{name:'Amen Thompson',tier:2},{name:'Dillon Brooks',tier:2},{name:'Fred VanVleet',tier:2},{name:'Jabari Smith Jr.',tier:2},{name:'Tari Eason',tier:2},{name:'Jeff Green',tier:3}],
+  HOU: [{name:'Alperen Sengun',tier:1},{name:'Jalen Green',tier:1},{name:'Amen Thompson',tier:2},{name:'Dillon Brooks',tier:2},{name:'Fred VanVleet',tier:2},{name:'Jabari Smith Jr.',tier:2},{name:'Tari Eason',tier:2}],
   LAL: [{name:'LeBron James',tier:1},{name:'Luka Doncic',tier:1},{name:'Anthony Davis',tier:1},{name:'Austin Reaves',tier:2},{name:'Rui Hachimura',tier:2},{name:'Dorian Finney-Smith',tier:2},{name:'Gabe Vincent',tier:2},{name:'Bronny James',tier:3}],
   DEN: [{name:'Nikola Jokic',tier:1},{name:'Jamal Murray',tier:1},{name:'Michael Porter Jr.',tier:1},{name:'Aaron Gordon',tier:2},{name:'Kentavious Caldwell-Pope',tier:2},{name:'Christian Braun',tier:2},{name:'Peyton Watson',tier:2},{name:'Russell Westbrook',tier:3}],
   MIN: [{name:'Anthony Edwards',tier:1},{name:'Rudy Gobert',tier:1},{name:'Mike Conley',tier:2},{name:'Jaden McDaniels',tier:2},{name:'Naz Reid',tier:2},{name:'Nickeil Alexander-Walker',tier:2},{name:'Julius Randle',tier:2}],
@@ -5338,7 +5352,7 @@ const ROLE_TIERS = {
   SAC: [{name:'Domantas Sabonis',tier:1},{name:'Malik Monk',tier:1},{name:'Keegan Murray',tier:2},{name:'Harrison Barnes',tier:2},{name:'Kevin Huerter',tier:2},{name:'DeMar DeRozan',tier:2}],
   DAL: [{name:'Klay Thompson',tier:1},{name:'Kyrie Irving',tier:1},{name:'PJ Washington',tier:2},{name:'Daniel Gafford',tier:2},{name:'Dereck Lively II',tier:2},{name:'Naji Marshall',tier:2},{name:'Tim Hardaway Jr.',tier:2}],
   SAS: [{name:'Victor Wembanyama',tier:1},{name:"De'Aaron Fox",tier:1},{name:'Stephon Castle',tier:2},{name:'Devin Vassell',tier:2},{name:'Chris Paul',tier:2},{name:'Keldon Johnson',tier:2},{name:'Zach Collins',tier:2},{name:'Blake Wesley',tier:3}],
-  PHI: [{name:'Joel Embiid',tier:1},{name:'Tyrese Maxey',tier:1},{name:'Paul George',tier:1},{name:'Kelly Oubre Jr.',tier:2},{name:'Caleb Martin',tier:2},{name:'Kyle Lowry',tier:2}],
+  PHI: [{name:'Joel Embiid',tier:1},{name:'Tyrese Maxey',tier:1},{name:'Paul George',tier:1},{name:'Kelly Oubre Jr.',tier:2},{name:'Caleb Martin',tier:2},{name:'Neemias Queta',tier:2},{name:'Andre Drummond',tier:3}],
   CHI: [{name:'Zach LaVine',tier:1},{name:'Nikola Vucevic',tier:1},{name:'Coby White',tier:2},{name:'Patrick Williams',tier:2},{name:'Ayo Dosunmu',tier:2},{name:'Matas Buzelis',tier:2}],
   TOR: [{name:'Scottie Barnes',tier:1},{name:'RJ Barrett',tier:1},{name:'Immanuel Quickley',tier:2},{name:'Jakob Poeltl',tier:2},{name:'Gradey Dick',tier:2},{name:'Bruce Brown',tier:2}],
   NO:  [{name:'Zion Williamson',tier:1},{name:'Brandon Ingram',tier:1},{name:'CJ McCollum',tier:2},{name:'Herb Jones',tier:2},{name:'Jonas Valanciunas',tier:2},{name:'Trey Murphy III',tier:2}],
@@ -8594,6 +8608,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
                        severity === 'minor'  ? (isstar ? 3  : isRole ? 1 : 2) :
                                                (isstar ? 7  : isRole ? 2 : 5);
       const severityLabels = { major: 'key starter', moderate: 'rotation piece', minor: 'role player' };
+      const firstName = (playerName || '').split(' ')[0];
       reasoning.push(
         `📈 ${contextData.keyTeammateOut} is out (${severityLabels[severity]}). ` +
         `As a ${roleLabel} on this team, ${firstName} is projected to absorb ~${boostPct}% more usage — ` +
