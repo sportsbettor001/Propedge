@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.37</title>
+<title>PropEdge v17.38</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.37</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.38</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -4780,9 +4780,11 @@ async function runFetch(sportsToFetch) {
           } else {
             return; // skip if no meaningful status
           }
-          // Store as object with status + date so we can check how long they've been out
-          const injDate = inj.date || inj.startDate || inj.details?.date || null;
-          map[n.toLowerCase()] = { status: normalized, date: injDate };
+          // Store as object with status + date + position
+          const injDate = inj.date || inj.startDate || inj.details?.date ||
+                         inj.details?.returnDate || null;
+          const injPos = inj.athlete?.position?.abbreviation || inj.athlete?.position?.name || null;
+          map[n.toLowerCase()] = { status: normalized, date: injDate, position: injPos };
         }); // end allPlayerInjuries.forEach
         injuriesBySport[sport] = map;
       } catch(e) {}
@@ -7048,7 +7050,26 @@ async function applyContextEngine(sport, statLabel, contextData, playerMeta, tea
         'Rebounds':0.5,'Steals':0.3,'Blocks':0.2
       }[statLabel] || 0.5;
 
-      const boost = Math.min(0.18, vacated * absorb * statFactor); // cap 18%
+      // Position overlap factor — guards replacing guards, bigs replacing bigs
+      // Cross-position boosts are heavily discounted (Clingan doesn't absorb Simons' usage)
+      const outPos  = (contextData.outPlayerPosition || '').toUpperCase();
+      const myPos   = (playerMeta.position || '').toUpperCase();
+      const _isGuard  = p => p.includes('G') || p.includes('PG') || p.includes('SG');
+      const _isForward= p => p.includes('F') || p.includes('SF') || p.includes('PF');
+      const _isCenter = p => p === 'C' || p.includes('CT') || p === 'PF/C';
+      let posOverlap = 0.6; // default: moderate overlap (unknown positions)
+      if(outPos && myPos) {
+        const sameGroup = (_isGuard(outPos) && _isGuard(myPos)) ||
+                          (_isForward(outPos) && _isForward(myPos)) ||
+                          (_isCenter(outPos) && _isCenter(myPos));
+        const adjacentGroup = (_isGuard(outPos) && _isForward(myPos)) ||
+                              (_isForward(outPos) && _isGuard(myPos)) ||
+                              (_isForward(outPos) && _isCenter(myPos)) ||
+                              (_isCenter(outPos) && _isForward(myPos));
+        posOverlap = sameGroup ? 1.0 : adjacentGroup ? 0.5 : 0.15; // guard/center = almost no overlap
+      }
+
+      const boost = Math.min(0.18, vacated * absorb * statFactor * posOverlap); // cap 18%
       contextData._rateAdj = (contextData._rateAdj || 0) + boost;
       confBoost += 0.5;
       notes.push(`${contextData.keyTeammateOut} out (T${outTier}, ~${(vacated*100).toFixed(0)}% usage vacated) → ${statLabel} +${(boost*100).toFixed(1)}% rate (${isstar?'star':isRole?'role':'starter'} absorbs ${(absorb*100).toFixed(0)}%)`);
@@ -7668,6 +7689,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
           let bestTeammateOut = null;
           let bestSeverity = null;
           let bestTier = 99;
+          let bestOutPosition = null;
 
           for(const [injName, injStatus] of Object.entries(injMap)) {
             // Only care about Out or Doubtful — Questionable is too uncertain
@@ -7711,15 +7733,17 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
             const entryTier = teamEntry.tier || 3;
             if(entryTier < bestTier) {
               bestTier = entryTier;
-              bestTeammateOut = teamEntry.name; // use canonical name from tiers
+              bestTeammateOut = teamEntry.name;
               bestSeverity = entryTier === 1 ? 'major' : entryTier === 2 ? 'moderate' : 'minor';
+              bestOutPosition = _injEntry.position || null; // ESPN position of the injured player
             }
           }
 
           if(bestTeammateOut) {
             contextData.keyTeammateOut = bestTeammateOut;
             contextData.teammateAbsenceSeverity = bestSeverity;
-            contextData.outPlayerTier = bestTier; // 1=star,2=rotation,3=bench — drives redistribution amount
+            contextData.outPlayerTier = bestTier;
+            contextData.outPlayerPosition = bestOutPosition || null; // for position-overlap boost calc
           }
         } catch(e) {}
       }
