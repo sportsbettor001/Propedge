@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.15</title>
+<title>PropEdge v17.17</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.15</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.17</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -792,6 +792,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 // ═══════════════════════════════════════════════════════
 const STORAGE_KEY = 'propedge_v7';
 
+// Save on every page hide / tab switch — covers close, refresh, app switch on mobile
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'hidden') saveState();
+});
+window.addEventListener('pagehide', () => saveState());
+// Also save periodically as a safety net (every 2 min while active)
+setInterval(() => { if(document.visibilityState === 'visible') saveState(); }, 120000);
+
 // ═══════════════════════════════════════════════════════
 // ODDS API QUOTA TRACKER — persists across sessions, never cleared
 // Stores: used, remaining, lastUpdated
@@ -920,11 +928,10 @@ function loadState() {
 }
 function saveState() {
   try {
-    // Strip heavy non-essential fields before persisting to avoid 5MB quota errors.
-    // slateLog and trace are rebuilt on each run — no need to persist them.
     const toSave = { ...STATE };
-    delete toSave.trace; // rebuilt every run, often large
-    // Keep slateLog but strip verbose per-game player lists to save space
+    delete toSave.trace; // large, rebuilt each run
+
+    // Strip slateLog player lists
     if(toSave.slateLog?.sports) {
       toSave.slateLog = {
         ...toSave.slateLog,
@@ -934,24 +941,45 @@ function saveState() {
         }))
       };
     }
+
+    // Strip heavy per-prop fields that are rebuilt on render anyway.
+    // reasoning[] and narrative strings can be large — keep all numeric/decision fields.
+    const slimProps = cache => {
+      if(!cache || typeof cache !== 'object') return cache;
+      const out = {};
+      for(const [sport, entry] of Object.entries(cache)) {
+        if(!entry?.props) { out[sport] = entry; continue; }
+        out[sport] = {
+          ...entry,
+          props: entry.props.map(p => {
+            const { reasoning, narrative, ...rest } = p;
+            return rest;
+          })
+        };
+      }
+      return out;
+    };
+
+    toSave.bettingCache  = slimProps(toSave.bettingCache);
+    toSave.analysisCache = slimProps(toSave.analysisCache);
+    toSave.sportCache    = slimProps(toSave.sportCache);
+
     const serialized = JSON.stringify(toSave);
     localStorage.setItem(STORAGE_KEY, serialized);
   } catch(e) {
     console.warn('Storage save failed:', e);
-    // If quota exceeded, try saving just the essential props + settings
+    // Quota exceeded — save bare minimum
     try {
-      const minimal = {
-        sportCache: STATE.sportCache,
-        bettingCache: STATE.bettingCache,
+      const bare = {
+        bettingCache:  STATE.bettingCache,
         analysisCache: STATE.analysisCache,
-        settings: STATE.settings,
-        savedSlips: STATE.savedSlips,
+        settings:      STATE.settings,
+        savedSlips:    STATE.savedSlips,
         lastGenerated: STATE.lastGenerated,
-        slip: STATE.slip,
-        history: STATE.history,
+        slip:          STATE.slip,
       };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(minimal));
-    } catch(e2) { console.warn('Minimal save also failed:', e2); }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(bare));
+    } catch(e2) { console.warn('Bare save also failed:', e2); }
   }
 }
 
@@ -5065,13 +5093,24 @@ async function runRosterTiersSync(sport) {
                 'https://site.api.espn.com/apis/site/v2/sports/' + espnSport + '/' + espnLeague + '/athletes/' + a.id + '/statistics'
               );
 
-              // Validate team: ESPN roster endpoint sometimes returns wrong players.
-              // The athlete object from the stats response contains their real current team.
-              // If it doesn't match the team we're syncing, discard this player.
-              const athleteTeamAbbr = (sd?.athlete?.team?.abbreviation || sd?.athlete?.team?.slug || '').toUpperCase();
-              if(athleteTeamAbbr && athleteTeamAbbr !== team.abbr.toUpperCase()) {
-                // Player is on a different team — ESPN gave us a stale/wrong roster entry
-                return null;
+              // Validate team from stats response athlete object.
+              // ESPN's stats endpoint includes athlete.team — if present and mismatched, skip.
+              // Also check team abbreviation from the team object in various response paths.
+              const respTeamAbbr = (
+                sd?.athlete?.team?.abbreviation ||
+                sd?.athlete?.team?.slug ||
+                sd?.team?.abbreviation ||
+                ''
+              ).toUpperCase().replace(/\s/g,'');
+              // Only reject if we got a clear non-empty team that doesn't match
+              if(respTeamAbbr && respTeamAbbr.length >= 2 && respTeamAbbr.length <= 4) {
+                // Normalize ESPN short codes before comparing
+                const normMap = {'NY':'NYK','SA':'SAS','GS':'GSW','NO':'NOP','PHO':'PHX'};
+                const normalized = normMap[respTeamAbbr] || respTeamAbbr;
+                const expected = (normMap[team.abbr.toUpperCase()] || team.abbr.toUpperCase());
+                if(normalized !== expected) {
+                  return null; // wrong team — discard
+                }
               }
 
               // Parse minutes: statistics[type=total].stats[2] is avgMinutes for NBA/WNBA
@@ -7414,11 +7453,16 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     // Use sportsbook line when available; fall back to model projection so that
     // analysis mode always shows a hit rate instead of hiding it entirely.
     const seasonAvg = parseFloat((allVals.reduce((a,b)=>a+b,0)/allVals.length).toFixed(1));
-    const hitRateRef = (hasRealLine && line > 0) ? line
-                     : (line > 0)                ? line
-                     : (finalProjection > 0)     ? parseFloat(finalProjection.toFixed(1))
+    // hitRateRef: only use a real sportsbook line as the reference.
+    // lineBase from PLAYER_DB is for the player's primary prop (e.g. Jokic=Points 26.5)
+    // and is meaningless when projecting a different prop (Rebounds, Assists etc.).
+    // For analysis mode always use the model projection as the reference.
+    const hitRateRef = (hasRealLine && line > 0)
+                     ? line                                        // real sportsbook line
+                     : (finalProjection > 0)
+                     ? parseFloat(finalProjection.toFixed(1))     // model projection
                      : null;
-    const hitRateIsProjection = hitRateRef !== null && !(hasRealLine && line > 0) && !(line > 0);
+    const hitRateIsProjection = hitRateRef !== null && !hasRealLine;
     const hitRateSeason = (hitRateRef && allVals.length >= 5) ? {
       hits: allVals.filter(v=>v>=hitRateRef).length,
       total: allVals.length,
