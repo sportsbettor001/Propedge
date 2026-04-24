@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.22</title>
+<title>PropEdge v17.26</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.22</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.26</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1397,7 +1397,16 @@ async function syncTeamIds(sport) {
     }
 
     cache[sport]._syncedAt = new Date().toISOString();
-    saveTeamIdCache(cache);
+    const saved = saveTeamIdCache(cache);
+    if(!saved) {
+      if(statusEl) statusEl.innerHTML += ' ⚠ Storage write failed — localStorage may be full';
+    }
+    // Auto-refresh view if it's open
+    const detailEl = document.getElementById('team-id-detail');
+    if(detailEl && detailEl.style.display !== 'none') {
+      detailEl.style.display = 'none'; // close then reopen to refresh
+      viewTeamIds();
+    }
   } catch(e) {
     if(statusEl) { statusEl.innerHTML = '✗ ' + sport + ' sync failed: ' + e.message; statusEl.style.color = 'var(--red)'; }
   }
@@ -7234,6 +7243,11 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
             }
           }
           traceLog('projectionEngine', `${playerName} (MLB): MLB API got ${mlbApiVals.length} games`, mlbApiVals.length>0?'ok':'warn');
+          // Store raw splits for opportunity layer (plateAppearances / battersFaced)
+          if(splits.length > 0) {
+            if(!gameLogDataRef) gameLogDataRef = {};
+            gameLogDataRef.allGameStats = splits.map(s => s.stat || {});
+          }
         } catch(e) {
           traceLog('projectionEngine', `${playerName} (MLB): MLB API failed — ${e.message}`, 'warn');
         }
@@ -7412,6 +7426,14 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         }
 
         snapNHL = buildSnapshot(playerId, sport, rawGamesNHL, rawGamesNHL.length >= 5 ? 'NHL API' : 'ESPN');
+        // Store raw NHL games for opportunity layer (TOI is in each game's .minutes field)
+        if(rawGamesNHL.length >= 5) {
+          if(!gameLogDataRef) gameLogDataRef = {};
+          gameLogDataRef._nhlRaw = rawGamesNHL.map(g => ({
+            toi: g.minutes ? String(Math.floor(g.minutes)) + ':' + String(Math.round((g.minutes % 1)*60)).padStart(2,'0') : null,
+            ...g
+          }));
+        }
         if(snapNHL) {
           saveSnapshot(snapNHL);
           traceLog('projectionEngine', `${playerName} (NHL): snapshot — ${snapNHL.sampleSize} games`, 'ok');
@@ -7944,28 +7966,162 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     }
 
     // StdDev: variance-based from per-minute data + minutes uncertainty component
-    // ── Opportunity layer: blend projection with opportunity-derived estimate (NBA/WNBA) ──
-    // FGA series → Points, REB series → Rebounds, AST series → Assists
-    // Uses raw game stat arrays already fetched — no extra API calls needed.
-    // 60% existing projection + 40% opportunity-derived keeps model stable.
-    if((sport === 'NBA' || sport === 'WNBA') && allVals.length >= 5) {
-      // rawGameObjects: full stats arrays per game from ESPN game log
-      const _rawGames = typeof extractESPNRawGames === 'function'
-        ? extractESPNRawGames(gameLogDataRef, statLabel, null)
-        : [];
-      if(_rawGames.length >= 5) {
-        const _oppColMap = { 'Points':'FGA', 'Rebounds':'REB', 'Assists':'AST', 'Threes Made':'FG3M' };
-        const _oppMetric = _oppColMap[statLabel];
-        if(_oppMetric) {
-          const _oppSeries = extractOpportunityFromGames(_rawGames, _oppMetric, NBA_OPPORTUNITY_COL);
-          if(_oppSeries.length >= 5) {
-            const _blended = blendWithOpportunity(finalProjection, _oppSeries, allVals, 0.4);
-            if(Math.abs(_blended - finalProjection) > 0.15) {
-              traceLog('projectionEngine', `${playerName}: opportunity blend (${_oppMetric}) EWMA=${finalProjection.toFixed(2)} → blended=${_blended.toFixed(2)}`, 'ok');
-              notes.push(`Opportunity blend (${_oppMetric} series, ${_oppSeries.length} games): ${finalProjection.toFixed(2)} → ${_blended.toFixed(2)}`);
-              finalProjection = _blended;
+    // ── Opportunity layer: blend projection with volume-based estimate ──
+    // Augments existing EWMA — does NOT replace it. All confirmed columns only.
+    // NBA/WNBA: FGA→Points, FG3A→Threes, FTA blends into Points, REB→Rebounds, AST→Assists, STL→Steals
+    // MLB batters: plateAppearances→all hitting props
+    // MLB pitchers: battersFaced→Strikeouts
+    // NHL: TOI→all props (from NHL API game log toi field)
+    // NFL: RushAtt→Rush Yards, PassAtt→Pass Yards (targets omitted — not available per-game)
+    // All blends: 60% existing projection + 40% opportunity-derived. Min 5 games of opp data.
+    {
+      let _oppMetric = null, _oppSeries = [], _blendWeight = 0.4;
+
+      if((sport === 'NBA' || sport === 'WNBA') && gameLogDataRef) {
+        const _rawGames = typeof extractESPNRawGames === 'function'
+          ? extractESPNRawGames(gameLogDataRef, statLabel, null) : [];
+        if(_rawGames.length >= 5) {
+          // Map each prop to its best opportunity proxy
+          // NBA/WNBA opportunity proxy map — confirmed ESPN game log columns only.
+          // "Potential Assists" and "Rebound Chances" from prompt are advanced tracking stats
+          // not available in ESPN game logs — using AST/REB series as closest available proxy.
+          const _nbaOppMap = {
+            'Points':        ['FGA', 'FTA'],  // FGA + FTA = total shot-creating volume (combined below)
+            'Rebounds':      ['REB'],          // REB series ≈ rebound chances (best available proxy)
+            'Assists':       ['AST'],          // AST series ≈ potential assists proxy
+            'Threes Made':   ['FG3A'],         // 3PT attempts = direct opportunity metric
+            'Steals':        ['STL', 'MIN'],   // steals + minutes as dual opportunity signal
+            'Blocks':        ['MIN', 'REB'],   // minutes + rebounds for bigs
+            'Turnovers':     ['MIN', 'AST'],   // more minutes/touches = more TO chances
+            'Points + Rebounds + Assists': ['FGA', 'REB', 'AST'], // PRA combo — pick best series
+            'Points + Rebounds': ['FGA', 'REB'],
+            'Points + Assists':  ['FGA', 'AST'],
+            'Assists + Rebounds':['AST', 'REB'],
+          };
+          const _metrics = _nbaOppMap[statLabel] || [];
+          let _bestSeries = [], _bestMetric = null;
+          for(const _m of _metrics) {
+            const _s = extractOpportunityFromGames(_rawGames, _m, NBA_OPPORTUNITY_COL);
+            if(_s.length > _bestSeries.length) { _bestSeries = _s; _bestMetric = _m; }
+          }
+          // For Points: also try blending FGA + FTA together as total shot-creating volume
+          if(statLabel === 'Points' && _metrics.length > 1) {
+            const _fgaSeries = extractOpportunityFromGames(_rawGames, 'FGA', NBA_OPPORTUNITY_COL);
+            const _ftaSeries = extractOpportunityFromGames(_rawGames, 'FTA', NBA_OPPORTUNITY_COL);
+            if(_fgaSeries.length >= 5 && _ftaSeries.length >= 5) {
+              // Combined opportunity: FGA + 0.44×FTA (approximate shot-creating volume)
+              const _minLen = Math.min(_fgaSeries.length, _ftaSeries.length);
+              _bestSeries = _fgaSeries.slice(-_minLen).map((v,i) => v + 0.44 * _ftaSeries.slice(-_minLen)[i]);
+              _bestMetric = 'FGA+FTA';
             }
           }
+          _oppSeries = _bestSeries; _oppMetric = _bestMetric;
+        }
+
+      } else if(sport === 'MLB') {
+        // MLB batters: plateAppearances as volume signal for all hitting props
+        // MLB pitchers: battersFaced as volume signal for strikeouts
+        // These come from the allGames raw objects returned by MLB Stats API
+        const _mlbIsPitcher = ['Strikeouts','Earned Runs','Hits Allowed','Walks'].includes(statLabel);
+        const _mlbOppField = _mlbIsPitcher ? 'battersFaced' : 'plateAppearances';
+        // Extract from allGames array if available (set during MLB game log fetch)
+        const _mlbRaw = typeof gameLogDataRef?.allGameStats === 'object' ? gameLogDataRef.allGameStats : [];
+        if(_mlbRaw.length >= 5) {
+          _oppSeries = _mlbRaw
+            .map(g => { const v = parseFloat(g[_mlbOppField] ?? g.stat?.[_mlbOppField]); return isNaN(v) ? null : v; })
+            .filter(v => v !== null && v > 0);
+          _oppMetric = _mlbOppField;
+        }
+
+      } else if(sport === 'NHL' && gameLogDataRef) {
+        // NHL opportunity metrics from NHL API game log (rawGamesNHL objects):
+        //   TOI  → primary opportunity metric for all props (confirmed available via g.toi)
+        //   SOG  → shots on goal = direct volume signal for Goals/Points props
+        //   Shot Attempts (Corsi) → NOT available from standard NHL API endpoint (confirmed blocked)
+        const _nhlRaw = gameLogDataRef?._nhlRaw || gameLogDataRef?.gameLog || [];
+        if(_nhlRaw.length >= 5) {
+          // For goal/point scoring props: use SOG as opportunity proxy (shot volume drives scoring)
+          // For other props: use TOI (time on ice = overall opportunity)
+          const _nhlScoringProps = ['Goals','Points','Shots on Goal'];
+          if(_nhlScoringProps.includes(statLabel)) {
+            // SOG series from rawGamesNHL.allStats[3] (shots index confirmed in toRawGame)
+            const _sogSeries = _nhlRaw
+              .map(g => {
+                const shots = g.allStats?.[3] ?? g.shots ?? null;
+                return (shots !== null && !isNaN(parseFloat(shots))) ? parseFloat(shots) : null;
+              })
+              .filter(v => v !== null && v >= 0);
+            if(_sogSeries.length >= 5) {
+              _oppSeries = _sogSeries;
+              _oppMetric = 'SOG';
+            }
+          }
+          // Fall back to TOI if SOG not available or non-scoring prop
+          if(_oppSeries.length < 5) {
+            _oppSeries = _nhlRaw
+              .map(g => {
+                if(typeof g.minutes === 'number' && g.minutes > 0) return g.minutes;
+                const toi = g.toi || g.timeOnIce || '';
+                if(typeof toi === 'string' && toi.includes(':')) {
+                  const [mm, ss] = toi.split(':').map(Number);
+                  return mm + ss/60;
+                }
+                return null;
+              })
+              .filter(v => v !== null && v > 0);
+            _oppMetric = 'TOI';
+          }
+        }
+
+      } else if(sport === 'NFL' && gameLogDataRef) {
+        // NFL opportunity metrics (per-game from ESPN game log):
+        //   Rush Attempts → Rush Yards, Rushing Attempts props
+        //   Pass Attempts → Pass Yards, Pass Attempts, Passing TDs props
+        //   Snap % → season-level from PLAYER_DB (not per-game) — used as blend weight modifier
+        //   Targets → NOT available per-game from ESPN — omitted per data audit
+        //   Receptions → available at index 0 but same index as Rush Att — ESPN splits by category
+        const _nflRushProps    = ['Rush Yards','Rushing Attempts'];
+        const _nflPassProps    = ['Pass Yards','Pass Attempts','Passing Touchdowns','Interceptions Thrown'];
+        const _nflReceiveProps = ['Receiving Yards','Receptions'];
+        const _rawGames = typeof extractESPNRawGames === 'function'
+          ? extractESPNRawGames(gameLogDataRef, statLabel, null) : [];
+        if(_rawGames.length >= 5) {
+          if(_nflRushProps.includes(statLabel)) {
+            _oppSeries = extractOpportunityFromGames(_rawGames, 'RushAtt', NFL_OPPORTUNITY_COL);
+            _oppMetric = 'RushAtt';
+          } else if(_nflPassProps.includes(statLabel)) {
+            _oppSeries = extractOpportunityFromGames(_rawGames, 'PassAtt', NFL_OPPORTUNITY_COL);
+            _oppMetric = 'PassAtt';
+          } else if(_nflReceiveProps.includes(statLabel)) {
+            // Use Receptions series as proxy for target volume (correlated but not exact)
+            _oppSeries = extractOpportunityFromGames(_rawGames, 'Receptions', NFL_OPPORTUNITY_COL);
+            _oppMetric = 'Receptions(proxy)';
+          }
+        }
+        // Snap % modifier: season-level from PLAYER_DB adjusts blend weight
+        // High snap% (>85%) = consistent volume → trust opportunity blend more (up to 0.45)
+        // Low snap% (<50%)  = spotty volume → reduce blend weight (down to 0.25)
+        // This replaces the flat 0.4 for NFL since snap% is a strong volume signal
+        const _snapPct = playerMeta?.snapPct || null;
+        if(_snapPct !== null && _oppSeries.length >= 5) {
+          _blendWeight = _snapPct >= 0.85 ? 0.45
+                       : _snapPct >= 0.70 ? 0.40
+                       : _snapPct >= 0.50 ? 0.35
+                       : 0.25;
+          if(_snapPct !== null) {
+            notes.push(`NFL snap% ${(_snapPct*100).toFixed(0)}% → opportunity blend weight ${(_blendWeight*100).toFixed(0)}%`);
+          }
+        }
+      }
+
+      // Blend if we got a usable opportunity series
+      if(_oppSeries.length >= 5 && _oppMetric) {
+        const _blended = blendWithOpportunity(finalProjection, _oppSeries, allVals, _blendWeight);
+        if(Math.abs(_blended - finalProjection) > 0.10) {
+          traceLog('projectionEngine',
+            `${playerName}: opp-blend (${_oppMetric}, ${_oppSeries.length}g) ${finalProjection.toFixed(2)} → ${_blended.toFixed(2)}`, 'ok');
+          notes.push(`Opportunity (${_oppMetric}, ${_oppSeries.length} games): ${finalProjection.toFixed(2)} → ${_blended.toFixed(2)} (+${_blendWeight*100}% weight)`);
+          finalProjection = _blended;
         }
       }
     }
