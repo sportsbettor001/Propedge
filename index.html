@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.56</title>
+<title>PropEdge v17.57</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -2686,36 +2686,42 @@ async function fetchESPNSchedule(sport, league, date) {
   const dateStr = date.replace(/-/g,'');
   const base = `${ESPN_BASE}/${sport}/${league}/scoreboard`;
 
-  // NBA: try postseason URLs first and STOP on first success — never cascade to
-  // the regular-season default once a postseason URL returns events. Mixing
-  // results from different URL variants creates phantom games (e.g. a stale
-  // NO vs TOR regular-season entry appearing beside the real CLE vs TOR playoff game).
+  // Filter ESPN events to only those whose date matches the requested date.
+  // Postseason endpoints (especially groups=50) return the full bracket across
+  // all dates — this guard strips anything not on the requested date.
+  const filterToDate = events => events.filter(e => {
+    if(!e.date) return true;
+    return localDateStr(new Date(e.date)) === date;
+  });
+  const dedup = events => {
+    const seen = new Set();
+    return events.filter(e => { if(!e.id) return true; if(seen.has(e.id)) return false; seen.add(e.id); return true; });
+  };
+
   if(league === 'nba') {
+    // seasontype=3 is most date-precise. groups=50 returns the full bracket so
+    // it goes last and still gets date-filtered. Stop on first URL that yields
+    // events matching the requested date.
     const postseasonUrls = [
-      `${base}?dates=${dateStr}&groups=50`,    // postseason / play-in (most reliable)
-      `${base}?dates=${dateStr}&seasontype=3`, // explicit playoffs
+      `${base}?dates=${dateStr}&seasontype=3`, // explicit playoffs — most date-precise
       `${base}?dates=${dateStr}&seasontype=5`, // play-in tournament
+      `${base}?dates=${dateStr}&groups=50`,    // full bracket — date filter is critical here
     ];
     for(const url of postseasonUrls) {
       try {
         const data = await fetchWithFallback(url);
         if(data?.events?.length > 0) {
-          // Dedup within this response — ESPN can include the same game twice
-          // when the season type boundary overlaps
-          const seen = new Set();
-          data.events = data.events.filter(e => {
-            if(!e.id) return true;
-            if(seen.has(e.id)) return false;
-            seen.add(e.id);
-            return true;
-          });
-          return data;
+          const filtered = dedup(filterToDate(data.events));
+          if(filtered.length > 0) { data.events = filtered; return data; }
         }
       } catch(e) { continue; }
     }
-    // All postseason URLs empty — fall back to regular season
-    try { return await fetchWithFallback(`${base}?dates=${dateStr}`); }
-    catch(e) { return { events: [] }; }
+    // All postseason URLs returned nothing for this date — fall back to regular season
+    try {
+      const data = await fetchWithFallback(`${base}?dates=${dateStr}`);
+      if(data?.events) data.events = dedup(filterToDate(data.events));
+      return data || { events: [] };
+    } catch(e) { return { events: [] }; }
   }
 
   return await fetchWithFallback(`${base}?dates=${dateStr}`);
