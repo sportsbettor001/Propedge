@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.38</title>
+<title>PropEdge v17.39</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -310,7 +310,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.38</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.39</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -967,6 +967,7 @@ function loadState() {
   } catch(e) { return null; }
 }
 function saveState() {
+  if(window._clearingData) return; // block re-save during clear+reload
   try {
     const toSave = { ...STATE };
     delete toSave.trace; // large, rebuilt each run
@@ -2456,19 +2457,32 @@ function clearESPNIdCache() {
 
 function clearAllData() {
   if(!confirm('This will wipe keys, cached props, slip, and history. Player ID caches (NHL/MLB/ESPN) are preserved. Cannot be undone. Continue?')) return;
+  // Set flag so auto-save handlers don't re-write STATE during the reload delay
+  window._clearingData = true;
   try {
     // Preserve all player ID caches — IDs never change, re-syncing adds new players on top
     const espnIds     = localStorage.getItem(ESPN_ID_CACHE_KEY);
     const nhlIds      = localStorage.getItem(NHL_ID_CACHE_KEY);
     const mlbIds      = localStorage.getItem(MLB_ID_CACHE_KEY);
+    const teamIds     = localStorage.getItem(TEAM_ID_STORAGE_KEY);
+    const roleTiers   = localStorage.getItem(ROLE_TIERS_STORAGE_KEY);
     const calibration = localStorage.getItem(CALIBRATION_KEY);
     localStorage.clear();
-    if(espnIds)     localStorage.setItem(ESPN_ID_CACHE_KEY, espnIds);
-    if(nhlIds)      localStorage.setItem(NHL_ID_CACHE_KEY,  nhlIds);
-    if(mlbIds)      localStorage.setItem(MLB_ID_CACHE_KEY,  mlbIds);
-    if(calibration) localStorage.setItem(CALIBRATION_KEY,   calibration);
+    if(espnIds)     localStorage.setItem(ESPN_ID_CACHE_KEY,      espnIds);
+    if(nhlIds)      localStorage.setItem(NHL_ID_CACHE_KEY,       nhlIds);
+    if(mlbIds)      localStorage.setItem(MLB_ID_CACHE_KEY,       mlbIds);
+    if(teamIds)     localStorage.setItem(TEAM_ID_STORAGE_KEY,    teamIds);
+    if(roleTiers)   localStorage.setItem(ROLE_TIERS_STORAGE_KEY, roleTiers);
+    if(calibration) localStorage.setItem(CALIBRATION_KEY,        calibration);
+    // Reset in-memory STATE so nothing re-saves during reload delay
+    STATE.analysisCache = {};
+    STATE.bettingCache  = {};
+    STATE.history       = [];
+    STATE.slip          = [];
+    STATE.savedSlips    = [];
+    STATE.lastGenerated = null;
   } catch(e) {}
-  showToast('Data cleared — player ID caches (NHL/MLB/ESPN) preserved', 'success');
+  showToast('Data cleared — player ID caches, team IDs, and roster tiers preserved', 'success');
   setTimeout(() => location.reload(), 1200);
 }
 
