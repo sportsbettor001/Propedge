@@ -14,8 +14,8 @@
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);overflow:hidden;-webkit-text-size-adjust:100%}
 
 /* APP SHELL */
-.app-shell{height:100dvh;height:-webkit-fill-available;overflow:hidden}
-.header{padding:52px 20px 10px;background:var(--bg);border-bottom:1px solid var(--border)}
+.app-shell{height:100dvh;height:-webkit-fill-available;overflow:hidden;display:flex;flex-direction:column}
+.header{padding:52px 20px 10px;background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0}
 .header-top{display:flex;justify-content:space-between;align-items:center}
 .logo{font-size:22px;font-weight:800;letter-spacing:-0.5px}
 .logo span{color:var(--accent)}
@@ -37,7 +37,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
 
 /* CONTENT */
-.content{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(env(safe-area-inset-bottom) + 16px)}
+.content{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(env(safe-area-inset-bottom) + 16px)}
 .page{display:none;padding:14px 14px 0}
 .page.active{display:block}
 #props-sticky-bar *{pointer-events:auto}
@@ -315,7 +315,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 </head>
 <body>
 <div class="app-shell">
-  <div class="content">
   <div class="header">
     <div class="header-top">
       <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.55</span></div>
@@ -331,13 +330,15 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
     </div>
   </div>
 
-  <div class="tabs" style="position:-webkit-sticky;position:sticky;top:0;z-index:20;background:var(--bg)">
+  <div class="tabs">
     <div class="tab active" onclick="showTab('props',this)">Props</div>
     <div class="tab" onclick="showTab('check',this)">Check Pick</div>
     <div class="tab" onclick="showTab('slip',this)">Slip</div>
     <div class="tab" onclick="showTab('tracker',this)">Tracker</div>
     <div class="tab" onclick="showTab('trace',this)">Trace</div>
   </div>
+
+  <div class="content">
 
 
     <!-- PROPS TAB -->
@@ -351,7 +352,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
       <!-- Sticky controls — filters + generate button stay visible while scrolling -->
       <!-- STICKY: sport chips, decision, prop type, dates, mode toggle, generate -->
-      <div id="props-sticky-bar" style="position:-webkit-sticky;position:sticky;top:42px;z-index:10;background:var(--bg);padding:6px 0 4px;margin:-4px 0 0;border-bottom:1px solid var(--border)">
+      <div id="props-sticky-bar" style="position:-webkit-sticky;position:sticky;top:0;z-index:10;background:var(--bg);padding:6px 0 4px;margin:-4px 0 0;border-bottom:1px solid var(--border)">
         <div class="filter-row" id="sport-filters" style="margin-bottom:6px">
           <div class="filter-chip active" data-sport="all" onclick="toggleSportFilter('all',this)">All sports</div>
           <div class="filter-chip" data-sport="NBA" onclick="toggleSportFilter('NBA',this)"><div class="sport-status-dot"></div>NBA</div>
