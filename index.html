@@ -7935,6 +7935,9 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         }
       }
       if(snap?.rawGameObjects?.length >= 5) {
+        // Diagnostic: log what labels are available in first game
+        const _firstG = snap.rawGameObjects[0];
+        traceLog('projectionEngine', `${playerName} combo labels: [${(_firstG?.labels||[]).join(',')}] allStats.len=${_firstG?.allStats?.length}`, 'ok');
         // For each game, sum the component values
         const comboVals = snap.rawGameObjects.map(g => {
           let sum = 0;
