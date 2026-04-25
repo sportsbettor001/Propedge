@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.54</title>
+<title>PropEdge v17.55</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -318,7 +318,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
   <div class="content">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.54</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.55</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -3599,8 +3599,9 @@ function ewmaOpportunity(vals, lambda) {
 // Blend EWMA projection with opportunity-derived projection
 // statProj: existing EWMA output
 // oppSeries: array of opportunity values (e.g. FGA per game)
-// efficiency: historical stat/opportunity rate (e.g. points per FGA)
+// statSeries: historical stat values aligned to oppSeries
 // Returns blended projection or statProj if opportunity unavailable
+// Spec §5: if opportunity-derived vs stat projection discrepancy > 15%, nudge max 10%
 function blendWithOpportunity(statProj, oppSeries, statSeries, blendWeight) {
   if(!oppSeries || oppSeries.length < 5 || !statSeries || statSeries.length < 5) return statProj;
   const bw = blendWeight || 0.4;
@@ -3611,6 +3612,18 @@ function blendWithOpportunity(statProj, oppSeries, statSeries, blendWeight) {
   const oppDerived = ewmaOpp * effRate;
   // Sanity bounds — opportunity-derived can't be more than 40% away from stat projection
   const oppCapped = Math.max(statProj * 0.6, Math.min(statProj * 1.4, oppDerived));
+
+  // Spec §5 — Opportunity Consistency Check:
+  // If discrepancy between opportunity-derived and current projection > 15%,
+  // nudge projection toward opportunity-based estimate (max 10% adjustment)
+  const discrepancyPct = statProj > 0 ? Math.abs(oppCapped - statProj) / statProj : 0;
+  if(discrepancyPct > 0.15) {
+    // Nudge: max 10% correction toward opportunity-derived estimate
+    const nudgeDir = oppCapped > statProj ? 1 : -1;
+    const nudgePct = Math.min(0.10, discrepancyPct * 0.40); // proportional, capped at 10%
+    return parseFloat((statProj * (1 + nudgeDir * nudgePct)).toFixed(2));
+  }
+
   return parseFloat(((statProj * (1 - bw)) + (oppCapped * bw)).toFixed(2));
 }
 
@@ -6630,16 +6643,36 @@ function computeSharpProjection(snap, vsOppVals, overrideGames) {
   // Cap opponent delta at ±20% of ewma to prevent single outlier matchups dominating
   const oppAdj = ewma + clamp(oppDelta, ewma * -0.20, ewma * 0.20);
 
-  // ── Minutes proxy adjustment (5% weight) ──
-  // Only adjusts if there's a meaningful recent trend in playing time
+  // ── Minutes proxy adjustment (Spec §2B — upgraded from 5% to ±15% cap) ──
+  // Two-part system: trend comparison + proportional scaling
+  // Compare last 3 games vs last 10 games; if diff ≥ ±3 min → proportional scale
   const last10Mins = minutes.slice(0, 10).filter(m => m > 0);
+  const last3Mins  = minutes.slice(0, 3).filter(m => m > 0);
   const last5Mins  = minutes.slice(0, 5).filter(m => m > 0);
-  const avgMins    = last10Mins.length ? last10Mins.reduce((a,b)=>a+b,0)/last10Mins.length : 0;
-  const recentMins = last5Mins.length  ? last5Mins.reduce((a,b)=>a+b,0)/last5Mins.length   : 0;
-  // Additive adjustment: if getting more/less minutes recently, scale proportionally
-  // Clamped to ±10% of ewma — minutes proxy is a minor signal
-  const minsDelta    = avgMins > 0 && recentMins > 0 ? (recentMins / avgMins - 1) : 0;
-  const minutesProxy = ewma + clamp(minsDelta * ewma, ewma * -0.10, ewma * 0.10);
+  const avgMins10  = last10Mins.length ? last10Mins.reduce((a,b)=>a+b,0)/last10Mins.length : 0;
+  const avgMins3   = last3Mins.length  ? last3Mins.reduce((a,b)=>a+b,0)/last3Mins.length   : 0;
+  const avgMins5   = last5Mins.length  ? last5Mins.reduce((a,b)=>a+b,0)/last5Mins.length   : 0;
+  const avgMins    = avgMins10; // used for legacy compat
+
+  // Minutes trend: compare last 3 vs last 10
+  // Only apply proportional scaling if difference ≥ ±3 minutes (Spec §2B)
+  let minsDelta = 0;
+  let minutesProxy = ewma;
+  if(avgMins10 > 0 && avgMins3 > 0) {
+    const minsDiff = avgMins3 - avgMins10;
+    if(Math.abs(minsDiff) >= 3) {
+      // Proportional scaling: scale projection by (recent mins / baseline mins)
+      const minsScaleFactor = avgMins3 / avgMins10;
+      // Spec §2B: cap impact at ±15%
+      const cappedScale = Math.max(0.85, Math.min(1.15, minsScaleFactor));
+      minutesProxy = ewma * cappedScale;
+      minsDelta = (minsScaleFactor - 1);
+    } else {
+      // Small fluctuation (<3 min) — minor additive adj capped at ±5%
+      minsDelta = avgMins10 > 0 && avgMins5 > 0 ? (avgMins5 / avgMins10 - 1) : 0;
+      minutesProxy = ewma + clamp(minsDelta * ewma, ewma * -0.05, ewma * 0.05);
+    }
+  }
 
   // ── Weighted blend ──
   // EWMA dominates. Season avg is a light anchor. Opp context + minutes are minor.
@@ -6648,10 +6681,21 @@ function computeSharpProjection(snap, vsOppVals, overrideGames) {
            + (oppAdj      * 0.10)
            + (minutesProxy * 0.05);
 
-  // ── Outlier detection (informational only — NO clamping) ──
-  // Flag if result is unusually far from season avg, but DO NOT modify projection.
-  // Clamping is only allowed if data integrity issues detected (corrupt/dup data).
+  // ── Outlier detection + SOFT CLAMP (Spec §6) ──
+  // Previously: flag only. Now: if >40% deviation, pull 10–20% back toward season avg.
+  // Do NOT fully clamp — just reduce extremity.
   const isOutlier = proj < seasonAvg * 0.70 || proj > seasonAvg * 1.40;
+  if(isOutlier && seasonAvg > 0) {
+    const overPct = proj / seasonAvg; // e.g. 1.55 = 55% above avg
+    let pullStrength;
+    if(overPct > 1.60 || overPct < 0.60) pullStrength = 0.20;      // very extreme → pull harder
+    else pullStrength = 0.10;                                         // moderate outlier → light pull
+    // Blend projection toward season average
+    proj = proj * (1 - pullStrength) + seasonAvg * pullStrength;
+  }
+
+  // Compute minutes volatility flag for downstream use
+  const minsVolatilityFlag = flagMinutesVolatility(minutes);
 
   return {
     projection:    parseFloat(proj.toFixed(2)),
@@ -6661,10 +6705,13 @@ function computeSharpProjection(snap, vsOppVals, overrideGames) {
     baseline,
     vsOppAvg:      vsAvg,
     hasMatchupData: vsAvg !== null,
-    minutesFactor: avgMins > 0 && recentMins > 0 ? recentMins / avgMins : 1.0,
+    minutesFactor: avgMins10 > 0 && avgMins3 > 0 ? avgMins3 / avgMins10 : 1.0,
     matchupFactor: 1.0, // kept for compat — matchup is additive now
     trendFactor:   1.0,
     isOutlier,
+    minsVolatilityFlag,
+    avgMins10,
+    avgMins3,
     diagnostics: {
       ewmaWeight:    parseFloat((ewma * 0.70).toFixed(2)),
       baselineWeight:parseFloat((baseline * 0.15).toFixed(2)),
@@ -6745,6 +6792,166 @@ function computePerMinuteRate(gameValues, minutesArray, alpha = 0.28) {
     stdDevRate: parseFloat(stdDevRate.toFixed(4)),
     sampleSize: perMinRates.length,
   };
+}
+
+// ═══════════════════════════════════════════════════════
+// VARIANCE + DISTRIBUTION MODEL (Spec §1)
+// Computes stdDev, CV, volatility class, and percentile bands
+// Uses last 10–15 valid games post-DNP filter; falls back to season
+// ═══════════════════════════════════════════════════════
+function computeVarianceProfile(allVals, mean) {
+  if(!allVals || allVals.length < 2) return null;
+  const clean = allVals.filter(v => v !== null && !isNaN(v) && v >= 0);
+  if(clean.length < 2) return null;
+
+  // Use last 10–15 for recent variance; fall back to full season if < 10
+  const recentWindow = clean.length >= 10 ? clean.slice(-15) : clean;
+  const windowMean = mean ?? recentWindow.reduce((a,b)=>a+b,0)/recentWindow.length;
+  const variance = recentWindow.reduce((s,v)=>s+Math.pow(v-windowMean,2),0)/(recentWindow.length-1);
+  const stdDev = Math.sqrt(variance);
+  const cv = windowMean > 0 ? stdDev / windowMean : null;
+
+  // Volatility classification
+  let volatilityClass;
+  if(cv === null) volatilityClass = 'UNKNOWN';
+  else if(cv < 0.25) volatilityClass = 'LOW';
+  else if(cv <= 0.40) volatilityClass = 'MED';
+  else volatilityClass = 'HIGH';
+
+  // Percentile bands using Normal approximation (Poisson where applicable)
+  const sorted = [...recentWindow].sort((a,b)=>a-b);
+  const p25 = sorted[Math.floor(sorted.length * 0.25)] ?? null;
+  const p50 = sorted[Math.floor(sorted.length * 0.50)] ?? null;
+  const p75 = sorted[Math.floor(sorted.length * 0.75)] ?? null;
+
+  return { stdDev: parseFloat(stdDev.toFixed(3)), cv: cv !== null ? parseFloat(cv.toFixed(3)) : null,
+           volatilityClass, p25, p50, p75, sampleUsed: recentWindow.length };
+}
+
+// ═══════════════════════════════════════════════════════
+// MINUTES VOLATILITY FLAG (Spec §2C)
+// STABLE < 2 min std dev | MODERATE 2–4 | VOLATILE > 4
+// ═══════════════════════════════════════════════════════
+function flagMinutesVolatility(minutesArray) {
+  if(!minutesArray || minutesArray.length < 5) return 'UNKNOWN';
+  const valid = minutesArray.filter(m => m > 0 && m <= 60).slice(0, 10);
+  if(valid.length < 5) return 'UNKNOWN';
+  const mean = valid.reduce((a,b)=>a+b,0)/valid.length;
+  const variance = valid.reduce((s,v)=>s+Math.pow(v-mean,2),0)/(valid.length-1);
+  const sd = Math.sqrt(variance);
+  if(sd < 2) return 'STABLE';
+  if(sd <= 4) return 'MODERATE';
+  return 'VOLATILE';
+}
+
+// ═══════════════════════════════════════════════════════
+// ARCHETYPE TAGGING (Spec §4)
+// Assigns a lightweight archetype from existing stat rates
+// ═══════════════════════════════════════════════════════
+function getPlayerArchetype(playerMeta, sport) {
+  if(!playerMeta) return 'unknown';
+  // Use PLAYER_DB fields: usage, prop, position hints
+  const prop = (playerMeta.prop || '').toLowerCase();
+  const pos  = (playerMeta.pos || playerMeta.position || '').toUpperCase();
+  const usage = playerMeta.usage || 0;
+
+  if(sport === 'NBA' || sport === 'WNBA') {
+    if(prop.includes('assist') || (pos === 'PG' && usage > 0.24)) return 'playmaker';
+    if(prop.includes('rebound') || ['C','PF'].includes(pos)) return 'rebounder';
+    if(prop.includes('three') || prop.includes('3')) return 'perimeter_shooter';
+    if(usage > 0.28) return 'scorer';
+    return 'role_player';
+  }
+  if(sport === 'MLB') {
+    if(prop.includes('strikeout') || prop.includes('earned') || prop.includes('hits allowed')) return 'pitcher';
+    if(prop.includes('home run') || prop.includes('total bases')) return 'power_hitter';
+    return 'contact_hitter';
+  }
+  if(sport === 'NFL') {
+    if(prop.includes('pass')) return 'qb';
+    if(prop.includes('rush')) return 'rusher';
+    if(prop.includes('receiv') || prop.includes('target')) return 'receiver';
+    return 'role_player';
+  }
+  if(sport === 'NHL') {
+    if(pos === 'G') return 'goalie';
+    if(prop.includes('shot')) return 'shooter';
+    if(prop.includes('assist')) return 'playmaker';
+    return 'forward';
+  }
+  return 'unknown';
+}
+
+// Apply small archetype-based context refinements (±3–6%)
+function archetypeContextAdj(archetype, contextData, sport) {
+  let adj = 0;
+  if(!contextData) return adj;
+  // Weak perimeter defense → boost shooters
+  if(archetype === 'perimeter_shooter') {
+    const oppDef = contextData.nbaOppDef;
+    if(oppDef && oppDef.threesPct > 0.37) adj += 0.04;    // opponent allows >37% from 3
+    else if(oppDef && oppDef.threesPct > 0.355) adj += 0.02;
+  }
+  // Poor rebounding team → boost rebounders
+  if(archetype === 'rebounder') {
+    const oppProfile = contextData.nbaOppProfile;
+    if(oppProfile && oppProfile.reboundsAllowed > 48) adj += 0.04;
+    else if(oppProfile && oppProfile.reboundsAllowed > 45) adj += 0.02;
+  }
+  // Cap archetype adj at ±6%
+  return Math.max(-0.06, Math.min(0.06, adj));
+}
+
+// ═══════════════════════════════════════════════════════
+// CONFIDENCE SCORE 0–100 (Spec §8)
+// Based on: sample size, minutes stability, variance, injury impact
+// NOT a betting signal — projection reliability only
+// ═══════════════════════════════════════════════════════
+function computeConfidenceScore100(dataPoints, varianceProfile, minutesVolatilityFlag, injuryBoostApplied) {
+  let score = 0;
+
+  // Sample size (0–35 pts)
+  if(dataPoints >= 20)      score += 35;
+  else if(dataPoints >= 15) score += 28;
+  else if(dataPoints >= 10) score += 22;
+  else if(dataPoints >= 7)  score += 15;
+  else if(dataPoints >= 5)  score += 8;
+
+  // Variance / CV (0–30 pts)
+  if(varianceProfile) {
+    if(varianceProfile.volatilityClass === 'LOW')  score += 30;
+    else if(varianceProfile.volatilityClass === 'MED')  score += 18;
+    else if(varianceProfile.volatilityClass === 'HIGH') score += 6;
+  } else {
+    score += 10; // no variance data — partial credit
+  }
+
+  // Minutes stability (0–20 pts)
+  const minsFlag = minutesVolatilityFlag || 'UNKNOWN';
+  if(minsFlag === 'STABLE')   score += 20;
+  else if(minsFlag === 'MODERATE') score += 12;
+  else if(minsFlag === 'VOLATILE') score += 2;
+  else score += 8; // UNKNOWN
+
+  // Injury impact size (0–15 pts) — large adjustments reduce confidence
+  if(!injuryBoostApplied)      score += 15;
+  else if(injuryBoostApplied < 0.10) score += 10; // small boost
+  else if(injuryBoostApplied < 0.20) score += 5;  // moderate boost
+  // large boost (>20%) = 0 pts
+
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+// ═══════════════════════════════════════════════════════
+// MLB PARK FACTORS (Spec §7 — hardcoded static multipliers)
+// Applied to batter hitting projections only
+// ═══════════════════════════════════════════════════════
+// ── MLB Park Factor (Spec §7) — batter stats only, delegates to getParkFactor() ──
+function getMLBParkFactor(homeTeam, statLabel) {
+  // Only apply to batter stats — not pitcher stats
+  const pitcherStats = ['Strikeouts','Earned Runs','Hits Allowed','Walks','Total Outs'];
+  if(pitcherStats.includes(statLabel)) return 1.0;
+  return getParkFactor(homeTeam); // uses existing MLB_PARK_FACTORS map
 }
 
 // ═══════════════════════════════════════════════════════
@@ -7784,15 +7991,87 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
               bestTier = entryTier;
               bestTeammateOut = teamEntry.name;
               bestSeverity = entryTier === 1 ? 'major' : entryTier === 2 ? 'moderate' : 'minor';
-              bestOutPosition = _injEntry.position || null; // ESPN position of the injured player
+              bestOutPosition = _injEntry.position || teamEntry.pos || null;
             }
           }
 
           if(bestTeammateOut) {
+            // ── ROLE-BASED INJURY REDISTRIBUTION (Spec §3) ──
+            // Identify the role of the OUT player and apply role-aware boosts
+            // to the current player based on archetype similarity and stat type
+
+            const outPos = (bestOutPosition || '').toUpperCase();
+            const myPos  = (playerMeta?.pos || playerMeta?.position || '').toUpperCase();
+            const myArchetype = getPlayerArchetype(playerMeta, sport);
+
+            // Determine role of the OUT player
+            let outRole = 'role_player';
+            if(bestTier === 1) {
+              // Tier 1 = star/starter — determine by position
+              if(['PG','SG'].includes(outPos)) outRole = 'primary_ball_handler';
+              else if(['SF','SG'].includes(outPos) && bestTier === 1) outRole = 'high_usage_scorer';
+              else if(['PF','C'].includes(outPos)) outRole = 'rebounder_big';
+              else outRole = 'high_usage_scorer';
+            } else if(bestTier === 2) {
+              if(['PG'].includes(outPos)) outRole = 'secondary_creator';
+              else if(['PF','C'].includes(outPos)) outRole = 'rebounder_big';
+              else outRole = 'secondary_scorer';
+            }
+
+            // Apply redistribution based on outRole + this player's role
+            let injBoostPct = 0;
+            if(outRole === 'primary_ball_handler') {
+              if(myArchetype === 'playmaker') injBoostPct = 0.12;       // +8–15% AST-heavy
+              else if(myArchetype === 'scorer') injBoostPct = 0.07;     // +5–10% secondary handler
+              else injBoostPct = 0.04;
+            } else if(outRole === 'high_usage_scorer') {
+              if(myArchetype === 'scorer') injBoostPct = 0.14;          // +10–18% shot volume
+              else if(myArchetype === 'playmaker') injBoostPct = 0.08;  // +6–12% secondary
+              else if(myArchetype === 'perimeter_shooter') injBoostPct = 0.09;
+              else injBoostPct = 0.04;
+            } else if(outRole === 'secondary_creator') {
+              if(myArchetype === 'playmaker') injBoostPct = 0.08;
+              else if(myArchetype === 'scorer') injBoostPct = 0.06;
+              else injBoostPct = 0.03;
+            } else if(outRole === 'secondary_scorer') {
+              if(myArchetype === 'scorer') injBoostPct = 0.08;
+              else injBoostPct = 0.04;
+            } else if(outRole === 'rebounder_big') {
+              const isFrontcourt = ['PF','C'].includes(myPos);
+              if(isFrontcourt && statLabel === 'Rebounds') injBoostPct = 0.12; // +8–15%
+              else if(isFrontcourt) injBoostPct = 0.05;
+              else injBoostPct = 0.01;
+            } else {
+              // Low-usage role player out — minimal impact
+              injBoostPct = Math.random() > 0.5 ? 0.03 : 0.01; // 1–5%
+            }
+
+            // Scale by position/archetype similarity (minutes overlap proxy)
+            // Same position group = full boost; different group = 60% boost
+            const sameGroup = ((['PG','SG'].includes(outPos) && ['PG','SG'].includes(myPos)) ||
+                               (['PF','C'].includes(outPos) && ['PF','C'].includes(myPos)) ||
+                               (outPos === 'SF' && myPos === 'SF'));
+            if(!sameGroup && outRole !== 'primary_ball_handler') injBoostPct *= 0.6;
+
+            // Cap total injury boost at +25% (Spec §3)
+            injBoostPct = Math.min(0.25, Math.max(0, injBoostPct));
+
+            // VOLATILE players should not receive aggressive boosts (Spec §2C)
+            if(injBoostPct > 0.08) {
+              const minsVol = flagMinutesVolatility(contextData._snap?.minutes || []);
+              if(minsVol === 'VOLATILE') {
+                injBoostPct = Math.min(injBoostPct, 0.08);
+                traceLog('projectionEngine', `${playerName}: VOLATILE mins — injury boost capped at 8%`, 'warn');
+              }
+            }
+
             contextData.keyTeammateOut = bestTeammateOut;
             contextData.teammateAbsenceSeverity = bestSeverity;
             contextData.outPlayerTier = bestTier;
-            contextData.outPlayerPosition = bestOutPosition || null; // for position-overlap boost calc
+            contextData.outPlayerPosition = outPos;
+            contextData.outPlayerRole = outRole;
+            contextData.injuryBoostPct = injBoostPct;
+            traceLog('projectionEngine', `${playerName}: ${bestTeammateOut} OUT (${outRole}) → role-based boost +${(injBoostPct*100).toFixed(0)}% (archetype: ${myArchetype}, pos: ${myPos})`, 'ok');
           }
         } catch(e) {}
       }
@@ -8170,6 +8449,101 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       finalProjection = parseFloat(blended.toFixed(2));
     }
 
+    // ── VARIANCE PROFILE (Spec §1) — compute for display + downstream ──
+    const varianceProfile = allVals.length >= 5 ? computeVarianceProfile(allVals, ewmaMean) : null;
+    const minsVolatilityFlag = sharpResult.minsVolatilityFlag || flagMinutesVolatility(contextData._snap?.minutes || []);
+
+    // ── ARCHETYPE (Spec §4) — tag + small context refinement ──
+    const playerArchetype = getPlayerArchetype(playerMeta, sport);
+    const archetypeAdj = archetypeContextAdj(playerArchetype, contextData, sport);
+    if(archetypeAdj !== 0) {
+      finalProjection = parseFloat((finalProjection * (1 + archetypeAdj)).toFixed(2));
+      traceLog('projectionEngine', `${playerName}: archetype=${playerArchetype} adj ${archetypeAdj>0?'+':''}${(archetypeAdj*100).toFixed(0)}% → ${finalProjection}`, 'ok');
+    }
+
+    // ── ROLE-BASED INJURY BOOST (Spec §3) — apply pre-computed pct to projection ──
+    const injuryBoostPct = contextData.injuryBoostPct || 0;
+    if(injuryBoostPct > 0) {
+      finalProjection = parseFloat((finalProjection * (1 + injuryBoostPct)).toFixed(2));
+      traceLog('projectionEngine', `${playerName}: role injury boost +${(injuryBoostPct*100).toFixed(0)}% (${contextData.outPlayerRole}) → ${finalProjection}`, 'ok');
+    }
+
+    // ── NBA/WNBA PACE BOOST (Spec §7 — allow up to ±5%) ──
+    if((sport === 'NBA' || sport === 'WNBA') && contextData.nbaPace !== null && contextData.nbaPace !== undefined) {
+      // League average pace ~100 possessions/48min. >105 = fast, <95 = slow
+      const leagueAvgPace = 100;
+      const paceRatio = contextData.nbaPace / leagueAvgPace;
+      // Scale ±5% max (was previously too small)
+      const paceAdj = Math.max(-0.05, Math.min(0.05, (paceRatio - 1) * 0.50));
+      if(Math.abs(paceAdj) > 0.005) {
+        finalProjection = parseFloat((finalProjection * (1 + paceAdj)).toFixed(2));
+        traceLog('projectionEngine', `${playerName}: pace adj (pace=${contextData.nbaPace}) ${paceAdj>0?'+':''}${(paceAdj*100).toFixed(1)}% → ${finalProjection}`, 'ok');
+        notes.push(`Pace factor (${contextData.nbaPace.toFixed(0)} poss): ${paceAdj>0?'+':''}${(paceAdj*100).toFixed(1)}%`);
+      }
+    }
+
+    // ── MLB PARK FACTOR (Spec §7 — hardcoded static multipliers for batters) ──
+    if(sport === 'MLB') {
+      const parkFactor = getMLBParkFactor(team, statLabel);
+      if(parkFactor !== 1.0) {
+        finalProjection = parseFloat((finalProjection * parkFactor).toFixed(2));
+        traceLog('projectionEngine', `${playerName}: MLB park factor ${team}=${parkFactor.toFixed(3)} → ${finalProjection} ${statLabel}`, 'ok');
+        notes.push(`Park factor (${team}): ×${parkFactor.toFixed(3)}`);
+      }
+      // ── MLB Opponent Strikeout Rate (Spec §7 — for pitcher Strikeouts prop) ──
+      if(statLabel === 'Strikeouts' && contextData.pitcher?.kPer9) {
+        // kPer9 > 9 = above-avg strikeout pitcher, < 7 = low
+        // This is OUR pitcher's K rate — scale projection ±5–10%
+        const kNorm = 8.5; // league avg K/9
+        const kRatio = parseFloat(contextData.pitcher.kPer9) / kNorm;
+        const kAdj = Math.max(-0.10, Math.min(0.10, (kRatio - 1) * 0.50));
+        if(Math.abs(kAdj) > 0.01) {
+          finalProjection = parseFloat((finalProjection * (1 + kAdj)).toFixed(2));
+          traceLog('projectionEngine', `${playerName}: K/9 adj (${contextData.pitcher.kPer9}) ${kAdj>0?'+':''}${(kAdj*100).toFixed(1)}% → ${finalProjection}`, 'ok');
+          notes.push(`K/9 rate (${contextData.pitcher.kPer9}): ${kAdj>0?'+':''}${(kAdj*100).toFixed(1)}%`);
+        }
+      }
+    }
+
+    // ── NFL OPPONENT DEFENSE ADJUSTMENT (Spec §7 — ±5% max, yards allowed) ──
+    if(sport === 'NFL' && contextData.nflOppYardsAllowed) {
+      // Average NFL defense allows ~350 total yards/game
+      // Scale stat projection by how permissive the defense is — small effect (±5%)
+      const leagueAvgYards = 350;
+      const defRatio = contextData.nflOppYardsAllowed / leagueAvgYards;
+      const defAdj = Math.max(-0.05, Math.min(0.05, (defRatio - 1) * 0.25));
+      if(Math.abs(defAdj) > 0.005) {
+        finalProjection = parseFloat((finalProjection * (1 + defAdj)).toFixed(2));
+        traceLog('projectionEngine', `${playerName}: NFL def adj (opp allows ${contextData.nflOppYardsAllowed} yds/g) ${defAdj>0?'+':''}${(defAdj*100).toFixed(1)}% → ${finalProjection}`, 'ok');
+        notes.push(`Opp defense (${contextData.nflOppYardsAllowed} yds allowed/g): ${defAdj>0?'+':''}${(defAdj*100).toFixed(1)}%`);
+      }
+    }
+
+    // ── NHL SHOTS ON GOAL TREND (Spec §7 — last 5 vs last 10 micro-adjustment) ──
+    if(sport === 'NHL' && (statLabel === 'Shots on Goal' || statLabel === 'Goals' || statLabel === 'Points')) {
+      const nhlRaw = gameLogDataRef?._nhlRaw || [];
+      if(nhlRaw.length >= 10) {
+        const sogExtract = g => g.allStats?.[3] ?? g.shots ?? 0;
+        const last5SOG  = nhlRaw.slice(0,5).map(sogExtract).filter(v=>v>=0);
+        const last10SOG = nhlRaw.slice(0,10).map(sogExtract).filter(v=>v>=0);
+        if(last5SOG.length >= 5 && last10SOG.length >= 10) {
+          const avg5  = last5SOG.reduce((a,b)=>a+b,0)/last5SOG.length;
+          const avg10 = last10SOG.reduce((a,b)=>a+b,0)/last10SOG.length;
+          if(avg10 > 0) {
+            const sogTrendAdj = Math.max(-0.04, Math.min(0.04, (avg5/avg10 - 1) * 0.3));
+            if(Math.abs(sogTrendAdj) > 0.005) {
+              finalProjection = parseFloat((finalProjection * (1 + sogTrendAdj)).toFixed(2));
+              traceLog('projectionEngine', `${playerName}: NHL SOG trend (L5 ${avg5.toFixed(1)} vs L10 ${avg10.toFixed(1)}) adj ${sogTrendAdj>0?'+':''}${(sogTrendAdj*100).toFixed(1)}% → ${finalProjection}`, 'ok');
+              notes.push(`SOG trend (L5 ${avg5.toFixed(1)} vs L10 ${avg10.toFixed(1)}): ${sogTrendAdj>0?'+':''}${(sogTrendAdj*100).toFixed(1)}%`);
+            }
+          }
+        }
+      }
+    }
+
+    // ── CONFIDENCE SCORE 0–100 (Spec §8) ──
+    const confidenceScore100 = computeConfidenceScore100(dataPoints, varianceProfile, minsVolatilityFlag, injuryBoostPct > 0 ? injuryBoostPct : null);
+
     // StdDev: variance-based from per-minute data + minutes uncertainty component
     // ── Opportunity layer: blend projection with volume-based estimate ──
     // Augments existing EWMA — does NOT replace it. All confirmed columns only.
@@ -8362,11 +8736,11 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       traceLog('projectionEngine', `${playerName}: combo correlation (${statLabel}) → stdDev ×${comboCorrelationMult} = ${stdDev.toFixed(2)}`, 'ok');
     }
 
-    // OUTLIER: flag only — do NOT clamp or suppress
-    // Per spec: volatility = uncertainty, not regression pressure
+    // OUTLIER: soft clamp already applied in computeSharpProjection (pulled 10–20% toward season avg)
+    // This flag marks it for UI display only
     if(sharpResult.isOutlier) {
       traceFlags.push('OUTLIER_PROJECTION');
-      traceLog('projectionEngine', `${playerName}: [OUTLIER_PROJECTION] proj ${sharpResult.projection} is outside 70-140% of seasonAvg — flagged only, not suppressed`, 'warn');
+      traceLog('projectionEngine', `${playerName}: [OUTLIER_PROJECTION] proj ${sharpResult.projection} was outside 70-140% of seasonAvg — soft-clamped (10-20% pulled toward mean)`, 'warn');
     }
 
     // HIGH_VOLATILITY: flag + reduce confidence, but do NOT block output
@@ -8737,20 +9111,14 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     // Teammate injury uplift explanation — makes the boost transparent to the user
     if(contextData.keyTeammateOut) {
       const severity = contextData.teammateAbsenceSeverity || 'moderate';
-      const usage = playerMeta?.usage || 0.22;
-      const isstar = usage >= 0.28;
-      const isRole = usage <= 0.18;
-      const roleLabel = isstar ? 'star' : isRole ? 'role player' : 'starter';
-      const boostPct = severity === 'major' ? (isstar ? 10 : isRole ? 3 : 7) :
-                       severity === 'minor'  ? (isstar ? 3  : isRole ? 1 : 2) :
-                                               (isstar ? 7  : isRole ? 2 : 5);
-      const severityLabels = { major: 'key starter', moderate: 'rotation piece', minor: 'role player' };
+      const boostPct = contextData.injuryBoostPct ? Math.round(contextData.injuryBoostPct * 100) : 5;
+      const outRole = (contextData.outPlayerRole || 'teammate').replace(/_/g, ' ');
       const firstName = (playerName || '').split(' ')[0];
       reasoning.push(
-        `📈 ${contextData.keyTeammateOut} is out (${severityLabels[severity]}). ` +
-        `As a ${roleLabel} on this team, ${firstName} is projected to absorb ~${boostPct}% more usage — ` +
-        `more touches, more shot attempts, potentially more minutes. ` +
-        `This is reflected in the projection above.`
+        `📈 ${contextData.keyTeammateOut} is out (${outRole}). ` +
+        `${firstName} is projected to absorb ~${boostPct}% more usage — ` +
+        `more touches, shot attempts, and potential minutes. ` +
+        `This role-based boost is reflected in the projection above.`
       );
     }
     contextNotes.forEach(n => reasoning.push(`Context: ${n}`));
@@ -8796,7 +9164,14 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       overOdds: hasRealLine ? overOdds : null,
       underOdds: hasRealLine ? underOdds : null,
       dataSource:{gamelog:dataPoints, hasRealLine, espnId:playerId, completenessBreakdown: completeness.breakdown},
-      clvEntry: isAnalysisProp ? null : line, clvClose:null, timestamp:Date.now()
+      clvEntry: isAnalysisProp ? null : line, clvClose:null, timestamp:Date.now(),
+      // v17.55 — upgraded engine fields
+      varianceProfile: varianceProfile || null,
+      minsVolatilityFlag,
+      confidenceScore100,
+      playerArchetype,
+      injuryBoostPct: injuryBoostPct > 0 ? parseFloat((injuryBoostPct*100).toFixed(1)) : null,
+      outPlayerRole: contextData.outPlayerRole || null,
     };
   } catch(e) {
     traceLog('projectionEngine', `${playerName ?? '?'} (${sport ?? '?'}): EXCEPTION — ${e.message}`, 'fail');
@@ -9424,6 +9799,10 @@ function propCardHTML(p) {
       ${reasoningHTML}
       ${p.projectedMinutes ? `<div class="reasoning-line" style="color:var(--blue)">📐 Projected minutes: ${p.projectedMinutes} min · Per-min rate: ${p.perMinRate ?? '—'} · Distribution: ${p.distProfile ?? 'normal'}</div>` : ''}
       ${p.overOdds && p.overOdds !== -110 ? `<div class="reasoning-line" style="color:var(--muted)">📊 Real odds — Over: ${p.overOdds} · Under: ${p.underOdds ?? '—'}</div>` : ''}
+      ${p.varianceProfile ? `<div class="reasoning-line" style="color:${p.varianceProfile.volatilityClass==='LOW'?'var(--accent)':p.varianceProfile.volatilityClass==='MED'?'var(--amber)':'var(--red)'}">📈 Variance: ${p.varianceProfile.volatilityClass} · CV ${p.varianceProfile.cv?.toFixed(2)??'—'} · σ ${p.varianceProfile.stdDev?.toFixed(2)??'—'} · P25/P50/P75: ${p.varianceProfile.p25??'—'}/${p.varianceProfile.p50??'—'}/${p.varianceProfile.p75??'—'}</div>` : ''}
+      ${p.minsVolatilityFlag && p.minsVolatilityFlag !== 'UNKNOWN' ? `<div class="reasoning-line" style="color:${p.minsVolatilityFlag==='STABLE'?'var(--accent)':p.minsVolatilityFlag==='MODERATE'?'var(--amber)':'var(--red)'}">⏱ Minutes: ${p.minsVolatilityFlag}${p.minsVolatilityFlag==='VOLATILE'?' — no aggressive boosts applied':''}</div>` : ''}
+      ${p.confidenceScore100 !== undefined && p.confidenceScore100 !== null ? `<div class="reasoning-line" style="color:var(--blue)">🎯 Projection reliability: ${p.confidenceScore100}/100${p.confidenceScore100>=80?' (high)':p.confidenceScore100>=55?' (moderate)':' (low)'}</div>` : ''}
+      ${p.playerArchetype && p.playerArchetype !== 'unknown' ? `<div class="reasoning-line" style="color:var(--purple)">🏷 Archetype: ${p.playerArchetype.replace('_',' ')}${p.injuryBoostPct ? ` · Injury role boost: +${p.injuryBoostPct}% (${(p.outPlayerRole||'').replace('_',' ')})` : ''}</div>` : ''}
       <div class="data-source-line">📡 ${dataLabel}${isAnalysis && !forceAnalysis ? ' · ANALYSIS MODE — no market data' : p.dataSource?.hasRealLine ? ' · ✓ Live sportsbook line' : ' · Estimated line — add Odds API key'} · completeness ${completenessScore !== null ? completenessScore + '%' : 'N/A'}</div>
     </div>
     ${(!forceAnalysis && p.decision !== 'PASS') ? `<button class="add-slip-btn ${inSlip ? 'added' : ''}" id="slip-btn-${p.id}" onclick="toggleSlip(${p.id})">${inSlip ? '✓ Added to slip' : '+ Add to slip'}</button>` : ''}
