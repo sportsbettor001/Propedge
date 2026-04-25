@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.42</title>
+<title>PropEdge v17.54</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -14,8 +14,8 @@
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);overflow:hidden;-webkit-text-size-adjust:100%}
 
 /* APP SHELL */
-.app-shell{display:flex;flex-direction:column;height:100dvh;height:-webkit-fill-available}
-.header{padding:52px 20px 10px;background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0}
+.app-shell{height:100dvh;height:-webkit-fill-available;overflow:hidden}
+.header{padding:52px 20px 10px;background:var(--bg);border-bottom:1px solid var(--border)}
 .header-top{display:flex;justify-content:space-between;align-items:center}
 .logo{font-size:22px;font-weight:800;letter-spacing:-0.5px}
 .logo span{color:var(--accent)}
@@ -37,7 +37,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
 
 /* CONTENT */
-.content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(env(safe-area-inset-bottom) + 16px)}
+.content{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(env(safe-area-inset-bottom) + 16px)}
 .page{display:none;padding:14px 14px 0}
 .page.active{display:block}
 #props-sticky-bar *{pointer-events:auto}
@@ -281,10 +281,17 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .info-card{background:rgba(77,184,255,.06);border:1px solid rgba(77,184,255,.2);border-radius:14px;padding:14px;margin-bottom:12px;font-family:var(--mono);font-size:11px;color:var(--blue);line-height:1.6}
 
 /* TRACE TAB */
-.trace-section{margin-bottom:14px}
-.trace-section-title{font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--blue);padding:6px 10px;background:var(--bg3);border-radius:8px 8px 0 0;border:1px solid var(--border);border-bottom:none;cursor:pointer;user-select:none}
-.trace-section.collapsed .trace-section-title{border-radius:8px;border-bottom:1px solid var(--border)}
-.trace-section.collapsed .trace-entries{display:none}
+.trace-section{margin-bottom:6px}
+.tool-section{margin-bottom:6px;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.tool-section-header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg3);cursor:pointer;user-select:none;font-family:var(--mono);font-size:10px;font-weight:700;color:var(--text)}
+.tool-section-header:hover{background:var(--bg2)}
+.tool-section-body{display:none;padding:12px}
+.tool-section.open>.tool-section-body{display:block}
+.tool-section-arrow{font-size:8px;color:var(--muted);transition:transform .2s}
+.tool-section.open>.tool-section-header .tool-section-arrow{transform:rotate(90deg)}
+.trace-section-title{font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--blue);padding:6px 10px;background:var(--bg3);border-radius:8px 8px 0 0;border:1px solid var(--border);border-bottom:none;cursor:pointer;user-select:none;transition:border-radius .15s}
+.trace-section.collapsed>.trace-section-title{border-radius:8px!important;border-bottom:1px solid var(--border)!important}
+.trace-section.collapsed>.trace-entries{display:none!important}
 .trace-entries{background:var(--bg2);border:1px solid var(--border);border-radius:0 0 8px 8px;overflow:hidden}
 .trace-entry{font-family:var(--mono);font-size:9px;padding:4px 10px;border-bottom:1px solid var(--border);line-height:1.5;color:var(--muted)}
 .trace-entry:last-child{border-bottom:none}
@@ -308,9 +315,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 </head>
 <body>
 <div class="app-shell">
+  <div class="content">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.42</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.54</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -323,7 +331,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
     </div>
   </div>
 
-  <div class="tabs">
+  <div class="tabs" style="position:-webkit-sticky;position:sticky;top:0;z-index:20;background:var(--bg)">
     <div class="tab active" onclick="showTab('props',this)">Props</div>
     <div class="tab" onclick="showTab('check',this)">Check Pick</div>
     <div class="tab" onclick="showTab('slip',this)">Slip</div>
@@ -331,7 +339,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
     <div class="tab" onclick="showTab('trace',this)">Trace</div>
   </div>
 
-  <div class="content">
 
     <!-- PROPS TAB -->
     <div id="tab-props" class="page active">
@@ -343,8 +350,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       </div>
 
       <!-- Sticky controls — filters + generate button stay visible while scrolling -->
-      <div id="props-sticky-bar" style="position:-webkit-sticky;position:sticky;top:0;z-index:10;background:var(--bg);padding:6px 0 4px;margin:-4px 0 0;border-bottom:1px solid var(--border)">
-        <!-- Sport filter chips -->
+      <!-- STICKY: sport chips, decision, prop type, dates, mode toggle, generate -->
+      <div id="props-sticky-bar" style="position:-webkit-sticky;position:sticky;top:42px;z-index:10;background:var(--bg);padding:6px 0 4px;margin:-4px 0 0;border-bottom:1px solid var(--border)">
         <div class="filter-row" id="sport-filters" style="margin-bottom:6px">
           <div class="filter-chip active" data-sport="all" onclick="toggleSportFilter('all',this)">All sports</div>
           <div class="filter-chip" data-sport="NBA" onclick="toggleSportFilter('NBA',this)"><div class="sport-status-dot"></div>NBA</div>
@@ -360,8 +367,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           <div class="filter-chip" data-dec="UNDER" onclick="setFilter('dec','UNDER',this)">UNDER</div>
           <div class="filter-chip" data-dec="PASS" onclick="setFilter('dec','PASS',this)">PASS</div>
         </div>
-        <div style="margin-bottom:6px;display:flex;gap:6px;align-items:center">
-          <select id="prop-type-filter" onchange="setFilter('prop',this.value)" style="flex:1;font-family:var(--mono);font-size:11px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:5px 8px;cursor:pointer">
+        <div style="margin-bottom:6px">
+          <select id="prop-type-filter" onchange="setFilter('prop',this.value)" style="width:100%;font-family:var(--mono);font-size:11px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:5px 8px;cursor:pointer">
             <option value="all">All prop types</option>
             <optgroup label="── NBA/WNBA ──">
               <option value="Points">Points</option>
@@ -438,25 +445,21 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           <div class="filter-chip" id="chip-today" data-date="today" onclick="setFilter('date','today',this)">Today</div>
           <div class="filter-chip" id="chip-tomorrow" data-date="tomorrow" onclick="setFilter('date','tomorrow',this)">Tomorrow</div>
         </div>
-        <div class="filter-row" id="game-filters" style="margin-bottom:6px;display:none">
+        <div style="display:flex;gap:0;border:1px solid var(--border2);border-radius:10px;overflow:hidden;margin-bottom:6px">
+          <button id="mode-select-analysis" onclick="setViewMode('analysis')" style="flex:1;font-family:var(--mono);font-size:11px;font-weight:700;padding:8px;border:none;cursor:pointer;transition:all .15s;background:rgba(255,181,71,0.15);color:var(--amber)">📊 ANALYSIS</button>
+          <button id="mode-select-betting" onclick="setViewMode('betting')" style="flex:1;font-family:var(--mono);font-size:11px;font-weight:700;padding:8px;border:none;border-left:1px solid var(--border2);cursor:pointer;transition:all .15s;background:transparent;color:var(--muted)">📈 BETTING</button>
+        </div>
+        <div id="game-filters" class="filter-row" style="margin-bottom:6px;display:none">
           <!-- populated dynamically by updateGameFilter() -->
         </div>
-        <div style="display:flex;gap:0;border:1px solid var(--border2);border-radius:10px;overflow:hidden;margin-bottom:8px">
-          <button id="mode-select-betting" onclick="setViewMode('betting')" style="flex:1;font-family:var(--mono);font-size:11px;font-weight:700;padding:8px;border:none;cursor:pointer;transition:all .15s;background:rgba(0,229,160,0.15);color:var(--accent)">📈 BETTING</button>
-          <button id="mode-select-analysis" onclick="setViewMode('analysis')" style="flex:1;font-family:var(--mono);font-size:11px;font-weight:700;padding:8px;border:none;border-left:1px solid var(--border2);cursor:pointer;transition:all .15s;background:transparent;color:var(--muted)">📊 ANALYSIS</button>
-        </div>
-        <div style="display:flex;gap:6px;align-items:center">
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
           <button class="gen-btn" id="gen-btn" onclick="generateProps()" style="flex:1;margin-bottom:0;padding:10px">
             <span id="gen-btn-text">Generate Props</span>
           </button>
-          <button id="use-cache-btn" onclick="restoreCachedData()" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;color:var(--muted);padding:10px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0" title="Load previously fetched props without hitting API">
-            📦 Use cache
-          </button>
-          <button class="refetch-btn" id="refetch-btn" onclick="refetchAll()" style="margin-bottom:0;padding:10px;width:auto;white-space:nowrap">
-            ↺ Refresh
-          </button>
+          <button id="use-cache-btn" onclick="restoreCachedData()" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;color:var(--muted);padding:10px;cursor:pointer;white-space:nowrap;flex-shrink:0" title="Load previously fetched props without hitting API">📦 Use cache</button>
+          <button class="refetch-btn" id="refetch-btn" onclick="refetchAll()" style="margin-bottom:0;padding:10px;width:auto;white-space:nowrap;flex-shrink:0">↺ Refresh</button>
         </div>
-        <div class="cache-status-bar" id="cache-status-bar" style="margin-top:4px;margin-bottom:0"></div>
+        <div class="cache-status-bar" id="cache-status-bar" style="margin-bottom:0"></div>
       </div>
 
       <div id="mode-banner" style="margin-top:10px"></div>
@@ -466,102 +469,125 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
     <!-- TRACE TAB -->
     <div id="tab-trace" class="page">
-      <div class="section-title">API Status</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:10px">Tap to check if each data source is reachable from your device</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
-        <button onclick="checkApiStatus('espn')" class="api-status-btn" id="apibtn-espn">ESPN</button>
-        <button onclick="checkApiStatus('mlb')" class="api-status-btn" id="apibtn-mlb">MLB API</button>
-        <button onclick="checkApiStatus('nhl')" class="api-status-btn" id="apibtn-nhl">NHL API</button>
-        <button onclick="checkApiStatus('odds')" class="api-status-btn" id="apibtn-odds">Odds API</button>
-        <button onclick="checkApiStatus('nba_proxy')" class="api-status-btn api-status-btn-accent" id="apibtn-nba_proxy" style="grid-column:1/-1">🏀 NBA Proxy (stats.nba.com)</button>
-      </div>
-      <div id="api-status-results" style="margin-bottom:14px"></div>
 
-      <div class="section-title">Team ID Sync</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.6">
-        Stores ESPN team IDs for all sports — needed for stat-specific opponent adjustments.<br>
-        Run once per season. Stored permanently, never cleared with regular cache.
-      </div>
-      <div id="team-id-sync-status" style="font-family:var(--mono);font-size:9px;margin-bottom:8px;display:none;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
-        <button onclick="syncTeamIds('NBA')" id="btn-teamid-nba" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏀 Sync NBA Team IDs<br><span style="font-size:8px;font-weight:400;opacity:.7">30 teams · ESPN IDs</span></button>
-        <button onclick="syncTeamIds('WNBA')" id="btn-teamid-wnba" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏀 Sync WNBA Team IDs<br><span style="font-size:8px;font-weight:400;opacity:.7">15 teams · ESPN IDs</span></button>
-        <button onclick="syncTeamIds('NHL')" id="btn-teamid-nhl" style="font-family:var(--mono);font-size:10px;background:rgba(77,184,255,.15);border:1px solid rgba(77,184,255,.5);border-radius:8px;padding:9px;color:var(--blue);cursor:pointer;font-weight:700">🏒 Sync NHL Team IDs<br><span style="font-size:8px;font-weight:400;opacity:.7">32 teams · ESPN + NHL API IDs</span></button>
-        <button onclick="syncTeamIds('NFL')" id="btn-teamid-nfl" style="font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.5);border-radius:8px;padding:9px;color:var(--amber);cursor:pointer;font-weight:700">🏈 Sync NFL Team IDs<br><span style="font-size:8px;font-weight:400;opacity:.7">32 teams · ESPN IDs</span></button>
-        <button onclick="syncTeamIds('MLB')" id="btn-teamid-mlb" style="font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.5);border-radius:8px;padding:9px;color:var(--amber);cursor:pointer;font-weight:700">⚾ Sync MLB Team IDs<br><span style="font-size:8px;font-weight:400;opacity:.7">30 teams · MLB Stats API IDs</span></button>
-        <button onclick="viewTeamIds()" id="btn-teamid-view" style="font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:9px;color:var(--muted);cursor:pointer">👁 View Stored Team IDs<br><span style="font-size:8px;font-weight:400;opacity:.7">Inspect what's stored</span></button>
-      </div>
-      <div id="team-id-detail" style="display:none;margin-bottom:14px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:260px;overflow-y:auto;font-family:var(--mono);font-size:9px"></div>
-
-      <div class="section-title" style="margin-top:4px">API Column Inspector</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.6">
-        Test live ESPN / NHL / MLB API responses to verify available columns for opportunity metrics.<br>
-        Results show exact column names, indices, and sample values.
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
-        <button onclick="runApiColumnTest('nba_opportunity')" class="api-status-btn">🏀 NBA Opportunity Cols<br><span style="font-size:8px;opacity:.7">FGA, FTA, OREB indices</span></button>
-        <button onclick="runApiColumnTest('wnba_opportunity')" class="api-status-btn">🏀 WNBA Opportunity Cols<br><span style="font-size:8px;opacity:.7">Same structure as NBA</span></button>
-        <button onclick="runApiColumnTest('nfl_targets')" class="api-status-btn">🏈 NFL Targets Column<br><span style="font-size:8px;opacity:.7">TGT label lookup</span></button>
-        <button onclick="runApiColumnTest('nhl_toi')" class="api-status-btn">🏒 NHL TOI Column<br><span style="font-size:8px;opacity:.7">TOI per game from NHL API</span></button>
-        <button onclick="runApiColumnTest('mlb_pa')" class="api-status-btn">⚾ MLB Plate Appearances<br><span style="font-size:8px;opacity:.7">PA from MLB Stats API gamelog</span></button>
-        <button onclick="runApiColumnTest('nba_opp_stats')" class="api-status-btn">🏀 NBA Opp Team Stats<br><span style="font-size:8px;opacity:.7">Points/Reb/Ast allowed</span></button>
-        <button onclick="runApiColumnTest('nhl_advanced')" class="api-status-btn">🏒 NHL Advanced Stats<br><span style="font-size:8px;opacity:.7">Shot attempts/Corsi avail?</span></button>
-        <button onclick="runApiColumnTest('mlb_bf')" class="api-status-btn">⚾ MLB Batters Faced<br><span style="font-size:8px;opacity:.7">BF column from pitching log</span></button>
-        <button onclick="runApiColumnTest('nba_injuries')" class="api-status-btn">🏥 NBA Injuries Raw<br><span style="font-size:8px;opacity:.7">ESPN injury report structure</span></button>
-      </div>
-      <div id="api-col-output" style="display:none;margin-bottom:14px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;overflow-x:auto">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <span id="api-col-title" style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--accent)"></span>
-          <button onclick="navigator.clipboard?.writeText(document.getElementById('api-col-content').textContent)" style="font-family:var(--mono);font-size:9px;background:var(--bg2);border:1px solid rgba(0,229,160,.3);border-radius:5px;padding:2px 8px;color:var(--accent);cursor:pointer">⎘ copy</button>
+      <!-- ── API Status ── -->
+      <div class="tool-section">
+        <div class="tool-section-header" onclick="toggleToolSection(this)">
+          <span>📡 API Status</span>
+          <span class="tool-section-arrow">▶</span>
         </div>
-        <pre id="api-col-content" style="font-family:var(--mono);font-size:9px;color:var(--text);white-space:pre-wrap;word-break:break-all;margin:0;max-height:400px;overflow-y:auto"></pre>
+        <div class="tool-section-body">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:10px">Tap to check if each data source is reachable from your device</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+            <button onclick="checkApiStatus('espn')" class="api-status-btn" id="apibtn-espn">ESPN</button>
+            <button onclick="checkApiStatus('mlb')" class="api-status-btn" id="apibtn-mlb">MLB API</button>
+            <button onclick="checkApiStatus('nhl')" class="api-status-btn" id="apibtn-nhl">NHL API</button>
+            <button onclick="checkApiStatus('odds')" class="api-status-btn" id="apibtn-odds">Odds API</button>
+            <button onclick="checkApiStatus('nba_proxy')" class="api-status-btn api-status-btn-accent" id="apibtn-nba_proxy" style="grid-column:1/-1">🏀 NBA Proxy (stats.nba.com)</button>
+          </div>
+          <div id="api-status-results"></div>
+        </div>
       </div>
 
-      <div class="section-title">Player ID Sync</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.6">
-        Pull all player IDs from official APIs once — cached permanently, never cleared.<br>
-        Run after each new season or if players are missing projections.
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        <button onclick="runNBAIdSync()" id="btn-sync-nba" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏀 Sync NBA<br><span style="font-size:8px;font-weight:400;opacity:.7">ESPN · 30 teams</span></button>
-        <button onclick="runWNBAIdSync()" id="btn-sync-wnba" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏀 Sync WNBA<br><span style="font-size:8px;font-weight:400;opacity:.7">ESPN · 12 teams</span></button>
-        <button onclick="runNFLIdSync()" id="btn-sync-nfl" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏈 Sync NFL<br><span style="font-size:8px;font-weight:400;opacity:.7">ESPN · 32 teams</span></button>
-        <button onclick="runNHLIdSync()" id="btn-sync-nhl" style="font-family:var(--mono);font-size:10px;background:rgba(77,184,255,.15);border:1px solid rgba(77,184,255,.5);border-radius:8px;padding:9px;color:var(--blue);cursor:pointer;font-weight:700">🏒 Sync NHL<br><span style="font-size:8px;font-weight:400;opacity:.7">NHL API + ESPN · 32 teams</span></button>
-        <button onclick="runMLBIdSync()" id="btn-sync-mlb" style="grid-column:1/-1;font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.5);border-radius:8px;padding:9px;color:var(--amber);cursor:pointer;font-weight:700">⚾ Sync MLB<br><span style="font-size:8px;font-weight:400;opacity:.7">MLB Stats API · 30 teams</span></button>
-      </div>
-      <div id="sync-ids-progress" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg2);border-radius:8px;padding:10px;margin-bottom:14px"></div>
-
-      <div class="section-title" style="margin-top:4px">Roster Tiers Sync</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.6">
-        Pulls every team's roster from ESPN, ranks players by avg minutes played, and saves tier rankings to local storage permanently.<br>
-        Run at the start of each season or after major trades. Data is never deleted — only overwritten when you re-sync.
-      </div>
-      <div id="roster-tiers-status" style="font-family:var(--mono);font-size:9px;margin-bottom:8px;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;display:none"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
-        <button onclick="runRosterTiersSync('NBA')" id="btn-roster-nba" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏀 Sync NBA Tiers<br><span style="font-size:8px;font-weight:400;opacity:.7">All 30 teams · ranks by minutes</span></button>
-        <button onclick="runRosterTiersSync('WNBA')" id="btn-roster-wnba" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏀 Sync WNBA Tiers<br><span style="font-size:8px;font-weight:400;opacity:.7">All 12 teams · ranks by minutes</span></button>
-        <button onclick="runRosterTiersSync('NHL')" id="btn-roster-nhl" style="font-family:var(--mono);font-size:10px;background:rgba(77,184,255,.15);border:1px solid rgba(77,184,255,.5);border-radius:8px;padding:9px;color:var(--blue);cursor:pointer;font-weight:700">🏒 Sync NHL Tiers<br><span style="font-size:8px;font-weight:400;opacity:.7">All 32 teams · ranks by TOI</span></button>
-        <button onclick="runRosterTiersSync('NFL')" id="btn-roster-nfl" style="font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.5);border-radius:8px;padding:9px;color:var(--amber);cursor:pointer;font-weight:700">🏈 Sync NFL Tiers<br><span style="font-size:8px;font-weight:400;opacity:.7">32 teams · skill positions by snap%</span></button>
-        <button onclick="runRosterTiersSync('MLB')" id="btn-roster-mlb" style="font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.5);border-radius:8px;padding:9px;color:var(--amber);cursor:pointer;font-weight:700">⚾ Sync MLB Tiers<br><span style="font-size:8px;font-weight:400;opacity:.7">30 teams · starters + probable SP only</span></button>
-        <button onclick="viewRosterTiers()" id="btn-roster-view" style="grid-column:1/-1;font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:9px;color:var(--muted);cursor:pointer">👁 View Saved Tiers<br><span style="font-size:8px;font-weight:400;opacity:.7">Shows T1/T2 per team · re-sync to update</span></button>
-      <div id="roster-tiers-meta" style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:6px;margin-bottom:2px" id="roster-tiers-meta-label"></div>
-      </div>
-      <div id="roster-tiers-detail" style="display:none;margin-bottom:14px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:340px;overflow-y:auto">
-        <div id="roster-tiers-detail-inner" style="font-family:var(--mono);font-size:9px;color:var(--text)"></div>
+      <!-- ── Team ID Sync ── -->
+      <div class="tool-section">
+        <div class="tool-section-header" onclick="toggleToolSection(this)">
+          <span>🆔 Team ID Sync</span>
+          <span class="tool-section-arrow">▶</span>
+        </div>
+        <div class="tool-section-body">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.6">Stores ESPN team IDs for all sports — needed for stat-specific opponent adjustments. Run once per season.</div>
+          <div id="team-id-sync-status" style="font-family:var(--mono);font-size:9px;margin-bottom:8px;display:none;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <button onclick="syncTeamIds('NBA')" id="btn-teamid-nba" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏀 NBA<br><span style="font-size:8px;font-weight:400;opacity:.7">30 teams</span></button>
+            <button onclick="syncTeamIds('WNBA')" id="btn-teamid-wnba" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏀 WNBA<br><span style="font-size:8px;font-weight:400;opacity:.7">15 teams</span></button>
+            <button onclick="syncTeamIds('NHL')" id="btn-teamid-nhl" style="font-family:var(--mono);font-size:10px;background:rgba(77,184,255,.15);border:1px solid rgba(77,184,255,.5);border-radius:8px;padding:9px;color:var(--blue);cursor:pointer;font-weight:700">🏒 NHL<br><span style="font-size:8px;font-weight:400;opacity:.7">32 teams</span></button>
+            <button onclick="syncTeamIds('NFL')" id="btn-teamid-nfl" style="font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.5);border-radius:8px;padding:9px;color:var(--amber);cursor:pointer;font-weight:700">🏈 NFL<br><span style="font-size:8px;font-weight:400;opacity:.7">32 teams</span></button>
+            <button onclick="syncTeamIds('MLB')" id="btn-teamid-mlb" style="font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.5);border-radius:8px;padding:9px;color:var(--amber);cursor:pointer;font-weight:700">⚾ MLB<br><span style="font-size:8px;font-weight:400;opacity:.7">30 teams</span></button>
+            <button onclick="viewTeamIds()" id="btn-teamid-view" style="font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:9px;color:var(--muted);cursor:pointer">👁 View IDs</button>
+          </div>
+          <div id="team-id-detail" style="display:none;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:260px;overflow-y:auto;font-family:var(--mono);font-size:9px"></div>
+        </div>
       </div>
 
-      <div class="section-title">Odds API Quota</div>
-      <div id="odds-quota-card" style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px">
-        <div style="font-family:var(--mono);font-size:10px;color:var(--muted)">Loading...</div>
+      <!-- ── Player ID Sync ── -->
+      <div class="tool-section">
+        <div class="tool-section-header" onclick="toggleToolSection(this)">
+          <span>👤 Player ID Sync</span>
+          <span class="tool-section-arrow">▶</span>
+        </div>
+        <div class="tool-section-body">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.6">Pull all player IDs from official APIs once — cached permanently. Run after each new season or if players are missing.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <button onclick="runNBAIdSync()" id="btn-sync-nba" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏀 NBA<br><span style="font-size:8px;font-weight:400;opacity:.7">ESPN · 30 teams</span></button>
+            <button onclick="runWNBAIdSync()" id="btn-sync-wnba" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏀 WNBA<br><span style="font-size:8px;font-weight:400;opacity:.7">ESPN · 12 teams</span></button>
+            <button onclick="runNFLIdSync()" id="btn-sync-nfl" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏈 NFL<br><span style="font-size:8px;font-weight:400;opacity:.7">ESPN · 32 teams</span></button>
+            <button onclick="runNHLIdSync()" id="btn-sync-nhl" style="font-family:var(--mono);font-size:10px;background:rgba(77,184,255,.15);border:1px solid rgba(77,184,255,.5);border-radius:8px;padding:9px;color:var(--blue);cursor:pointer;font-weight:700">🏒 NHL<br><span style="font-size:8px;font-weight:400;opacity:.7">NHL API + ESPN</span></button>
+            <button onclick="runMLBIdSync()" id="btn-sync-mlb" style="grid-column:1/-1;font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.5);border-radius:8px;padding:9px;color:var(--amber);cursor:pointer;font-weight:700">⚾ MLB · MLB Stats API</button>
+          </div>
+          <div id="sync-ids-progress" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg2);border-radius:8px;padding:10px"></div>
+        </div>
       </div>
 
-      <div class="section-title">Slate</div>
-      <div id="slate-log-panel" style="margin-bottom:14px"></div>
+      <!-- ── Roster Tiers Sync ── -->
+      <div class="tool-section">
+        <div class="tool-section-header" onclick="toggleToolSection(this)">
+          <span>🏅 Roster Tiers Sync</span>
+          <span class="tool-section-arrow">▶</span>
+        </div>
+        <div class="tool-section-body">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.6">Pulls every team's roster from ESPN and ranks players by avg minutes. Run at the start of each season or after major trades.</div>
+          <div id="roster-tiers-status" style="font-family:var(--mono);font-size:9px;margin-bottom:8px;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;display:none"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <button onclick="runRosterTiersSync('NBA')" id="btn-roster-nba" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏀 NBA<br><span style="font-size:8px;font-weight:400;opacity:.7">30 teams · by minutes</span></button>
+            <button onclick="runRosterTiersSync('WNBA')" id="btn-roster-wnba" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏀 WNBA<br><span style="font-size:8px;font-weight:400;opacity:.7">12 teams · by minutes</span></button>
+            <button onclick="runRosterTiersSync('NHL')" id="btn-roster-nhl" style="font-family:var(--mono);font-size:10px;background:rgba(77,184,255,.15);border:1px solid rgba(77,184,255,.5);border-radius:8px;padding:9px;color:var(--blue);cursor:pointer;font-weight:700">🏒 NHL<br><span style="font-size:8px;font-weight:400;opacity:.7">32 teams · by TOI</span></button>
+            <button onclick="runRosterTiersSync('NFL')" id="btn-roster-nfl" style="font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.5);border-radius:8px;padding:9px;color:var(--amber);cursor:pointer;font-weight:700">🏈 NFL<br><span style="font-size:8px;font-weight:400;opacity:.7">32 teams · by snap%</span></button>
+            <button onclick="runRosterTiersSync('MLB')" id="btn-roster-mlb" style="font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.5);border-radius:8px;padding:9px;color:var(--amber);cursor:pointer;font-weight:700">⚾ MLB<br><span style="font-size:8px;font-weight:400;opacity:.7">30 teams · starters</span></button>
+            <button onclick="viewRosterTiers()" id="btn-roster-view" style="font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:9px;color:var(--muted);cursor:pointer">👁 View Tiers</button>
+          </div>
+          <div id="roster-tiers-meta" style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:4px"></div>
+          <div id="roster-tiers-detail" style="display:none;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:340px;overflow-y:auto">
+            <div id="roster-tiers-detail-inner" style="font-family:var(--mono);font-size:9px;color:var(--text)"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Odds API Quota ── -->
+      <div class="tool-section">
+        <div class="tool-section-header" onclick="toggleToolSection(this)">
+          <span>💳 Odds API Quota</span>
+          <span class="tool-section-arrow">▶</span>
+        </div>
+        <div class="tool-section-body">
+          <div id="odds-quota-card" style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px">
+            <div style="font-family:var(--mono);font-size:10px;color:var(--muted)">Loading...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Slate ── -->
+      <div class="tool-section">
+        <div class="tool-section-header" onclick="toggleToolSection(this)">
+          <span>📋 Slate</span>
+          <span class="tool-section-arrow">▶</span>
+        </div>
+        <div class="tool-section-body">
+          <div id="slate-log-panel"></div>
+        </div>
+      </div>
       <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
         Pipeline Trace
         <div style="display:flex;gap:6px">
           <button onclick="copyTrace()" style="font-family:var(--mono);font-size:9px;background:var(--bg3);border:1px solid rgba(0,229,160,.3);border-radius:6px;padding:3px 10px;color:var(--accent);cursor:pointer">⎘ Copy</button>
           <button onclick="clearTrace()" style="font-family:var(--mono);font-size:9px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:3px 10px;color:var(--muted);cursor:pointer">Clear</button>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-family:var(--mono);font-size:9px;color:var(--muted)">Click any section header to expand</span>
+        <div style="display:flex;gap:6px">
+          <button onclick="document.querySelectorAll('.trace-section').forEach(s=>s.classList.remove('collapsed'));document.querySelectorAll('.trace-arrow').forEach(a=>a.textContent='▼')" style="font-family:var(--mono);font-size:8px;background:var(--bg3);color:var(--blue);border:1px solid var(--border);border-radius:5px;padding:2px 8px;cursor:pointer">▼ Expand All</button>
+          <button onclick="document.querySelectorAll('.trace-section').forEach(s=>s.classList.add('collapsed'));document.querySelectorAll('.trace-arrow').forEach(a=>a.textContent='▶')" style="font-family:var(--mono);font-size:8px;background:var(--bg3);color:var(--blue);border:1px solid var(--border);border-radius:5px;padding:2px 8px;cursor:pointer">▶ Collapse All</button>
         </div>
       </div>
       <div id="trace-panel"><div class="trace-empty">Run "Generate Props" to populate trace log.</div></div>
@@ -819,8 +845,50 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
     <button class="modal-btn" onclick="saveSettings()">Save Settings</button>
     <button class="modal-close" onclick="closeSettings()">Close</button>
+    <button class="modal-close" onclick="openRosterEditor()" style="color:var(--accent);border-color:rgba(0,212,255,.3);margin-top:6px">🏀 Edit Roster Tiers</button>
     <button class="modal-close" onclick="revertToDefaults()" style="color:var(--amber);border-color:rgba(255,181,71,.3);margin-top:6px">↺ Clear API keys & revert defaults</button>
     <button class="modal-close" onclick="clearAllData()" style="color:var(--red);border-color:rgba(255,77,106,.3);margin-top:6px">⚠ Clear all data</button>
+  </div>
+</div>
+
+<!-- ── Roster Tier Editor Modal ── -->
+<div class="modal-overlay" id="roster-editor-modal" onclick="handleRosterEditorClick(event)">
+  <div class="modal-content" style="max-width:600px;max-height:90vh;overflow-y:auto">
+    <div class="modal-title">🏀 Roster Tier Editor</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px">
+      Edit which players are on each team and their tier (1=star, 2=rotation, 3=bench). Changes persist across sessions.
+    </div>
+
+    <!-- Sport + Team selector -->
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <select id="re-sport" onchange="reLoadTeams()" style="flex:1;min-width:90px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px">
+        <option value="NBA">NBA</option>
+        <option value="NHL">NHL</option>
+      </select>
+      <select id="re-team" onchange="reLoadRoster()" style="flex:2;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px">
+      </select>
+    </div>
+
+    <!-- Player list -->
+    <div id="re-roster-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
+
+    <!-- Add player row -->
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <input id="re-new-name" placeholder="Player name" style="flex:3;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px" />
+      <select id="re-new-tier" style="flex:1;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px">
+        <option value="1">T1 Star</option>
+        <option value="2" selected>T2 Role</option>
+        <option value="3">T3 Bench</option>
+      </select>
+      <button onclick="reAddPlayer()" style="flex:1;background:var(--accent);color:#000;border:none;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">+ Add</button>
+    </div>
+
+    <!-- Save / close -->
+    <div style="display:flex;gap:8px">
+      <button onclick="reSaveRoster()" style="flex:1;background:var(--green);color:#000;border:none;border-radius:8px;padding:10px;font-size:13px;cursor:pointer;font-weight:700">💾 Save Team</button>
+      <button onclick="closeRosterEditor()" style="flex:1;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:13px;cursor:pointer">Close</button>
+    </div>
+    <div id="re-status" style="margin-top:8px;font-size:11px;color:var(--green);min-height:16px"></div>
   </div>
 </div>
 
@@ -1454,185 +1522,6 @@ function viewTeamIds() {
 }
 
 // ═══════════════════════════════════════════════════════
-// API COLUMN INSPECTOR — test live endpoints for opportunity metrics
-// ═══════════════════════════════════════════════════════
-async function runApiColumnTest(which) {
-  const out = document.getElementById('api-col-output');
-  const titleEl = document.getElementById('api-col-title');
-  const contentEl = document.getElementById('api-col-content');
-  if(!out || !titleEl || !contentEl) return;
-  out.style.display = 'block';
-  titleEl.textContent = '⟳ Fetching...';
-  contentEl.textContent = 'Running test...';
-
-  const year = new Date().getMonth()+1 >= 10 ? new Date().getFullYear()+1 : new Date().getFullYear();
-  const lines = [];
-
-  try {
-    if(which === 'nba_opportunity' || which === 'wnba_opportunity') {
-      const sport = which === 'wnba_opportunity' ? 'wnba' : 'nba';
-      const testId   = sport === 'nba' ? '3112335' : '3149391';
-      const testName = sport === 'nba' ? 'Nikola Jokic' : "A'ja Wilson";
-      titleEl.textContent = (sport === 'wnba' ? 'WNBA' : 'NBA') + ' Opportunity Columns — ' + testName;
-      const url = 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/' + sport + '/athletes/' + testId + '/gamelog?limit=30&season=' + year + '&seasontype=2';
-      const data = await fetchWithFallback(url);
-      const topLabels = (data?.labels || []).map((l,i) => i + ':' + l);
-      lines.push('URL: ' + url);
-      lines.push('ALL COLUMNS: ' + topLabels.join(', '));
-      const checkCols = ['fga','fg3a','fta','oreb','dreb','treb','reb','usg','min','pts','ast','stl','blk','to'];
-      const lbls = (data?.labels || []).map(l => (l||'').toLowerCase());
-      lines.push('');
-      for(const col of checkCols) {
-        const idx = lbls.findIndex(l => l === col || l.includes(col));
-        lines.push((idx >= 0 ? '✓' : '✗') + ' "' + col + '" → index ' + idx);
-      }
-      const st = data?.seasonTypes?.[0]?.categories?.[0];
-      const evArr = Object.values(st?.events || {});
-      if(evArr.length > 0) {
-        lines.push('');
-        lines.push('First game: [' + (evArr[0].stats||[]).join(', ') + ']');
-      }
-
-    } else if(which === 'nfl_targets') {
-      titleEl.textContent = 'NFL Targets Column — CeeDee Lamb';
-      const url = 'https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/4241479/gamelog?limit=20&season=' + year + '&seasontype=2';
-      const data = await fetchWithFallback(url);
-      const lbls = (data?.labels || []).map((l,i) => i + ':' + l);
-      lines.push('ALL COLUMNS: ' + lbls.join(', '));
-      const check = ['tgt','targets','rec','yds','td','att','car'];
-      const ll = (data?.labels || []).map(l => (l||'').toLowerCase());
-      for(const c of check) {
-        const idx = ll.findIndex(l => l === c || l.includes(c));
-        lines.push((idx >= 0 ? '✓' : '✗') + ' "' + c + '" → index ' + idx);
-      }
-
-    } else if(which === 'nhl_toi') {
-      titleEl.textContent = 'NHL TOI Column — McDavid';
-      const seasonStr = (year-1) + '' + year;
-      const url = NHL_BASE + '/player/8478402/game-log/' + seasonStr + '/2';
-      lines.push('URL: ' + url);
-      try {
-        const data = await fetchWithFallback(url);
-        const games = data?.gameLog || [];
-        lines.push('Games: ' + games.length);
-        if(games.length > 0) {
-          const g = games[0];
-          lines.push('First game keys: ' + Object.keys(g).join(', '));
-          lines.push('toi: ' + (g.toi ?? 'MISSING'));
-          lines.push('goals: ' + (g.goals ?? '-'));
-          lines.push('shots: ' + (g.shots ?? '-'));
-          lines.push('points: ' + (g.points ?? '-'));
-        }
-      } catch(e2) { lines.push('Failed: ' + e2.message); }
-
-    } else if(which === 'mlb_pa') {
-      titleEl.textContent = 'MLB Plate Appearances — Aaron Judge';
-      const url = 'https://statsapi.mlb.com/api/v1/people/592450/stats?stats=gameLog&season=' + year + '&group=hitting';
-      const data = await fetchWithFallback(url);
-      lines.push('URL: ' + url);
-      const splits = data?.stats?.[0]?.splits || [];
-      lines.push('Games: ' + splits.length);
-      if(splits.length > 0) {
-        const s = splits[0].stat || {};
-        lines.push('plateAppearances: ' + (s.plateAppearances ?? 'MISSING'));
-        lines.push('atBats: ' + (s.atBats ?? '-'));
-        lines.push('hits: ' + (s.hits ?? '-'));
-        lines.push('First 3 PA: ' + splits.slice(0,3).map(g => g.stat?.plateAppearances ?? '?').join(', '));
-      }
-
-    } else if(which === 'nba_opp_stats') {
-      titleEl.textContent = 'NBA Opp Team Stats — BOS (id:2)';
-      const url = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/2/statistics';
-      const data = await fetchWithFallback(url);
-      lines.push('Root keys: ' + Object.keys(data||{}).join(', '));
-      const cats = data?.results?.stats?.categories || data?.statistics || [];
-      lines.push('Categories: ' + cats.length);
-      const allStats = [];
-      const walk = arr => { for(const item of (arr||[])) { if(item?.name) allStats.push(item); if(item?.stats) walk(item.stats); if(item?.categories) walk(item.categories); } };
-      walk(cats);
-      lines.push('Stats (' + allStats.length + '):');
-      for(const s of allStats.slice(0,40)) lines.push('  ' + s.name + ': ' + (s.value || s.displayValue));
-
-    } else if(which === 'nhl_advanced') {
-      titleEl.textContent = 'NHL Advanced Stats — Corsi availability';
-      const url = 'https://api.nhle.com/stats/rest/en/skater/realtime?isAggregate=false&isGame=false&sort=%5B%7B%22property%22:%22satTotal%22,%22direction%22:%22DESC%22%7D%5D&start=0&limit=5&cayenneExp=seasonId=20252026%20and%20gameTypeId=2';
-      lines.push('URL: ' + url);
-      try {
-        const data = await fetchWithFallback(url);
-        const d = data?.data || [];
-        lines.push('Records: ' + d.length);
-        if(d.length > 0) { lines.push('Keys: ' + Object.keys(d[0]).join(', ')); lines.push('satTotal: ' + (d[0].satTotal ?? 'MISSING')); }
-      } catch(e2) { lines.push('Failed: ' + e2.message); }
-
-    } else if(which === 'mlb_bf') {
-      titleEl.textContent = 'MLB Batters Faced — Gerrit Cole';
-      const url = 'https://statsapi.mlb.com/api/v1/people/543243/stats?stats=gameLog&season=' + year + '&group=pitching';
-      const data = await fetchWithFallback(url);
-      lines.push('URL: ' + url);
-      const splits = data?.stats?.[0]?.splits || [];
-      lines.push('Games: ' + splits.length);
-      if(splits.length > 0) {
-        const s = splits[0].stat || {};
-        lines.push('battersFaced: ' + (s.battersFaced ?? 'MISSING'));
-        lines.push('strikeOuts: ' + (s.strikeOuts ?? '-'));
-        lines.push('inningsPitched: ' + (s.inningsPitched ?? '-'));
-        lines.push('First 3 BF: ' + splits.slice(0,3).map(g => g.stat?.battersFaced ?? '?').join(', '));
-      }
-
-    } else if(which === 'nba_injuries') {
-      titleEl.textContent = 'NBA Injury Report — raw structure';
-      for(const [label, url] of [
-        ['site API', 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/injuries'],
-        ['core API', 'https://sports.core.api.espn.com/v2/sports/basketball/nba/injuries?limit=10'],
-      ]) {
-        lines.push('=== ' + label + ' ===');
-        lines.push('URL: ' + url);
-        try {
-          const data = await fetchWithFallback(url);
-          lines.push('Root keys: ' + Object.keys(data||{}).join(', '));
-          const items = data?.injuries || data?.items || [];
-          lines.push('Count: ' + items.length);
-          if(items.length > 0) {
-            lines.push('First item keys: ' + Object.keys(items[0]||{}).join(', '));
-            lines.push('Top-level displayName: ' + (items[0]?.displayName || '?') + ' (this is a TEAM name)');
-            lines.push('Nested injuries[] count: ' + (items[0]?.injuries?.length || 0));
-            if(items[0]?.injuries?.length > 0) {
-              const firstPlayer = items[0].injuries[0];
-              lines.push('First player keys: ' + Object.keys(firstPlayer||{}).join(', '));
-              lines.push('athlete.displayName: ' + (firstPlayer?.athlete?.displayName || 'MISSING'));
-              lines.push('status: ' + (firstPlayer?.status || 'MISSING'));
-              lines.push('details: ' + JSON.stringify(firstPlayer?.details||{}).slice(0,100));
-            }
-            lines.push('');
-            // Flatten all players across all teams
-            const allPlayers = items.flatMap(t => t?.injuries || []);
-            lines.push('Total players across all teams: ' + allPlayers.length);
-            lines.push('');
-            lines.push('First 5 players:');
-            allPlayers.slice(0,5).forEach(p => {
-              lines.push('  ' + (p.athlete?.displayName||'?') + ' → ' + (p.status||p.details?.type||'?'));
-            });
-            const luka = allPlayers.find(p =>
-              (p.athlete?.displayName||'').toLowerCase().includes('doncic')
-            );
-            if(luka) {
-              lines.push('Luka: YES — status="' + (luka.status||'?') + '" details=' + JSON.stringify(luka.details||{}).slice(0,100));
-            } else {
-              lines.push('Luka: NOT FOUND (may not be on official ESPN injury report)');
-            }
-          }
-        } catch(e2) { lines.push('Failed: ' + e2.message); }
-        lines.push('');
-      }
-    }
-
-  } catch(e) {
-    lines.push('ERROR: ' + e.message);
-  }
-
-  titleEl.textContent = titleEl.textContent.replace('⟳ Fetching...', '').trim() || which;
-  contentEl.textContent = lines.join('\n');
-}
 async function inspectRawApi(which) {
   const out = document.getElementById('raw-api-output');
   const title = document.getElementById('raw-api-title');
@@ -2246,7 +2135,7 @@ let filters = { sports: new Set(['all']), dec: 'all', date: 'all', prop: 'all', 
 let expandedCards = new Set();
 let isGenerating = false;
 let isAnalyzing = false;
-let viewMode = 'betting'; // 'betting' | 'analysis' — toggles card display without re-fetch
+let viewMode = 'analysis'; // 'betting' | 'analysis' — toggles card display without re-fetch
 let fetchingSports = new Set(); // sports currently being fetched
 
 // ═══════════════════════════════════════════════════════
@@ -2486,11 +2375,118 @@ function clearAllData() {
   setTimeout(() => location.reload(), 1200);
 }
 
+function toggleToolSection(el) {
+  el.closest('.tool-section').classList.toggle('open');
+}
 function closeSettings() {
   document.getElementById('settings-modal').classList.remove('open');
 }
 function handleModalClick(e) {
   if(e.target === document.getElementById('settings-modal')) closeSettings();
+}
+
+// ── Roster Tier Editor ──────────────────────────────────────────────────────
+// Edits the dynamic ROLE_TIERS stored in localStorage (pe_role_tiers_v1).
+// Falls back to static ROLE_TIERS for reading, always saves to dynamic store.
+
+let _reCurrentRoster = []; // working copy while editing
+
+function openRosterEditor() {
+  closeSettings();
+  reLoadTeams();
+  document.getElementById('roster-editor-modal').classList.add('open');
+}
+function closeRosterEditor() {
+  document.getElementById('roster-editor-modal').classList.remove('open');
+}
+function handleRosterEditorClick(e) {
+  if(e.target === document.getElementById('roster-editor-modal')) closeRosterEditor();
+}
+
+function reGetAllTiers() {
+  // Merge static + dynamic, dynamic wins
+  const dyn = loadDynamicRoleTiers() || {};
+  const sport = document.getElementById('re-sport')?.value || 'NBA';
+  const staticForSport = {};
+  // Pull relevant teams from ROLE_TIERS
+  const nbaTeams = ['OKC','MEM','GSW','HOU','LAL','DEN','MIN','BOS','NYK','NY','CLE','IND','MIL','MIA','ORL','ATL','PHX','SAC','DAL','SAS','PHI','CHI','TOR','NO','DET','CHA','WAS','POR','UTA'];
+  const nhlTeams = ['FLA','TBL'];
+  const relevantKeys = sport === 'NHL' ? nhlTeams : nbaTeams;
+  for(const k of relevantKeys) {
+    if(ROLE_TIERS[k]) staticForSport[k] = ROLE_TIERS[k];
+  }
+  const dynForSport = dyn[sport] || {};
+  return { ...staticForSport, ...dynForSport };
+}
+
+function reLoadTeams() {
+  const sport = document.getElementById('re-sport')?.value || 'NBA';
+  const allTiers = reGetAllTiers();
+  const teamSel = document.getElementById('re-team');
+  if(!teamSel) return;
+  const teams = Object.keys(allTiers).sort();
+  teamSel.innerHTML = teams.map(t => `<option value="${t}">${t}</option>`).join('');
+  reLoadRoster();
+}
+
+function reLoadRoster() {
+  const team = document.getElementById('re-team')?.value;
+  if(!team) return;
+  const allTiers = reGetAllTiers();
+  _reCurrentRoster = JSON.parse(JSON.stringify(allTiers[team] || []));
+  reRenderRoster();
+}
+
+function reRenderRoster() {
+  const list = document.getElementById('re-roster-list');
+  if(!list) return;
+  if(!_reCurrentRoster.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px">No players. Add one below.</div>';
+    return;
+  }
+  list.innerHTML = _reCurrentRoster.map((p, i) => `
+    <div style="display:flex;gap:6px;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 8px">
+      <span style="flex:3;font-size:12px;color:var(--text)">${p.name}</span>
+      <select onchange="_reCurrentRoster[${i}].tier=parseInt(this.value)" style="flex:1;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px;font-size:11px">
+        <option value="1" ${p.tier===1?'selected':''}>T1 ⭐</option>
+        <option value="2" ${p.tier===2?'selected':''}>T2 🔵</option>
+        <option value="3" ${p.tier===3?'selected':''}>T3 ⚪</option>
+      </select>
+      <button onclick="_reCurrentRoster.splice(${i},1);reRenderRoster()" style="background:rgba(255,77,106,.15);color:var(--red);border:1px solid rgba(255,77,106,.3);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">✕</button>
+    </div>
+  `).join('');
+}
+
+function reAddPlayer() {
+  const nameEl = document.getElementById('re-new-name');
+  const tierEl = document.getElementById('re-new-tier');
+  const name = nameEl?.value.trim();
+  if(!name) { showToast('Enter a player name', 'warn'); return; }
+  const tier = parseInt(tierEl?.value || '2');
+  if(_reCurrentRoster.find(p => p.name.toLowerCase() === name.toLowerCase())) {
+    showToast(`${name} already in roster`, 'warn'); return;
+  }
+  _reCurrentRoster.push({ name, tier });
+  nameEl.value = '';
+  reRenderRoster();
+}
+
+function reSaveRoster() {
+  const sport = document.getElementById('re-sport')?.value || 'NBA';
+  const team = document.getElementById('re-team')?.value;
+  if(!team) return;
+  // Load existing dynamic tiers
+  let dyn = loadDynamicRoleTiers() || {};
+  if(!dyn[sport]) dyn[sport] = {};
+  dyn[sport][team] = JSON.parse(JSON.stringify(_reCurrentRoster));
+  try {
+    localStorage.setItem(ROLE_TIERS_STORAGE_KEY, JSON.stringify(dyn));
+    const statusEl = document.getElementById('re-status');
+    if(statusEl) { statusEl.textContent = `✓ ${team} saved — ${_reCurrentRoster.length} players`; setTimeout(()=>{ if(statusEl) statusEl.textContent=''; }, 3000); }
+    showToast(`${team} roster saved`, 'success');
+  } catch(e) {
+    showToast('Save failed: ' + e.message, 'error');
+  }
 }
 function loadSettingsIntoForm() {
   const s = STATE.settings;
@@ -5350,36 +5346,56 @@ const PLAYER_DB = {
 // tier:1 = star/clear starter, tier:2 = rotation, tier:3 = bench/end-of-rotation
 // ═══════════════════════════════════════════════════════
 const ROLE_TIERS = {
-  // NBA 2024-25 verified current rosters
+  // NBA 2025-26 verified current rosters (updated April 2026)
   OKC: [{name:'Shai Gilgeous-Alexander',tier:1},{name:'Jalen Williams',tier:1},{name:'Chet Holmgren',tier:1},{name:'Luguentz Dort',tier:2},{name:'Isaiah Hartenstein',tier:2},{name:'Aaron Wiggins',tier:2},{name:'Alex Caruso',tier:2},{name:'Isaiah Joe',tier:3}],
-  MEM: [{name:'Ja Morant',tier:1},{name:'Desmond Bane',tier:1},{name:'Jaren Jackson Jr.',tier:1},{name:'Marcus Smart',tier:2},{name:'Santi Aldama',tier:2},{name:'Scotty Pippen Jr.',tier:2},{name:'GG Jackson II',tier:2}],
-  GSW: [{name:'Stephen Curry',tier:1},{name:'Draymond Green',tier:1},{name:'Andrew Wiggins',tier:2},{name:'Jonathan Kuminga',tier:2},{name:'Brandin Podziemski',tier:2},{name:'Moses Moody',tier:2},{name:'Kyle Anderson',tier:2}],
-  HOU: [{name:'Alperen Sengun',tier:1},{name:'Jalen Green',tier:1},{name:'Amen Thompson',tier:2},{name:'Dillon Brooks',tier:2},{name:'Fred VanVleet',tier:2},{name:'Jabari Smith Jr.',tier:2},{name:'Tari Eason',tier:2}],
-  LAL: [{name:'LeBron James',tier:1},{name:'Luka Doncic',tier:1},{name:'Anthony Davis',tier:1},{name:'Austin Reaves',tier:2},{name:'Rui Hachimura',tier:2},{name:'Dorian Finney-Smith',tier:2},{name:'Gabe Vincent',tier:2},{name:'Bronny James',tier:3}],
-  DEN: [{name:'Nikola Jokic',tier:1},{name:'Jamal Murray',tier:1},{name:'Michael Porter Jr.',tier:1},{name:'Aaron Gordon',tier:2},{name:'Kentavious Caldwell-Pope',tier:2},{name:'Christian Braun',tier:2},{name:'Peyton Watson',tier:2},{name:'Russell Westbrook',tier:3}],
-  MIN: [{name:'Anthony Edwards',tier:1},{name:'Rudy Gobert',tier:1},{name:'Mike Conley',tier:2},{name:'Jaden McDaniels',tier:2},{name:'Naz Reid',tier:2},{name:'Nickeil Alexander-Walker',tier:2},{name:'Julius Randle',tier:2}],
-  BOS: [{name:'Jayson Tatum',tier:1},{name:'Jaylen Brown',tier:1},{name:'Kristaps Porzingis',tier:1},{name:'Jrue Holiday',tier:2},{name:'Derrick White',tier:2},{name:'Al Horford',tier:2},{name:'Payton Pritchard',tier:2},{name:'Sam Hauser',tier:2},{name:'Luke Kornet',tier:3}],
-  NYK: [{name:'Jalen Brunson',tier:1},{name:'Karl-Anthony Towns',tier:1},{name:'OG Anunoby',tier:2},{name:'Mikal Bridges',tier:2},{name:'Josh Hart',tier:2},{name:'Miles McBride',tier:2},{name:'Precious Achiuwa',tier:3}],
+  // MEM: Desmond Bane traded to ORL
+  MEM: [{name:'Ja Morant',tier:1},{name:'Jaren Jackson Jr.',tier:1},{name:'Marcus Smart',tier:2},{name:'Santi Aldama',tier:2},{name:'Scotty Pippen Jr.',tier:2},{name:'GG Jackson II',tier:2}],
+  // GSW: Jimmy Butler IN (from MIA), Kristaps Porzingis IN (from ATL mid-season)
+  GSW: [{name:'Stephen Curry',tier:1},{name:'Jimmy Butler',tier:1},{name:'Draymond Green',tier:1},{name:'Kristaps Porzingis',tier:2},{name:'Jonathan Kuminga',tier:2},{name:'Moses Moody',tier:2}],
+  // HOU: Jalen Green + Dillon Brooks → PHX. Kevin Durant IN, Dorian Finney-Smith IN, Clint Capela IN
+  HOU: [{name:'Kevin Durant',tier:1},{name:'Alperen Sengun',tier:1},{name:'Amen Thompson',tier:2},{name:'Fred VanVleet',tier:2},{name:'Jabari Smith Jr.',tier:2},{name:'Tari Eason',tier:2},{name:'Dorian Finney-Smith',tier:2}],
+  // LAL: Luka Doncic IN (from DAL). Anthony Davis → DAL. Dorian Finney-Smith → HOU
+  LAL: [{name:'LeBron James',tier:1},{name:'Luka Doncic',tier:1},{name:'Austin Reaves',tier:2},{name:'Rui Hachimura',tier:2},{name:'Bronny James',tier:3}],
+  // DEN: MPJ → BKN, Westbrook → SAC. Cam Johnson IN, Tim Hardaway Jr. IN, Jonas Valanciunas IN
+  DEN: [{name:'Nikola Jokic',tier:1},{name:'Jamal Murray',tier:1},{name:'Aaron Gordon',tier:2},{name:'Cam Johnson',tier:2},{name:'Kentavious Caldwell-Pope',tier:2},{name:'Christian Braun',tier:2},{name:'Tim Hardaway Jr.',tier:2},{name:'Jonas Valanciunas',tier:2}],
+  MIN: [{name:'Anthony Edwards',tier:1},{name:'Rudy Gobert',tier:1},{name:'Jaden McDaniels',tier:2},{name:'Naz Reid',tier:2},{name:'Julius Randle',tier:2},{name:'Mike Conley',tier:2}],
+  // BOS: Porzingis → ATL, Jrue Holiday → POR, Al Horford gone. Anfernee Simons IN (from POR). Tatum out (Achilles)
+  BOS: [{name:'Jaylen Brown',tier:1},{name:'Derrick White',tier:2},{name:'Payton Pritchard',tier:2},{name:'Anfernee Simons',tier:2},{name:'Sam Hauser',tier:2}],
+  NYK: [{name:'Jalen Brunson',tier:1},{name:'Karl-Anthony Towns',tier:1},{name:'OG Anunoby',tier:2},{name:'Mikal Bridges',tier:2},{name:'Josh Hart',tier:2},{name:'Miles McBride',tier:2}],
   NY:  [{name:'Jalen Brunson',tier:1},{name:'Karl-Anthony Towns',tier:1},{name:'OG Anunoby',tier:2},{name:'Mikal Bridges',tier:2},{name:'Josh Hart',tier:2},{name:'Miles McBride',tier:2}],
-  CLE: [{name:'Donovan Mitchell',tier:1},{name:'Darius Garland',tier:1},{name:'Evan Mobley',tier:1},{name:'Jarrett Allen',tier:2},{name:'Max Strus',tier:2},{name:'Ty Jerome',tier:2},{name:'Isaac Okoro',tier:2},{name:'Caris LeVert',tier:2}],
+  CLE: [{name:'Donovan Mitchell',tier:1},{name:'Darius Garland',tier:1},{name:'Evan Mobley',tier:1},{name:'Jarrett Allen',tier:2},{name:'Max Strus',tier:2},{name:'Ty Jerome',tier:2},{name:'Isaac Okoro',tier:2}],
   IND: [{name:'Tyrese Haliburton',tier:1},{name:'Pascal Siakam',tier:1},{name:'Myles Turner',tier:2},{name:'Bennedict Mathurin',tier:2},{name:'Andrew Nembhard',tier:2},{name:'Aaron Nesmith',tier:2},{name:'T.J. McConnell',tier:2}],
-  MIL: [{name:'Giannis Antetokounmpo',tier:1},{name:'Damian Lillard',tier:1},{name:'Khris Middleton',tier:2},{name:'Brook Lopez',tier:2},{name:'Bobby Portis',tier:2},{name:'Gary Trent Jr.',tier:2}],
-  MIA: [{name:'Bam Adebayo',tier:1},{name:'Tyler Herro',tier:1},{name:'Jimmy Butler',tier:1},{name:'Terry Rozier',tier:2},{name:'Duncan Robinson',tier:2},{name:'Haywood Highsmith',tier:2}],
-  ORL: [{name:'Paolo Banchero',tier:1},{name:'Franz Wagner',tier:1},{name:'Jalen Suggs',tier:2},{name:'Wendell Carter Jr.',tier:2},{name:'Cole Anthony',tier:2},{name:'Moritz Wagner',tier:2}],
-  ATL: [{name:'Dyson Daniels',tier:1},{name:'Jalen Johnson',tier:1},{name:'Zaccharie Risacher',tier:1},{name:'Onyeka Okongwu',tier:2},{name:'Bogdan Bogdanovic',tier:2},{name:'Larry Nance Jr.',tier:2},{name:'Garrison Mathews',tier:3}],
-  PHX: [{name:'Kevin Durant',tier:1},{name:'Devin Booker',tier:1},{name:'Bradley Beal',tier:2},{name:'Jusuf Nurkic',tier:2},{name:'Grayson Allen',tier:2},{name:"Royce O'Neale",tier:2}],
-  SAC: [{name:'Domantas Sabonis',tier:1},{name:'Malik Monk',tier:1},{name:'Keegan Murray',tier:2},{name:'Harrison Barnes',tier:2},{name:'Kevin Huerter',tier:2},{name:'DeMar DeRozan',tier:2}],
-  DAL: [{name:'Klay Thompson',tier:1},{name:'Kyrie Irving',tier:1},{name:'PJ Washington',tier:2},{name:'Daniel Gafford',tier:2},{name:'Dereck Lively II',tier:2},{name:'Naji Marshall',tier:2},{name:'Tim Hardaway Jr.',tier:2}],
-  SAS: [{name:'Victor Wembanyama',tier:1},{name:"De'Aaron Fox",tier:1},{name:'Stephon Castle',tier:2},{name:'Devin Vassell',tier:2},{name:'Chris Paul',tier:2},{name:'Keldon Johnson',tier:2},{name:'Zach Collins',tier:2},{name:'Blake Wesley',tier:3}],
+  // MIL: Damian Lillard out (torn Achilles/buyout), Khris Middleton → DAL. Kyle Kuzma IN (trade deadline), Bobby Portis re-signed
+  MIL: [{name:'Giannis Antetokounmpo',tier:1},{name:'Bobby Portis',tier:2},{name:'Brook Lopez',tier:2},{name:'Gary Trent Jr.',tier:2},{name:'Kyle Kuzma',tier:2}],
+  // MIA: Jimmy Butler → GSW. Andrew Wiggins + Norman Powell IN. Haywood Highsmith → PHX
+  MIA: [{name:'Bam Adebayo',tier:1},{name:'Tyler Herro',tier:1},{name:'Andrew Wiggins',tier:2},{name:'Norman Powell',tier:2},{name:'Terry Rozier',tier:2},{name:'Duncan Robinson',tier:2}],
+  // ORL: Desmond Bane IN (from MEM)
+  ORL: [{name:'Paolo Banchero',tier:1},{name:'Franz Wagner',tier:1},{name:'Desmond Bane',tier:1},{name:'Jalen Suggs',tier:2},{name:'Wendell Carter Jr.',tier:2},{name:'Moritz Wagner',tier:2}],
+  // ATL: Porzingis → GSW mid-season, Trae Young → WAS. NAW still there
+  ATL: [{name:'Dyson Daniels',tier:1},{name:'Jalen Johnson',tier:1},{name:'Zaccharie Risacher',tier:1},{name:'Onyeka Okongwu',tier:2},{name:'Bogdan Bogdanovic',tier:2},{name:'Nickeil Alexander-Walker',tier:2}],
+  // PHX: KD → HOU, Beal buyout, Nurkic buyout. Jalen Green + Dillon Brooks IN from HOU
+  PHX: [{name:'Devin Booker',tier:1},{name:'Jalen Green',tier:1},{name:'Dillon Brooks',tier:2},{name:'Grayson Allen',tier:2},{name:"Royce O'Neale",tier:2},{name:'Ryan Dunn',tier:2}],
+  // SAC: De'Aaron Fox → SAS. Zach LaVine IN, Russell Westbrook IN
+  SAC: [{name:'Domantas Sabonis',tier:1},{name:'Zach LaVine',tier:1},{name:'DeMar DeRozan',tier:2},{name:'Keegan Murray',tier:2},{name:'Malik Monk',tier:2},{name:'Russell Westbrook',tier:3}],
+  // DAL: Luka → LAL, THJ → DEN. Anthony Davis IN from LAL. Kyrie Irving still there
+  DAL: [{name:'Anthony Davis',tier:1},{name:'Kyrie Irving',tier:1},{name:'Klay Thompson',tier:2},{name:'PJ Washington',tier:2},{name:'Daniel Gafford',tier:2},{name:'Dereck Lively II',tier:2}],
+  // SAS: Fox IN ✓. Chris Paul retired. Zach Collins → CHI
+  SAS: [{name:'Victor Wembanyama',tier:1},{name:"De'Aaron Fox",tier:1},{name:'Stephon Castle',tier:2},{name:'Devin Vassell',tier:2},{name:'Keldon Johnson',tier:2},{name:'Julian Champagnie',tier:2}],
   PHI: [{name:'Joel Embiid',tier:1},{name:'Tyrese Maxey',tier:1},{name:'Paul George',tier:1},{name:'Kelly Oubre Jr.',tier:2},{name:'Caleb Martin',tier:2},{name:'Neemias Queta',tier:2},{name:'Andre Drummond',tier:3}],
-  CHI: [{name:'Zach LaVine',tier:1},{name:'Nikola Vucevic',tier:1},{name:'Coby White',tier:2},{name:'Patrick Williams',tier:2},{name:'Ayo Dosunmu',tier:2},{name:'Matas Buzelis',tier:2}],
-  TOR: [{name:'Scottie Barnes',tier:1},{name:'RJ Barrett',tier:1},{name:'Immanuel Quickley',tier:2},{name:'Jakob Poeltl',tier:2},{name:'Gradey Dick',tier:2},{name:'Bruce Brown',tier:2}],
-  NO:  [{name:'Zion Williamson',tier:1},{name:'Brandon Ingram',tier:1},{name:'CJ McCollum',tier:2},{name:'Herb Jones',tier:2},{name:'Jonas Valanciunas',tier:2},{name:'Trey Murphy III',tier:2}],
-  DET: [{name:'Cade Cunningham',tier:1},{name:'Jalen Duren',tier:2},{name:'Ausar Thompson',tier:2},{name:'Isaiah Stewart',tier:2},{name:'Malik Beasley',tier:2},{name:'Tim Hardaway Jr.',tier:2}],
-  CHA: [{name:'LaMelo Ball',tier:1},{name:'Miles Bridges',tier:2},{name:'Brandon Miller',tier:2},{name:'Grant Williams',tier:2},{name:'Nick Richards',tier:2}],
-  WAS: [{name:'Kyle Kuzma',tier:1},{name:'Jordan Poole',tier:1},{name:'Alexandre Sarr',tier:2},{name:'Tyus Jones',tier:2},{name:'Bilal Coulibaly',tier:2},{name:'Marvin Bagley III',tier:2}],
-  POR: [{name:'Scoot Henderson',tier:1},{name:'Jerami Grant',tier:1},{name:'Anfernee Simons',tier:1},{name:'Deni Avdija',tier:1},{name:'Deandre Ayton',tier:2},{name:'Toumani Camara',tier:2},{name:'Robert Williams III',tier:2},{name:'Malcolm Brogdon',tier:2}],
-  UTA: [{name:'Lauri Markkanen',tier:1},{name:'Jordan Clarkson',tier:2},{name:'Walker Kessler',tier:2},{name:'Keyonte George',tier:2},{name:'Collin Sexton',tier:2}],
+  // CHI: Zach LaVine → SAC. Zach Collins IN from SAS
+  CHI: [{name:'Nikola Vucevic',tier:1},{name:'Coby White',tier:2},{name:'Patrick Williams',tier:2},{name:'Ayo Dosunmu',tier:2},{name:'Matas Buzelis',tier:2},{name:'Zach Collins',tier:2}],
+  // TOR: Bruce Brown gone (went to DEN). Brandon Ingram IN (from NO)
+  TOR: [{name:'Scottie Barnes',tier:1},{name:'RJ Barrett',tier:1},{name:'Brandon Ingram',tier:1},{name:'Immanuel Quickley',tier:2},{name:'Jakob Poeltl',tier:2},{name:'Gradey Dick',tier:2}],
+  // NO: Jonas Valanciunas → DEN, CJ McCollum → WAS. Jordan Poole IN from WAS. Brandon Ingram → TOR
+  NO:  [{name:'Zion Williamson',tier:1},{name:'Trey Murphy III',tier:2},{name:'Herb Jones',tier:2},{name:'Jordan Poole',tier:2},{name:'Dejounte Murray',tier:2}],
+  // DET: Tim Hardaway Jr. → DEN
+  DET: [{name:'Cade Cunningham',tier:1},{name:'Jalen Duren',tier:2},{name:'Ausar Thompson',tier:2},{name:'Isaiah Stewart',tier:2},{name:'Malik Beasley',tier:2}],
+  CHA: [{name:'LaMelo Ball',tier:1},{name:'Brandon Miller',tier:2},{name:'Miles Bridges',tier:2},{name:'Nick Richards',tier:2}],
+  // WAS: CJ McCollum IN from NO. Trae Young IN from ATL mid-season
+  WAS: [{name:'Trae Young',tier:1},{name:'Alexandre Sarr',tier:1},{name:'CJ McCollum',tier:2},{name:'Tyus Jones',tier:2},{name:'Bilal Coulibaly',tier:2}],
+  // POR: Anfernee Simons → BOS, Deandre Ayton buyout, Malcolm Brogdon retired. Jrue Holiday + Damian Lillard IN (Lillard out with Achilles)
+  POR: [{name:'Deni Avdija',tier:1},{name:'Scoot Henderson',tier:1},{name:'Jerami Grant',tier:1},{name:'Jrue Holiday',tier:2},{name:'Toumani Camara',tier:2},{name:'Robert Williams III',tier:2},{name:'Shaedon Sharpe',tier:2}],
+  UTA: [{name:'Lauri Markkanen',tier:1},{name:'Keyonte George',tier:2},{name:'Walker Kessler',tier:2},{name:'Jordan Clarkson',tier:2},{name:'Collin Sexton',tier:2}],
   // NHL playoff teams
   FLA: [{name:'Aleksander Barkov',tier:1},{name:'Matthew Tkachuk',tier:1},{name:'Sam Reinhart',tier:1},{name:'Carter Verhaeghe',tier:2},{name:'Sergei Bobrovsky',tier:1},{name:'Gustav Forsling',tier:2}],
   TBL: [{name:'Nikita Kucherov',tier:1},{name:'Brayden Point',tier:1},{name:'Steven Stamkos',tier:2},{name:'Andrei Vasilevskiy',tier:1},{name:'Victor Hedman',tier:1}],
@@ -7713,14 +7729,33 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
             if(!isOut) continue;
             // Skip long-term absences (>10 games missed) — teammates' game logs already
             // reflect playing without them, so boosting would be double-counting
+            let _skipLongTerm = false;
             if(_injEntry.date) {
               const injDaysAgo = (Date.now() - new Date(_injEntry.date).getTime()) / (1000*60*60*24);
               // NBA plays ~4-5 games per 2 weeks. >10 games ≈ ~30+ days out
               if(injDaysAgo > 30) {
                 traceLog('filteringLog', `${injName}: injury dated ${_injEntry.date} (${Math.round(injDaysAgo)}d ago) — long-term absence, skipping boost`, 'warn');
-                continue;
+                _skipLongTerm = true;
               }
+            } else {
+              // No ESPN date — use secondary check: look at injured player's snapshot last game date
+              // If they haven't appeared in a game log for 30+ days, skip the boost
+              try {
+                const injVerifiedId = getVerifiedESPNId(injName, null);
+                if(injVerifiedId) {
+                  const injSnap = loadSnapshot(injVerifiedId, sport);
+                  if(injSnap?.dates?.length) {
+                    const lastGameDate = injSnap.dates[injSnap.dates.length - 1];
+                    const daysSinceLastGame = (Date.now() - new Date(lastGameDate).getTime()) / (1000*60*60*24);
+                    if(daysSinceLastGame > 30) {
+                      traceLog('filteringLog', `${injName}: last game was ${Math.round(daysSinceLastGame)}d ago (snapshot check) — long-term absence, skipping boost`, 'warn');
+                      _skipLongTerm = true;
+                    }
+                  }
+                }
+              } catch(e) {}
             }
+            if(_skipLongTerm) continue;
             // Skip if this IS the player being projected
             if(normName(injName) === normName(playerName)) continue;
             // Check if this injured player is on the same team using ROLE_TIERS
