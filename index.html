@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.60</title>
+<title>PropEdge v17.61</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -317,7 +317,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.60</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.61</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -4886,11 +4886,29 @@ async function runFetch(sportsToFetch) {
           dbEntry = (PLAYER_DB[player.sport]||[]).find(p => norm(p.name) === target) || null;
         }
         let espnId = player.espnId || dbEntry?.id || null;
-        const opp = player.homeTeam && player.awayTeam
-          ? (dbEntry?.team && (player.homeTeam.toUpperCase().includes(dbEntry.team.toUpperCase().slice(0,3)) || player.awayTeam.toUpperCase().includes(dbEntry.team.toUpperCase().slice(0,3)))
-              ? (player.homeTeam.toUpperCase().includes(dbEntry.team.toUpperCase().slice(0,3)) ? player.awayTeam : player.homeTeam)
-              : player.awayTeam)
-          : '?';
+        // Derive myTeam and opp using player._side (set during ESPN/roster discovery).
+        // This is ground-truth: _side:'home' means the player IS on the home team.
+        // Fallback chain: _side → teamAbbr → default to home/away.
+        // Using dbEntry.team for matching was unreliable — it reflects regular-season
+        // roster data and caused phantom game chips when a player's DB team was not
+        // in the current game's home/away pair (e.g. CLE in a MIN vs OKC game).
+        let myTeam, opp;
+        if(player.homeTeam && player.awayTeam) {
+          if(player._side === 'home' || player.teamAbbr === player.homeTeam) {
+            myTeam = player.homeTeam;
+            opp    = player.awayTeam;
+          } else if(player._side === 'away' || player.teamAbbr === player.awayTeam) {
+            myTeam = player.awayTeam;
+            opp    = player.homeTeam;
+          } else {
+            // Last resort: _side unavailable — default home perspective
+            myTeam = player.homeTeam;
+            opp    = player.awayTeam;
+          }
+        } else {
+          myTeam = player.homeTeam || '';
+          opp    = '?';
+        }
         // DEBUG — flag any opp that doesn't match the known slate teams
         if(player.sport === 'NBA' && opp && opp !== '?') {
           const _slateTeams = ['MIN','DEN','CLE','TOR','POR','SAS','SA','BOS','PHI','HOU','LAL','ATL','NY','NYK','OKC','PHX'];
@@ -5060,7 +5078,7 @@ async function runFetch(sportsToFetch) {
         // Uses live-synced team ID cache first, falls back to hardcoded maps.
         const _oppAbbr = opp || player.awayTeam || '';
         const _oppTeamId = getEspnTeamId(player.sport, _oppAbbr) || null;
-        const _myTeamId  = getEspnTeamId(player.sport, player.homeTeam || dbEntry?.team || '') || null;
+        const _myTeamId  = getEspnTeamId(player.sport, myTeam || '') || null;
         const playerMetaMerged = { ...(dbEntry||{}), ...(player.meta||{}),
           mlbId: resolvedMlbId || null,
           nbaId: dbEntry?.nbaId || null,
@@ -5070,7 +5088,7 @@ async function runFetch(sportsToFetch) {
           underOdds:  player.underOdds ?? -110 };
         let prop = await buildPlayerProp(
           effectiveId, player.name, player.sport, player.espnSport, player.espnLeague,
-          dbEntry?.team||player.homeTeam, opp, player.dateTag || 'today',
+          myTeam, opp, player.dateTag || 'today',
           injuries, propId++, player.prop, player.line, realLine, playerMetaMerged
         );
         if(typeof prop === 'string') {
