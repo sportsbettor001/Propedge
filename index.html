@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.61</title>
+<title>PropEdge v17.62</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -317,7 +317,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.61</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.62</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -816,12 +816,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       <div class="setting-row">
         <div class="setting-group">
           <label class="setting-label">Games per sport</label>
-          <input class="setting-input" id="s-analysis-games" type="number" placeholder="4" min="1" max="12" inputmode="numeric"/>
+          <input class="setting-input" id="s-analysis-games" type="number" placeholder="12" min="1" max="12" inputmode="numeric"/>
           <div class="setting-hint">Free APIs, no quota</div>
         </div>
         <div class="setting-group">
           <label class="setting-label">Players per game</label>
-          <input class="setting-input" id="s-analysis-players" type="number" placeholder="5" min="1" max="15" inputmode="numeric"/>
+          <input class="setting-input" id="s-analysis-players" type="number" placeholder="15" min="1" max="15" inputmode="numeric"/>
           <div class="setting-hint">Re-fetch required</div>
         </div>
       </div>
@@ -854,7 +854,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
 <!-- ── Roster Tier Editor Modal ── -->
 <div class="modal-overlay" id="roster-editor-modal" onclick="handleRosterEditorClick(event)">
-  <div class="modal-content" style="max-width:600px;max-height:90vh;overflow-y:auto">
+  <div class="modal" style="max-width:600px">
     <div class="modal-title">🏀 Roster Tier Editor</div>
     <div style="font-size:11px;color:var(--muted);margin-bottom:12px">
       Edit which players are on each team and their tier (1=star, 2=rotation, 3=bench). Changes persist across sessions.
@@ -1133,8 +1133,8 @@ let STATE = loadState() || {
     analysisMinConf: 1,
     gamesPerSport: 2,
     playersPerGame: 3,
-    analysisGamesPerSport: 4,
-    analysisPlayersPerGame: 5
+    analysisGamesPerSport: 12,
+    analysisPlayersPerGame: 15
   },
   apiStatus: {},
   lastGenerated: null
@@ -1163,7 +1163,7 @@ if(STATE.props && Array.isArray(STATE.props) && STATE.props.length > 0 && !STATE
 }
 
 // Ensure settings object has all keys
-STATE.settings = Object.assign({ oddsApiKey:'', corsProxy:'', proxyToken:'', minEdge:5, minConf:4, bettingMinEdge:5, bettingMinConf:4, analysisMinConf:1, gamesPerSport:2, playersPerGame:3, analysisGamesPerSport:4, analysisPlayersPerGame:5 }, STATE.settings || {});
+STATE.settings = Object.assign({ oddsApiKey:'', corsProxy:'', proxyToken:'', minEdge:5, minConf:4, bettingMinEdge:5, bettingMinConf:4, analysisMinConf:1, gamesPerSport:2, playersPerGame:3, analysisGamesPerSport:12, analysisPlayersPerGame:15 }, STATE.settings || {});
 if(!STATE.sportCache) STATE.sportCache = {};
 if(!STATE.bettingCache) STATE.bettingCache = {};
 if(!STATE.analysisCache) STATE.analysisCache = {};
@@ -2499,8 +2499,8 @@ function loadSettingsIntoForm() {
   document.getElementById('s-analysis-min-conf').value = s.analysisMinConf ?? 1;
   document.getElementById('s-games-per-sport').value = s.gamesPerSport || 2;
   document.getElementById('s-players-per-game').value = s.playersPerGame || 3;
-  document.getElementById('s-analysis-games').value = s.analysisGamesPerSport || 4;
-  document.getElementById('s-analysis-players').value = s.analysisPlayersPerGame || 5;
+  document.getElementById('s-analysis-games').value = s.analysisGamesPerSport || 12;
+  document.getElementById('s-analysis-players').value = s.analysisPlayersPerGame || 15;
 }
 function saveSettings() {
   const prevBettingMinEdge = STATE.settings.bettingMinEdge;
@@ -2524,8 +2524,8 @@ function saveSettings() {
   STATE.settings.minConf = STATE.settings.bettingMinConf;
   STATE.settings.gamesPerSport = Math.min(8, Math.max(1, parseInt(document.getElementById('s-games-per-sport').value) || 2));
   STATE.settings.playersPerGame = Math.min(10, Math.max(1, parseInt(document.getElementById('s-players-per-game').value) || 3));
-  STATE.settings.analysisGamesPerSport = Math.min(12, Math.max(1, parseInt(document.getElementById('s-analysis-games').value) || 4));
-  STATE.settings.analysisPlayersPerGame = Math.min(15, Math.max(1, parseInt(document.getElementById('s-analysis-players').value) || 5));
+  STATE.settings.analysisGamesPerSport = Math.min(12, Math.max(1, parseInt(document.getElementById('s-analysis-games').value) || 12));
+  STATE.settings.analysisPlayersPerGame = Math.min(15, Math.max(1, parseInt(document.getElementById('s-analysis-players').value) || 15));
   saveState();
   closeSettings();
 
