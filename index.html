@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.62</title>
+<title>PropEdge v17.63</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -95,6 +95,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .filter-chip.active .sport-status-dot{background:#000}
 .filter-chip.active-multi.sport-fresh .sport-status-dot{background:var(--accent)}
 .filter-chip.active-multi.sport-stale .sport-status-dot{background:var(--amber)}
+.filter-chip.sport-no-games{opacity:.55}
+.filter-chip.sport-no-games .sport-status-dot{display:none}
 
 /* Cache status bar */
 .cache-status-bar{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-family:var(--mono);font-size:9px;color:var(--muted);flex-wrap:wrap}
@@ -317,7 +319,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.62</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.63</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -2089,7 +2091,9 @@ function getCacheStatus(sport) {
   // This ensures betting mode always re-fetches when bettingCache is empty
   const cache = viewMode === 'analysis' ? STATE.analysisCache : STATE.bettingCache;
   const entry = cache?.[sport];
-  if(!entry || !entry.fetchedAt || !entry.props?.length) return 'none';
+  if(!entry || !entry.fetchedAt) return 'none';
+  // Entry exists and was fetched, but returned zero props = no games today
+  if(!entry.props?.length) return 'no-games';
   const age = Date.now() - entry.fetchedAt;
   if(age < CACHE_FRESH_MS) return 'fresh';
   if(age < CACHE_STALE_MS) return 'stale';
@@ -2566,10 +2570,11 @@ function updateSportChipStatus() {
     const sport = chip.dataset.sport;
     const status = fetchingSports.has(sport) ? 'fetching' : getCacheStatus(sport);
     // Remove all status classes
-    chip.classList.remove('sport-fresh','sport-stale','sport-fetching');
+    chip.classList.remove('sport-fresh','sport-stale','sport-fetching','sport-no-games');
     if(status === 'fresh') chip.classList.add('sport-fresh');
     else if(status === 'stale') chip.classList.add('sport-stale');
     else if(status === 'fetching') chip.classList.add('sport-fetching');
+    else if(status === 'no-games') chip.classList.add('sport-no-games');
     // 'none' and 'expired' = no class = grey dot hidden
   });
 }
@@ -7917,6 +7922,39 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         } catch(e) {
           traceLog('projectionEngine', `${playerName} (${sport}): ESPN fetch failed — ${e.message}`, 'warn');
         }
+
+        // ── Prior-season fallback: if current season has < 10 games, supplement with last year ──
+        // Applies to any sport at season start (WNBA May, NBA October, etc.)
+        // Once a player has 10+ games this season, prior year is ignored entirely.
+        const currentGames = snap?.sampleSize || 0;
+        if(currentGames < 10) {
+          try {
+            const priorYear = (() => {
+              const now = new Date();
+              const yr = now.getFullYear();
+              const mo = now.getMonth() + 1;
+              // ESPN uses end-year for season (2024-25 = 2025). Prior = that minus 1.
+              const currentSeasonYear = (mo >= 10) ? yr + 1 : yr;
+              return currentSeasonYear - 1;
+            })();
+            const base = `https://site.web.api.espn.com/apis/common/v3/sports/${espnSport}/${espnLeague}/athletes/${effectivePlayerId}/gamelog`;
+            const priorData = await fetchWithFallback(`${base}?limit=200&season=${priorYear}&seasontype=2`);
+            const priorRawGames = extractESPNRawGames(priorData, statLabel, opp);
+            if(priorRawGames && priorRawGames.length > 0) {
+              // Merge: current-season games first (more recent), prior-season after
+              const currentRaw = snap ? (snap.rawGameObjects || []) : [];
+              const mergedRaw = [...currentRaw, ...priorRawGames];
+              const mergedSnap = buildSnapshot(effectivePlayerId, sport, mergedRaw, 'ESPN-prior');
+              if(mergedSnap && mergedSnap.sampleSize > currentGames) {
+                snap = mergedSnap;
+                // Don't cache prior-year merged snap — re-derive each session as current season grows
+                traceLog('projectionEngine', `${playerName} (${sport}): prior-season fallback (${priorYear}) — merged ${currentGames} current + ${priorRawGames.length} prior games → ${snap.sampleSize} total`, 'ok');
+              }
+            }
+          } catch(e) {
+            traceLog('projectionEngine', `${playerName} (${sport}): prior-season fetch failed — ${e.message}`, 'warn');
+          }
+        }
       }
       if(!snap) { dataPoints = 0; }
       else {
@@ -9169,7 +9207,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       reasoning.push(`Historical hit rate: ${hrLabel} ${statLabel.toLowerCase()} in ${hitRateSeason.hits} of ${hitRateSeason.total} games this season (${hitRateSeason.pct}%)`);
     }
     if(injuryStatus) {
-      reasoning.push(`⚠ Injury status: ${injuryStatus} — projection adjusted down accordingly. Confirm before betting.`);
+      reasoning.push(`⚠ Injury status: ${injuryStatus} — projection unchanged. Monitor status before betting.`);
     } else if(Object.keys(injuries).length > 0) {
       // Injury report WAS fetched and player is not listed — make that explicit
       reasoning.push(`✓ Not on injury report — no status concern detected at time of projection`);
@@ -9727,7 +9765,16 @@ function renderProps() {
   });
 
   if(filtered.length === 0) {
-    list.innerHTML = `<div class="empty"><div class="empty-title">No picks match filters</div><div class="empty-sub">Try adjusting sport, decision, or date filters.<br/>Lower min edge/confidence in ⚙ Settings (applies instantly).</div></div>`;
+    // If a single sport is selected and it fetched but returned zero games, say so clearly
+    const activeSports = filters.sports.has('all') ? null : [...filters.sports];
+    const singleSport = activeSports?.length === 1 ? activeSports[0] : null;
+    const noGamesMsg = singleSport && getCacheStatus(singleSport) === 'no-games';
+    const dateLabel = filters.date === 'tomorrow' ? 'tomorrow' : 'today';
+    if(noGamesMsg) {
+      list.innerHTML = `<div class="empty"><div class="empty-title">No ${singleSport} games ${dateLabel}</div><div class="empty-sub">No games on the slate for ${dateLabel}. Switch to another sport or check back later.</div></div>`;
+    } else {
+      list.innerHTML = `<div class="empty"><div class="empty-title">No picks match filters</div><div class="empty-sub">Try adjusting sport, decision, or date filters.<br/>Lower min edge/confidence in ⚙ Settings (applies instantly).</div></div>`;
+    }
     updateMetrics();
     return;
   }
