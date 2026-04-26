@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.59</title>
+<title>PropEdge v17.60</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -317,7 +317,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.59</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.60</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -4891,6 +4891,13 @@ async function runFetch(sportsToFetch) {
               ? (player.homeTeam.toUpperCase().includes(dbEntry.team.toUpperCase().slice(0,3)) ? player.awayTeam : player.homeTeam)
               : player.awayTeam)
           : '?';
+        // DEBUG — flag any opp that doesn't match the known slate teams
+        if(player.sport === 'NBA' && opp && opp !== '?') {
+          const _slateTeams = ['MIN','DEN','CLE','TOR','POR','SAS','SA','BOS','PHI','HOU','LAL','ATL','NY','NYK','OKC','PHX'];
+          if(!_slateTeams.includes(opp.toUpperCase())) {
+            traceLog('playerDiscovery', `PHANTOM OPP: ${player.name} team=${player.homeTeam}v${player.awayTeam} dbTeam=${dbEntry?.team||'none'} → opp=${opp}`, 'fail');
+          }
+        }
 
         // ── ID RESOLUTION: betting mode players come from Odds API with name only ──
         // Step 1: Check PLAYER_DB for ESPN ID (works for all sports)
