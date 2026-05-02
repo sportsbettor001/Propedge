@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.71</title>
+<title>PropEdge v17.74</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -319,7 +319,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.71</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.74</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -6529,7 +6529,7 @@ function _extractESPNRawGamesSingle(gameLogData, statLabel, opp) {
     'Pass Yards':['pyds','YDS'],'Rush Yards':['ryds'],'Receiving Yards':['recyds'],
     'Receptions':['rec','REC'],'Targets':['tgt','TGT'],'Pass Attempts':['att','ATT'],
     'Rushing Attempts':['ratt','CAR'],'Interceptions Thrown':['int','INT'],
-    'Passing Touchdowns':['ptd','PATD'],'Receiving Touchdown':['rectd','RETD'],
+    'Passing Touchdowns':['ptd','PATD'],'Receiving Touchdown':['rectd','RETD'],'Rushing Touchdowns':['rtd','rushTD','RTD'],
     'Anytime Touchdown':['td','TD'],'FG Made':['fgm','FGM'],'XP Made':['xpm','XPM'],
     'Sacks':['sk','SK'],'Solo Tackles':['solo'],'Assisted Tackles':['asst'],
     'Total Tackles':['tkl','TKL'],
@@ -8195,7 +8195,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         // we must re-fetch from ESPN to get the correct stat series — do NOT fall back
         // to snap.games which always contains Points data.
         let extractedVals = extractStatFromSnapshot(snap, statLabel);
-        const _primaryStats = ['Points','Points + Rebounds + Assists','Points + Rebounds','Points + Assists'];
+        const _primaryStats = ['Points','Points + Rebounds + Assists','Points + Rebounds','Points + Assists','Assists + Rebounds','Steals + Blocks','Hits + Runs + RBIs','Rush + Receiving Touchdowns'];
         const _isPointsPrimary = _primaryStats.includes(statLabel);
 
         if(!extractedVals && !_isPointsPrimary && !snap.rawGameObjects?.length) {
@@ -8420,6 +8420,14 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         allVals = parsed.allVals; vsOppVals = parsed.vsOppVals;
         contextData.snapShareNote = 'UNAVAILABLE IN FREE DATA LAYER';
         contextData.targetShareNote = 'UNAVAILABLE IN FREE DATA LAYER';
+        // Build snapshot with rawGameObjects so combo props (Rush+Rec TDs) can extract per-game stats
+        if(!contextData._snap) {
+          try {
+            const nflRawGames = extractESPNRawGames({ _regular: gameLogData, _playoffs: null, _merged: true }, statLabel, opp);
+            const nflSnap = buildSnapshot(playerId, sport, nflRawGames, 'ESPN');
+            if(nflSnap) { contextData._snap = nflSnap; contextData._effectivePlayerId = playerId; }
+          } catch(e) {}
+        }
       } catch(e) {}
       // Only search if we have no data AND no valid numeric ESPN ID
       const hasValidId = playerId && /^\d{4,}$/.test(String(playerId));
@@ -8549,7 +8557,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       'Points + Assists':            ['Points','Assists'],
       'Assists + Rebounds':          ['Assists','Rebounds'],
       'Hits + Runs + RBIs':          ['Hits','Runs','RBIs'],
-      'Rush + Receiving Touchdowns': ['Rush Yards','Receiving Yards'], // proxy — see note below
+      'Rush + Receiving Touchdowns': ['Rushing Touchdowns','Receiving Touchdown'], // actual TD columns
       'Steals + Blocks':             ['Steals','Blocks'],
     };
     // Combo prop correlation flag — PRA/PR/PA components are positively correlated
@@ -8619,6 +8627,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
               'Points':['pts','PTS'],'Rebounds':['reb','REB'],'Assists':['ast','AST'],
               'Steals':['stl','STL'],'Blocks':['blk','BLK'],
               'Hits':['h','H'],'Runs':['r','R'],'RBIs':['rbi','RBI'],
+              'Rushing Touchdowns':['rtd','rushTD','RTD'],'Receiving Touchdown':['rectd','RETD'],
             };
             const aliases = compAliases[comp] || [comp.toLowerCase()];
             const labels = g.labels?.map(l => (l||'').toString().toLowerCase()) || [];
@@ -8659,13 +8668,19 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     const PROB_PROPS = {
       'Double Double':  (snap) => {
         // DD = at least 2 of: pts≥10, reb≥10, ast≥10, stl≥10, blk≥10
-        const p = extractStatFromSnapshot(snap,'Points')    || [];
-        const r = extractStatFromSnapshot(snap,'Rebounds')  || [];
-        const a = extractStatFromSnapshot(snap,'Assists')   || [];
+        const p  = extractStatFromSnapshot(snap,'Points')    || [];
+        const r  = extractStatFromSnapshot(snap,'Rebounds')  || [];
+        const a  = extractStatFromSnapshot(snap,'Assists')   || [];
+        const st = extractStatFromSnapshot(snap,'Steals')    || [];
+        const bl = extractStatFromSnapshot(snap,'Blocks')    || [];
         const n = Math.min(p.length, r.length, a.length);
         if(n < 5) return null;
         let hits = 0;
-        for(let i=0;i<n;i++) { const cats = [p[i]>=10,r[i]>=10,a[i]>=10].filter(Boolean).length; if(cats>=2) hits++; }
+        for(let i=0;i<n;i++) {
+          const cats = [p[i]>=10, r[i]>=10, a[i]>=10,
+                        (st[i]||0)>=10, (bl[i]||0)>=10].filter(Boolean).length;
+          if(cats>=2) hits++;
+        }
         return hits/n;
       },
       'Triple Double':  (snap) => {
@@ -8686,6 +8701,41 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       },
     };
     if(PROB_PROPS[statLabel] && contextData._snap) {
+      // If rawGameObjects stripped from cached snap, re-fetch so DD/TD can access per-game stats
+      if(!contextData._snap.rawGameObjects?.length) {
+        try {
+          const _probFetchId = contextData._snap?.playerId || contextData._effectivePlayerId || playerId;
+          const _probMerged = await fetchESPNGameLogAllSeasonTypes(espnSport, espnLeague, _probFetchId);
+          let _probRaw = extractESPNRawGames(_probMerged, 'Points', opp);
+          // Prior-year supplement if current season sparse
+          if(_probRaw.length < 10 && (sport === 'NBA' || sport === 'WNBA')) {
+            try {
+              const _now = new Date(); const _mo = _now.getMonth()+1; const _yr = _now.getFullYear();
+              const _priorYr = ((_mo >= 10 ? _yr+1 : _yr) - 1);
+              const _priorBase = `https://site.web.api.espn.com/apis/common/v3/sports/${espnSport}/${espnLeague}/athletes/${_probFetchId}/gamelog`;
+              const [_priorReg, _priorPlay] = await Promise.allSettled([
+                fetchWithFallback(`${_priorBase}?limit=200&season=${_priorYr}&seasontype=2`),
+                fetchWithFallback(`${_priorBase}?limit=200&season=${_priorYr}&seasontype=3`),
+              ]);
+              const _priorRegD  = _priorReg.status  === 'fulfilled' ? _priorReg.value  : null;
+              const _priorPlayD = _priorPlay.status === 'fulfilled' ? _priorPlay.value : null;
+              const _priorSeasonPfx = String(_priorYr);
+              const _priorRaw = [
+                ...extractESPNRawGames(_priorRegD,  'Points', opp),
+                ...extractESPNRawGames(_priorPlayD, 'Points', opp),
+              ].filter(g => !g.date || g.date.startsWith(_priorSeasonPfx));
+              if(_priorRaw.length > 0) _probRaw = [..._probRaw, ..._priorRaw];
+            } catch(e) {}
+          }
+          const _probFreshSnap = buildSnapshot(_probFetchId, sport, _probRaw, 'ESPN');
+          if(_probFreshSnap?.rawGameObjects?.length >= 5) {
+            contextData._snap = _probFreshSnap;
+            traceLog('projectionEngine', `${playerName}: re-fetched for ${statLabel} — ${_probFreshSnap.rawGameObjects.length} games`, 'ok');
+          }
+        } catch(e) {
+          traceLog('projectionEngine', `${playerName}: prob prop re-fetch failed — ${e.message}`, 'warn');
+        }
+      }
       const probResult = PROB_PROPS[statLabel](contextData._snap);
       if(probResult !== null) {
         // Return a special probability-only result bypassing the normal projection engine
