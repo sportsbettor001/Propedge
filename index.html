@@ -8154,7 +8154,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
               if(mergedSnap && mergedSnap.sampleSize > currentGames) {
                 snap = mergedSnap;
                 // Don't cache prior-year merged snap — re-derive each session as current season grows
-                const curSeasonLabel = `${priorYear}-${String(priorYear+1).slice(-2)}`;
+                const curSeasonLabel = sport === 'WNBA' ? String(priorYear) : `${priorYear-1}-${String(priorYear).slice(-2)}`;
                 traceLog('projectionEngine', `${playerName} (${sport}): ⏮ PRIOR SEASON DATA (${curSeasonLabel}) — ${currentGames} games this season + ${priorRawGames.length} from ${curSeasonLabel} → ${snap.sampleSize} total`, 'ok');
                 // Tag snapshot so UI can show prior-season notice
                 snap._priorSeasonLabel = curSeasonLabel;
@@ -8567,7 +8567,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
                 const mergedSnap = buildSnapshot(playerId, sport, mergedRaw, 'ESPN-prior');
                 if(mergedSnap?.rawGameObjects?.length >= 5) {
                   freshSnap = mergedSnap;
-                  freshSnap._priorSeasonLabel = `${priorYearCombo}-${String(priorYearCombo+1).slice(-2)}`;
+                  freshSnap._priorSeasonLabel = (sport === 'WNBA') ? String(priorYearCombo) : `${priorYearCombo-1}-${String(priorYearCombo).slice(-2)}`;
                   freshSnap._priorSeasonGames = priorRaw.length;
                   traceLog('projectionEngine', `${playerName}: combo prior-year supplement (${priorYearCombo}) — ${priorRaw.length} prior games added`, 'ok');
                 }
