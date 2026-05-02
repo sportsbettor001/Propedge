@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.67</title>
+<title>PropEdge v17.68</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -319,7 +319,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.67</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.68</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -4878,7 +4878,9 @@ async function runFetch(sportsToFetch) {
                       'Points + Rebounds + Assists','Points + Rebounds','Points + Assists','Assists + Rebounds',
                       'Threes Made','Steals','Blocks','Turnovers',
                       'Double Double','Triple Double'],
-              NHL:   ['Points','Goals','Assists','Shots on Goal','Power Play Points','Blocks','Saves','Goals Against'],
+              NHL:   p.position === 'G'
+                       ? ['Saves','Goals Against']
+                       : ['Points','Goals','Assists','Shots on Goal','Power Play Points','Blocks'],
               MLB:   p.position === 'P'
                        ? ['Strikeouts','Total Outs','Hits Allowed','Earned Runs','Walks','Runs First Inning']
                        : ['Hits','Total Bases','Home Runs','Runs','RBIs','Singles','Doubles',
@@ -7812,7 +7814,46 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
           gameId: `mlb_${mlbId}_${i}`, // unique per game — prevents dedup from wiping all
         }));
         const snapNew = buildSnapshot(mlbSnapKey, sport, rawMLB, 'MLB Stats API');
-        if(snapNew) { saveSnapshotRaw(mlbSnapKey, snapNew); contextData._snap = snapNew; }
+        if(snapNew) {
+          // MLB prior-season fallback: if < 5 games this season (bench players, call-ups), supplement with last year
+          if((snapNew?.sampleSize || 0) < 5) {
+            try {
+              const priorYearMLB = new Date().getFullYear() - 1;
+              const mlbPriorUrl = `${MLB_BASE}/people/${effectiveMlbId}/stats?stats=gameLog&season=${priorYearMLB}&group=hitting,pitching&gameType=R`;
+              const priorMLBData = await fetchWithFallback(mlbPriorUrl);
+              const priorSplits = (priorMLBData?.stats?.[0]?.splits || priorMLBData?.stats?.[1]?.splits || []).filter(s => s?.stat);
+              if(priorSplits.length >= 3) {
+                const priorRaw = priorSplits.map(s => ({
+                  value: s.stat?.hits ?? 0,
+                  allStats: [s.stat?.hits??0, s.stat?.totalBases??0, s.stat?.homeRuns??0, s.stat?.runs??0,
+                             s.stat?.rbi??0, s.stat?.stolenBases??0, s.stat?.baseOnBalls??0, s.stat?.strikeOuts??0,
+                             s.stat?.doubles??0, s.stat?.triples??0, (s.stat?.hits??0)-(s.stat?.doubles??0)-(s.stat?.triples??0)-(s.stat?.homeRuns??0),
+                             s.stat?.earnedRuns??0, s.stat?.hits??0, (s.stat?.outs||0)],
+                  labels: ['hits','totalBases','homeRuns','runs','rbi','stolenBases','baseOnBalls','strikeOuts','doubles','triples','singles','earnedRuns','hitsAllowed','totalOuts'],
+                  minutes: parseFloat(s.stat?.inningsPitched || 0),
+                  opponent: (s.team?.abbreviation || '').toUpperCase(),
+                  date: s.date || '',
+                  gameId: String(s.game?.gamePk || s.date || Math.random()),
+                  seasonType: 'regular',
+                }));
+                const currentRaw = snapNew?.rawGameObjects || [];
+                const mergedRaw = [...currentRaw, ...priorRaw];
+                const mergedSnapMLB = buildSnapshot(effectiveMlbId, sport, mergedRaw, 'MLB-prior');
+                if(mergedSnapMLB && mergedSnapMLB.sampleSize > (snapNew?.sampleSize || 0)) {
+                  const priorLabel = `${priorYearMLB}`;
+                  mergedSnapMLB._priorSeasonLabel = priorLabel;
+                  mergedSnapMLB._priorSeasonGames = priorSplits.length;
+                  mergedSnapMLB._currentSeasonGames = snapNew?.sampleSize || 0;
+                  snapNew = mergedSnapMLB;
+                  traceLog('projectionEngine', `${playerName} (MLB): ⏮ PRIOR SEASON DATA (${priorLabel}) — ${mergedSnapMLB._currentSeasonGames} this year + ${priorSplits.length} from ${priorLabel} → ${mergedSnapMLB.sampleSize} total`, 'ok');
+                }
+              }
+            } catch(e) {
+              traceLog('projectionEngine', `${playerName} (MLB): prior-season fetch failed — ${e.message}`, 'warn');
+            }
+          }
+          saveSnapshotRaw(mlbSnapKey, snapNew); contextData._snap = snapNew;
+        }
         allVals = mlbApiVals; vsOppVals = mlbApiOppVals;
         traceLog('projectionEngine', `${playerName} (MLB): MLB Stats API — ${allVals.length} games`, 'ok');
       }
@@ -8113,7 +8154,12 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
               if(mergedSnap && mergedSnap.sampleSize > currentGames) {
                 snap = mergedSnap;
                 // Don't cache prior-year merged snap — re-derive each session as current season grows
-                traceLog('projectionEngine', `${playerName} (${sport}): prior-season fallback (${priorYear}) — merged ${currentGames} current + ${priorRawGames.length} prior games → ${snap.sampleSize} total`, 'ok');
+                const curSeasonLabel = `${priorYear}-${String(priorYear+1).slice(-2)}`;
+                traceLog('projectionEngine', `${playerName} (${sport}): ⏮ PRIOR SEASON DATA (${curSeasonLabel}) — ${currentGames} games this season + ${priorRawGames.length} from ${curSeasonLabel} → ${snap.sampleSize} total`, 'ok');
+                // Tag snapshot so UI can show prior-season notice
+                snap._priorSeasonLabel = curSeasonLabel;
+                snap._priorSeasonGames = priorRawGames.length;
+                snap._currentSeasonGames = currentGames;
               }
             }
           } catch(e) {
@@ -8505,8 +8551,29 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         traceLog('projectionEngine', `${playerName}: rawGameObjects stripped, re-fetching for combo ${statLabel}`, 'warn');
         try {
           const mergedData = await fetchESPNGameLogAllSeasonTypes(espnSport, espnLeague, playerId);
-          const rawGames = extractESPNRawGames(mergedData, 'Points', opp);
-          const freshSnap = buildSnapshot(playerId, sport, rawGames, 'ESPN');
+          let rawGames = extractESPNRawGames(mergedData, 'Points', opp);
+          let freshSnap = buildSnapshot(playerId, sport, rawGames, 'ESPN');
+          // If current season has < 10 games (early season), supplement with prior year for combos
+          if(!freshSnap || freshSnap.rawGameObjects.length < 10) {
+            try {
+              const now = new Date(); const mo = now.getMonth()+1; const yr = now.getFullYear();
+              const priorYearCombo = (mo >= 10 ? yr+1 : yr) - 1;
+              const priorBase = `https://site.web.api.espn.com/apis/common/v3/sports/${espnSport}/${espnLeague}/athletes/${playerId}/gamelog`;
+              const priorComboData = await fetchWithFallback(`${priorBase}?limit=200&season=${priorYearCombo}&seasontype=2`);
+              const priorRaw = extractESPNRawGames(priorComboData, 'Points', opp);
+              if(priorRaw.length > 0) {
+                const currentRaw = freshSnap?.rawGameObjects || [];
+                const mergedRaw = [...currentRaw, ...priorRaw];
+                const mergedSnap = buildSnapshot(playerId, sport, mergedRaw, 'ESPN-prior');
+                if(mergedSnap?.rawGameObjects?.length >= 5) {
+                  freshSnap = mergedSnap;
+                  freshSnap._priorSeasonLabel = `${priorYearCombo}-${String(priorYearCombo+1).slice(-2)}`;
+                  freshSnap._priorSeasonGames = priorRaw.length;
+                  traceLog('projectionEngine', `${playerName}: combo prior-year supplement (${priorYearCombo}) — ${priorRaw.length} prior games added`, 'ok');
+                }
+              }
+            } catch(e) {}
+          }
           if(freshSnap?.rawGameObjects?.length >= 5) {
             snap = freshSnap;
             contextData._snap = freshSnap;
@@ -9417,6 +9484,9 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       completeness: completeness.score,
       completenessThreshold: thresholdInfo.threshold,
       completenessLabel: thresholdInfo.label,
+      _priorSeasonLabel: contextData._snap?._priorSeasonLabel || null,
+      _priorSeasonGames: contextData._snap?._priorSeasonGames || null,
+      _currentSeasonGames: contextData._snap?._currentSeasonGames || null,
       analysisMode: isAnalysisProp,
       // EV fields (new in v4)
       overProb: parseFloat((overProbRaw*100).toFixed(1)),
@@ -10087,7 +10157,7 @@ function propCardHTML(p) {
       ${p.minsVolatilityFlag && p.minsVolatilityFlag !== 'UNKNOWN' ? `<div class="reasoning-line" style="color:${p.minsVolatilityFlag==='STABLE'?'var(--accent)':p.minsVolatilityFlag==='MODERATE'?'var(--amber)':'var(--red)'}">⏱ Minutes: ${p.minsVolatilityFlag}${p.minsVolatilityFlag==='VOLATILE'?' — no aggressive boosts applied':''}</div>` : ''}
       ${p.confidenceScore100 !== undefined && p.confidenceScore100 !== null ? `<div class="reasoning-line" style="color:var(--blue)">🎯 Projection reliability: ${p.confidenceScore100}/100${p.confidenceScore100>=80?' (high)':p.confidenceScore100>=55?' (moderate)':' (low)'}</div>` : ''}
       ${p.playerArchetype && p.playerArchetype !== 'unknown' ? `<div class="reasoning-line" style="color:var(--purple)">🏷 Archetype: ${p.playerArchetype.replace('_',' ')}${p.injuryBoostPct ? ` · Injury role boost: +${p.injuryBoostPct}% (${(p.outPlayerRole||'').replace('_',' ')})` : ''}</div>` : ''}
-      <div class="data-source-line">📡 ${dataLabel}${isAnalysis && !forceAnalysis ? ' · ANALYSIS MODE — no market data' : p.dataSource?.hasRealLine ? ' · ✓ Live sportsbook line' : ' · Estimated line — add Odds API key'} · completeness ${completenessScore !== null ? completenessScore + '%' : 'N/A'}</div>
+      <div class="data-source-line">📡 ${dataLabel}${p._priorSeasonLabel ? ` · ⏮ includes ${p._priorSeasonLabel} prior season (${p._priorSeasonGames} games)` : ''}${isAnalysis && !forceAnalysis ? ' · ANALYSIS MODE — no market data' : p.dataSource?.hasRealLine ? ' · ✓ Live sportsbook line' : ' · Estimated line — add Odds API key'} · completeness ${completenessScore !== null ? completenessScore + '%' : 'N/A'}</div>
     </div>
     ${(!forceAnalysis && p.decision !== 'PASS') ? `<button class="add-slip-btn ${inSlip ? 'added' : ''}" id="slip-btn-${p.id}" onclick="toggleSlip(${p.id})">${inSlip ? '✓ Added to slip' : '+ Add to slip'}</button>` : ''}
   </div>`;
