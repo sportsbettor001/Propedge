@@ -6334,6 +6334,10 @@ function loadSnapshot(playerId, sport) {
     if(!snap.games || snap.games.length < 5) return null;  // stale/invalid
     // Reject if snapshot was built with a different ESPN ID (ID correction applied)
     if(snap.espnId && snap.espnId !== String(playerId)) return null;
+    // For WNBA: if snapshot has fewer than 20 games and no prior-season supplement,
+    // reject it so the prior-season fallback can fire and get the full prior season.
+    // This handles old cached snapshots built before the prior-season feature.
+    if(sport === 'WNBA' && snap.sampleSize < 20 && !snap._priorSeasonLabel) return null;
     return snap;
   } catch(e) { return null; }
 }
@@ -8104,6 +8108,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       // Use verified ESPN ID from cache if available (no extra API call)
       const verifiedId = getVerifiedESPNId(playerName, playerId);
       const effectivePlayerId = verifiedId || playerId;
+      contextData._effectivePlayerId = effectivePlayerId; // store for combo re-fetch
       if(String(effectivePlayerId) !== String(playerId)) {
         traceLog('projectionEngine', `${playerName}: using corrected ESPN ID ${effectivePlayerId} (was ${playerId})`, 'warn');
       }
@@ -8144,8 +8149,17 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
               return currentSeasonYear - 1;
             })();
             const base = `https://site.web.api.espn.com/apis/common/v3/sports/${espnSport}/${espnLeague}/athletes/${effectivePlayerId}/gamelog`;
-            const priorData = await fetchWithFallback(`${base}?limit=200&season=${priorYear}&seasontype=2`);
-            const priorRawGames = extractESPNRawGames(priorData, statLabel, opp);
+            // Fetch both regular season and playoffs for prior year (WNBA has Commissioner's Cup too)
+            const [priorReg, priorPlay] = await Promise.allSettled([
+              fetchWithFallback(`${base}?limit=200&season=${priorYear}&seasontype=2`),
+              fetchWithFallback(`${base}?limit=200&season=${priorYear}&seasontype=3`),
+            ]);
+            const priorRegData  = priorReg.status  === 'fulfilled' ? priorReg.value  : null;
+            const priorPlayData = priorPlay.status === 'fulfilled' ? priorPlay.value : null;
+            const priorRawGames = [
+              ...extractESPNRawGames(priorRegData,  statLabel, opp),
+              ...extractESPNRawGames(priorPlayData, statLabel, opp),
+            ];
             if(priorRawGames && priorRawGames.length > 0) {
               // Merge: current-season games first (more recent), prior-season after
               const currentRaw = snap ? (snap.rawGameObjects || []) : [];
@@ -8546,11 +8560,12 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     if(COMBO_COMPONENTS[statLabel]) {
       const components = COMBO_COMPONENTS[statLabel];
       let snap = contextData._snap;
-      // If rawGameObjects stripped from cached snapshot, re-fetch to get combo component data
-      if(snap && !snap.rawGameObjects?.length) {
-        traceLog('projectionEngine', `${playerName}: rawGameObjects stripped, re-fetching for combo ${statLabel}`, 'warn');
+      // If rawGameObjects missing (snap null, or stripped from cached snapshot), re-fetch for combo
+      if(!snap?.rawGameObjects?.length) {
+        traceLog('projectionEngine', `${playerName}: ${snap ? 'rawGameObjects stripped' : 'no snap'}, re-fetching for combo ${statLabel}`, 'warn');
         try {
-          const mergedData = await fetchESPNGameLogAllSeasonTypes(espnSport, espnLeague, playerId);
+          const comboFetchId = snap?.playerId || snap?.espnId || contextData._effectivePlayerId || playerId;
+          const mergedData = await fetchESPNGameLogAllSeasonTypes(espnSport, espnLeague, comboFetchId);
           let rawGames = extractESPNRawGames(mergedData, 'Points', opp);
           let freshSnap = buildSnapshot(playerId, sport, rawGames, 'ESPN');
           // If current season has < 10 games (early season), supplement with prior year for combos
