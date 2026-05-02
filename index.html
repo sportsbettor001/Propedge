@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.63</title>
+<title>PropEdge v17.67</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -136,7 +136,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .conf-dots{display:flex;gap:3px;align-items:center}
 /* conf dots now rendered as inline SVG — see propCardHTML */
 .conf-text{font-family:var(--mono);font-size:9px;color:var(--muted)}
-.expand-btn{font-family:var(--mono);font-size:10px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;margin-top:10px;width:100%;text-align:center;transition:all .15s}
+.expand-btn{font-family:var(--mono);font-size:10px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:6px;padding:10px;cursor:pointer;margin-top:10px;width:100%;text-align:center;transition:all .15s;min-height:44px}
 .expand-btn:active{background:var(--bg3)}
 .reasoning{display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.7}
 .reasoning.open{display:block;animation:fadeIn .2s}
@@ -144,10 +144,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .reasoning-line{display:flex;gap:8px;margin-bottom:4px}
 .reasoning-line::before{content:'→';color:var(--accent);flex-shrink:0}
 .data-source-line{font-size:9px;color:var(--purple);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
-.add-slip-btn{font-family:var(--mono);font-size:10px;color:var(--accent);background:rgba(0,229,160,.07);border:1px solid rgba(0,229,160,.2);border-radius:8px;padding:5px 10px;cursor:pointer;margin-top:8px;width:100%;transition:all .15s;text-align:center}
+.add-slip-btn{font-family:var(--mono);font-size:10px;color:var(--accent);background:rgba(0,229,160,.07);border:1px solid rgba(0,229,160,.2);border-radius:8px;padding:11px 10px;cursor:pointer;margin-top:8px;width:100%;transition:all .15s;text-align:center;min-height:44px}
 .add-slip-btn:active{transform:scale(.97);background:rgba(0,229,160,.14)}
 .add-slip-btn.added{color:var(--muted);background:transparent;border-color:var(--border)}
-.injury-flag{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:9px;color:var(--amber);background:rgba(255,181,71,.08);border:1px solid rgba(255,181,71,.2);padding:2px 7px;border-radius:5px;margin-top:4px}
+.injury-flag{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:9px;color:var(--red);background:rgba(255,77,106,.08);border:1px solid rgba(255,77,106,.25);padding:2px 7px;border-radius:5px;margin-top:4px}
 
 /* DATA SOURCE INDICATOR */
 .data-source-bar{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
@@ -191,7 +191,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .slip-item-right{text-align:right;flex-shrink:0}
 .s-dec{font-family:var(--mono);font-size:12px;font-weight:500}
 .s-conf{font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px}
-.remove-btn{background:rgba(255,77,106,.08);border:1px solid rgba(255,77,106,.2);border-radius:6px;color:var(--red);font-family:var(--mono);font-size:9px;padding:3px 7px;cursor:pointer;margin-top:6px;transition:all .15s;display:inline-block}
+.remove-btn{background:rgba(255,77,106,.08);border:1px solid rgba(255,77,106,.2);border-radius:6px;color:var(--red);font-family:var(--mono);font-size:9px;padding:8px 12px;cursor:pointer;margin-top:6px;transition:all .15s;display:inline-block;min-height:44px}
 .remove-btn:active{background:rgba(255,77,106,.2)}
 .slip-summary-card{background:var(--bg3);border:1px solid var(--border2);border-radius:13px;padding:14px;margin-top:6px}
 .slip-stat-row{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;padding:5px 0;border-bottom:1px solid var(--border)}
@@ -216,7 +216,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .outcome-badge.win{background:rgba(0,229,160,.1);color:var(--accent)}
 .outcome-badge.loss{background:rgba(255,77,106,.1);color:var(--red)}
 .outcome-badge.pending{background:rgba(107,122,141,.1);color:var(--muted)}
-.mark-btn{font-family:var(--mono);font-size:8px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 5px;cursor:pointer;color:var(--muted);margin-top:3px;display:block;text-align:center;width:100%;transition:all .15s}
+.mark-btn{font-family:var(--mono);font-size:8px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:10px 5px;cursor:pointer;color:var(--muted);margin-top:3px;display:block;text-align:center;width:100%;transition:all .15s;min-height:44px}
 .mark-btn:active{background:var(--bg4)}
 .sport-perf-card{background:var(--bg2);border:1px solid var(--border);border-radius:13px;padding:12px;margin-bottom:8px}
 .sport-perf-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
@@ -319,11 +319,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.63</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.67</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
-        <button class="settings-btn" onclick="openSettings()">⚙</button>
+        <button class="settings-btn" onclick="openSettings()" aria-label="Open settings">⚙</button>
       </div>
     </div>
     <div class="date-bar">
@@ -449,18 +449,24 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           <div class="filter-chip" id="chip-tomorrow" data-date="tomorrow" onclick="setFilter('date','tomorrow',this)">Tomorrow</div>
         </div>
         <div style="display:flex;gap:0;border:1px solid var(--border2);border-radius:10px;overflow:hidden;margin-bottom:6px">
-          <button id="mode-select-analysis" onclick="setViewMode('analysis')" style="flex:1;font-family:var(--mono);font-size:11px;font-weight:700;padding:8px;border:none;cursor:pointer;transition:all .15s;background:rgba(255,181,71,0.15);color:var(--amber)">📊 ANALYSIS</button>
-          <button id="mode-select-betting" onclick="setViewMode('betting')" style="flex:1;font-family:var(--mono);font-size:11px;font-weight:700;padding:8px;border:none;border-left:1px solid var(--border2);cursor:pointer;transition:all .15s;background:transparent;color:var(--muted)">📈 BETTING</button>
+          <button id="mode-select-analysis" onclick="setViewMode('analysis')" style="flex:1;font-family:var(--mono);font-size:11px;font-weight:700;padding:8px;border:none;cursor:pointer;transition:all .15s;background:rgba(255,181,71,0.15);color:var(--amber)" aria-label="Switch to Analysis mode" aria-pressed="true">📊 ANALYSIS</button>
+          <button id="mode-select-betting" onclick="setViewMode('betting')" style="flex:1;font-family:var(--mono);font-size:11px;font-weight:700;padding:8px;border:none;border-left:1px solid var(--border2);cursor:pointer;transition:all .15s;background:transparent;color:var(--muted)" aria-label="Switch to Betting mode" aria-pressed="false">📈 BETTING</button>
         </div>
         <div id="game-filters" class="filter-row" style="margin-bottom:6px;display:none">
           <!-- populated dynamically by updateGameFilter() -->
+        </div>
+        <div class="filter-row" id="sort-filters" style="margin-bottom:6px">
+          <div class="filter-chip active" data-sort="conf" onclick="setSortBy('conf',this)">Confidence</div>
+          <div class="filter-chip" data-sort="edge" onclick="setSortBy('edge',this)">Edge</div>
+          <div class="filter-chip" data-sort="proj" onclick="setSortBy('proj',this)">Projection</div>
+          <div class="filter-chip" data-sort="data" onclick="setSortBy('data',this)">Data quality</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
           <button class="gen-btn" id="gen-btn" onclick="generateProps()" style="flex:1;margin-bottom:0;padding:10px">
             <span id="gen-btn-text">Generate Props</span>
           </button>
-          <button id="use-cache-btn" onclick="restoreCachedData()" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;color:var(--muted);padding:10px;cursor:pointer;white-space:nowrap;flex-shrink:0" title="Load previously fetched props without hitting API">📦 Use cache</button>
-          <button class="refetch-btn" id="refetch-btn" onclick="refetchAll()" style="margin-bottom:0;padding:10px;width:auto;white-space:nowrap;flex-shrink:0">↺ Refresh</button>
+          <button id="use-cache-btn" onclick="showCacheDetail()" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;color:var(--muted);padding:10px;cursor:pointer;white-space:nowrap;flex-shrink:0" aria-label="View cached data">📦 Cache</button>
+          <button class="refetch-btn" id="refetch-btn" onclick="refetchAll()" style="margin-bottom:0;padding:10px;width:auto;white-space:nowrap;flex-shrink:0" aria-label="Refresh data">↺ Refresh</button>
         </div>
         <div class="cache-status-bar" id="cache-status-bar" style="margin-bottom:0"></div>
       </div>
@@ -2071,11 +2077,16 @@ function setViewMode(mode) {
     bBtn.style.background = mode === 'betting' ? 'rgba(0,229,160,0.15)' : 'transparent';
     bBtn.style.color = mode === 'betting' ? 'var(--accent)' : 'var(--muted)';
     bBtn.style.fontWeight = mode === 'betting' ? '700' : '400';
+    // Active mode gets a bottom border so inactive state has clear affordance
+    bBtn.style.borderBottom = mode === 'betting' ? '2px solid var(--accent)' : '2px solid transparent';
+    bBtn.setAttribute('aria-pressed', mode === 'betting' ? 'true' : 'false');
   }
   if(aBtn) {
     aBtn.style.background = mode === 'analysis' ? 'rgba(255,181,71,0.15)' : 'transparent';
     aBtn.style.color = mode === 'analysis' ? 'var(--amber)' : 'var(--muted)';
     aBtn.style.fontWeight = mode === 'analysis' ? '700' : '400';
+    aBtn.style.borderBottom = mode === 'analysis' ? '2px solid var(--amber)' : '2px solid transparent';
+    aBtn.setAttribute('aria-pressed', mode === 'analysis' ? 'true' : 'false');
   }
   updateModeBanner();
   updateCacheStatusBar();
@@ -2137,6 +2148,14 @@ function formatAge(ms) {
 // UI STATE
 // ═══════════════════════════════════════════════════════
 let filters = { sports: new Set(['all']), dec: 'all', date: 'all', prop: 'all', game: 'all' };
+let sortBy = 'conf'; // conf | edge | proj | data
+
+function setSortBy(val, el) {
+  sortBy = val;
+  document.querySelectorAll('#sort-filters .filter-chip').forEach(c => c.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderProps();
+}
 let expandedCards = new Set();
 let isGenerating = false;
 let isAnalyzing = false;
@@ -2155,6 +2174,31 @@ document.addEventListener('DOMContentLoaded', function() {
   updateProxyBadge();
   setViewMode(viewMode); // initialize mode selector button state
   renderQuotaCard(); // show current quota state immediately
+
+  // Prune expired snapshots from localStorage to prevent storage bloat
+  // Runs once per session — removes any snapshot beyond its TTL or from old key prefixes
+  try {
+    const now = Date.now();
+    const keysToDelete = [];
+    for(let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if(!key) continue;
+      // Only touch our snapshot keys (pe_snap prefixes)
+      if(!key.startsWith('pe_snap')) continue;
+      try {
+        const snap = JSON.parse(localStorage.getItem(key) || '{}');
+        const sport = snap.sport || '';
+        const ttlMs = (SNAPSHOT_TTL[sport] || 6) * 3600000;
+        if(!snap.lastUpdated || now - snap.lastUpdated > ttlMs * 2) {
+          keysToDelete.push(key); // expired 2x over — safe to prune
+        }
+      } catch(e) {
+        keysToDelete.push(key); // corrupt entry
+      }
+    }
+    keysToDelete.forEach(k => localStorage.removeItem(k));
+    if(keysToDelete.length > 0) traceLog('system', `Pruned ${keysToDelete.length} expired snapshots from localStorage`, 'ok');
+  } catch(e) {}
 
   // Clear all _lastproj_ stability anchors on v14.9 startup
   // These anchors lock in stale projections from previous buggy versions — safer to reset
@@ -2277,6 +2321,55 @@ function restoreCachedData() {
   updateProxyBadge();
   const modeMsg = (hasBetting && hasAnalysis) ? 'Both betting & analysis caches restored' : viewMode === 'betting' ? 'Betting cache restored' : 'Analysis cache restored';
   showToast(`✓ ${modeMsg}`, 'success');
+}
+
+function showCacheDetail() {
+  // Build a detailed breakdown of what's in cache before user decides to restore
+  const bEntries = STATE.bettingCache  ? Object.entries(STATE.bettingCache).filter(([,e])  => e?.props?.length > 0) : [];
+  const aEntries = STATE.analysisCache ? Object.entries(STATE.analysisCache).filter(([,e]) => e?.props?.length > 0) : [];
+  const lEntries = STATE.sportCache    ? Object.entries(STATE.sportCache).filter(([,e])    => e?.props?.length > 0) : [];
+
+  if(bEntries.length === 0 && aEntries.length === 0 && lEntries.length === 0) {
+    showToast('No cached data found', 'error');
+    return;
+  }
+
+  const formatEntries = (entries, modeLabel) => {
+    if(!entries.length) return '';
+    const rows = entries.map(([sport, e]) => {
+      const ageMs = e.fetchedAt ? Date.now() - e.fetchedAt : null;
+      const ageStr = ageMs !== null ? formatAge(ageMs) : 'unknown age';
+      const freshClass = ageMs !== null ? (ageMs < 7200000 ? 'color:var(--accent)' : ageMs < 21600000 ? 'color:var(--amber)' : 'color:var(--red)') : 'color:var(--muted)';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:10px">
+        <span style="font-weight:700">${sport}</span>
+        <span>${e.props.length} props</span>
+        <span style="${freshClass}">${ageStr}</span>
+      </div>`;
+    }).join('');
+    const total = entries.reduce((s,[,e])=>s+(e.props?.length||0),0);
+    return `<div style="font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--blue);margin:10px 0 4px">${modeLabel} · ${total} props</div>${rows}`;
+  };
+
+  const propsList = document.getElementById('props-list');
+  propsList.innerHTML = `
+    <div class="cache-restore-banner">
+      <div class="cache-restore-title">📦 Cached data available</div>
+      <div class="cache-restore-sub" style="max-height:300px;overflow-y:auto">
+        ${formatEntries(bEntries, '📈 Betting mode')}
+        ${formatEntries(aEntries, '📊 Analysis mode')}
+        ${bEntries.length === 0 && aEntries.length === 0 ? formatEntries(lEntries, '🗄 Legacy cache') : ''}
+        <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:8px;line-height:1.6">
+          Green = fresh (&lt;2h) · Amber = stale (2–6h) · Red = very stale (&gt;6h)<br>
+          Props and projections are restored as-is — tap Generate to re-run fresh.
+        </div>
+      </div>
+      <div class="cache-restore-btns">
+        <button class="cache-restore-yes" onclick="restoreCachedData()">✓ Load this cache</button>
+        <button class="cache-restore-no" onclick="renderProps()">✕ Cancel</button>
+      </div>
+    </div>`;
+  // Scroll to top so user sees the detail panel
+  document.querySelector('.content').scrollTop = 0;
 }
 
 function discardCachedData() {
@@ -2582,10 +2675,38 @@ function updateSportChipStatus() {
 function updateCacheStatusBar() {
   const bar = document.getElementById('cache-status-bar');
   const allProps = getAllCachedProps();
-  // Show/hide Use Cache button — show if EITHER cache has data
   const useCacheBtn = document.getElementById('use-cache-btn');
-  const eitherHasData = getAllCachedPropsBothModes().length > 0;
-  if(useCacheBtn) useCacheBtn.style.display = eitherHasData ? 'block' : 'none';
+
+  // Build cache summary across BOTH mode caches
+  const bEntries = STATE.bettingCache  ? Object.entries(STATE.bettingCache).filter(([,e])  => e?.props?.length > 0) : [];
+  const aEntries = STATE.analysisCache ? Object.entries(STATE.analysisCache).filter(([,e]) => e?.props?.length > 0) : [];
+  const eitherHasData = bEntries.length > 0 || aEntries.length > 0;
+
+  // Cache button: always show when ANY cache has data, even after props are rendered
+  // This is the failsafe — user can always see what's cached and reload it
+  if(useCacheBtn) {
+    if(eitherHasData) {
+      // Build rich label: total props + per-sport ages
+      const allCacheEntries = [
+        ...bEntries.map(([s,e]) => ({s, e, mode:'betting'})),
+        ...aEntries.map(([s,e]) => ({s, e, mode:'analysis'})),
+      ];
+      const totalProps = allCacheEntries.reduce((sum, {e}) => sum + (e.props?.length||0), 0);
+      const fetchTimes = allCacheEntries.filter(({e}) => e.fetchedAt).map(({e}) => e.fetchedAt);
+      const oldestFetch = fetchTimes.length ? Math.min(...fetchTimes) : null;
+      const newestFetch = fetchTimes.length ? Math.max(...fetchTimes) : null;
+      const ageLabel = newestFetch ? formatAge(Date.now() - newestFetch) : '?';
+      useCacheBtn.textContent = `📦 ${totalProps} props · ${ageLabel}`;
+      useCacheBtn.style.display = 'block';
+      // Color: green=fresh (<2h), amber=stale (2-6h), red=very stale (>6h)
+      const ageMs = newestFetch ? Date.now() - newestFetch : Infinity;
+      useCacheBtn.style.borderColor = ageMs < 7200000 ? 'rgba(0,229,160,.4)' : ageMs < 21600000 ? 'rgba(255,181,71,.4)' : 'rgba(255,77,106,.35)';
+      useCacheBtn.style.color = ageMs < 7200000 ? 'var(--accent)' : ageMs < 21600000 ? 'var(--amber)' : 'var(--red)';
+    } else {
+      useCacheBtn.style.display = 'none';
+    }
+  }
+
   if(allProps.length === 0 && !eitherHasData) { bar.innerHTML = ''; return; }
 
   const activeCache = viewMode === 'analysis'
@@ -2603,10 +2724,7 @@ function updateCacheStatusBar() {
   const latestFetch = Math.max(...Object.values(activeCache).filter(e=>e?.fetchedAt).map(e=>e.fetchedAt));
   const ageStr = latestFetch ? formatAge(Date.now() - latestFetch) : '';
   const modeLabel = viewMode === 'analysis' ? '📊' : '📈';
-
   bar.innerHTML = `<span>${modeLabel} ${allProps.length} props</span>${parts.length ? ' · ' + parts.join(' ') : ''}${ageStr ? ` · <span>fetched ${ageStr}</span>` : ''}`;
-
-  // Refetch button is always visible — no show/hide needed
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2659,7 +2777,20 @@ async function fetchJSONSlow(url, options = {}) {
 }
 
 async function fetchWithFallback(url) {
-  try { return await fetchJSON(url); } catch(e) {
+  // Retry once on transient failures (429 rate-limit, network hiccup) with backoff
+  const attemptDirect = async () => {
+    try { return await fetchJSON(url); }
+    catch(e) {
+      const is429 = e.message && e.message.includes('429');
+      const isNet = e.name === 'TypeError' || e.name === 'AbortError';
+      if(is429 || isNet) {
+        await new Promise(r => setTimeout(r, 1200)); // 1.2s backoff
+        return await fetchJSON(url); // one retry
+      }
+      throw e;
+    }
+  };
+  try { return await attemptDirect(); } catch(e) {
     const proxy = STATE.settings.corsProxy;
     if(proxy && proxy.trim()) {
       const token = STATE.settings.proxyToken || '';
@@ -7847,8 +7978,42 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         // The snapshot is cached stat-agnostically — allStats holds all columns (goals, assists,
         // points, shots, blocks, ppPoints etc). snapNHL.games holds whichever stat was primary
         // when the snapshot was first built, which may differ from statLabel on subsequent props.
-        // Always use extractStatFromSnapshot so Goals gets goals, Assists gets assists, etc.
-        const extractedVals = extractStatFromSnapshot(snapNHL, statLabel);
+        // Always use extractStatFromSnapshot so Goals gets goals, SOG gets SOG, etc.
+        let extractedVals = extractStatFromSnapshot(snapNHL, statLabel);
+
+        // If rawGameObjects was stripped from the saved snapshot (saveSnapshot always strips them
+        // to save storage), extractStatFromSnapshot returns null. Re-fetch from NHL API to get
+        // the correct per-game values for this specific stat. Do NOT fall back to snap.games
+        // which always contains Points (the primary stat at snapshot build time) — that's what
+        // causes SOG to project as ~1.5 (McDavid's points avg, not his SOG avg of ~4-5).
+        const _primaryNHLStats = ['Points'];
+        const _isNHLPointsPrimary = _primaryNHLStats.includes(statLabel);
+        if(!extractedVals && !_isNHLPointsPrimary && !snapNHL.rawGameObjects?.length && nhlPlayerId) {
+          traceLog('projectionEngine', `${playerName} (NHL): rawGameObjects stripped, re-fetching NHL API for ${statLabel}`, 'warn');
+          try {
+            const [reRegRes, rePlayRes] = await Promise.allSettled([
+              fetchWithFallback(`${NHL_BASE}/player/${nhlPlayerId}/game-log/${season}/2`),
+              fetchWithFallback(`${NHL_BASE}/player/${nhlPlayerId}/game-log/${season}/3`),
+            ]);
+            const reRegLog  = reRegRes.status  === 'fulfilled' ? (reRegRes.value?.gameLog  || []) : [];
+            const rePlayLog = rePlayRes.status === 'fulfilled' ? (rePlayRes.value?.gameLog || []) : [];
+            const reRawGames = [
+              ...reRegLog.map(g => toRawGame(g, 'regular')),
+              ...rePlayLog.map(g => toRawGame(g, 'playoff')),
+            ];
+            if(reRawGames.length >= 5) {
+              const freshSnap = buildSnapshot(nhlPlayerId, sport, reRawGames, 'NHL API');
+              if(freshSnap?.rawGameObjects?.length) {
+                extractedVals = extractStatFromSnapshot(freshSnap, statLabel);
+                if(extractedVals) snapNHL = freshSnap; // use fresh snap for opponents etc
+                traceLog('projectionEngine', `${playerName} (NHL): re-fetch got ${extractedVals?.length ?? 0} ${statLabel} values`, extractedVals ? 'ok' : 'warn');
+              }
+            }
+          } catch(e) {
+            traceLog('projectionEngine', `${playerName} (NHL): re-fetch for ${statLabel} failed — ${e.message}`, 'warn');
+          }
+        }
+
         if(extractedVals && extractedVals.length >= 5) {
           allVals = extractedVals;
           // vsOppVals: filter extracted values to games vs today's opponent
@@ -7865,7 +8030,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
               : [];
           traceLog('projectionEngine', `${playerName} (NHL): extracted ${statLabel} → ${allVals.length} games, avg ${(allVals.reduce((a,b)=>a+b,0)/allVals.length).toFixed(2)}`, 'ok');
         } else {
-          // Fallback: snapshot primary games (only correct when statLabel matches the primary prop)
+          // Last resort: snapshot primary games — only correct if statLabel === Points
           allVals = snapNHL.games;
           vsOppVals = snapNHL.opponents
             ? snapNHL.games.filter((_, i) => {
@@ -7874,7 +8039,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
                 return oppNorm && (o.includes(oppNorm.slice(0,3)) || oppNorm.includes(o.slice(0,3)));
               })
             : [];
-          traceLog('projectionEngine', `${playerName} (NHL): extractStatFromSnapshot failed for ${statLabel} — using primary snapshot games`, 'warn');
+          traceLog('projectionEngine', `${playerName} (NHL): using primary snapshot games for ${statLabel} (last resort)`, 'warn');
         }
         contextData._snap = snapNHL;
       }
@@ -9782,7 +9947,10 @@ function renderProps() {
   filtered.sort((a, b) => {
     const evA = a.overEV !== undefined ? (a.decision === 'OVER' ? a.overEV : a.underEV) : Math.abs(a.edge?.pct || 0);
     const evB = b.overEV !== undefined ? (b.decision === 'OVER' ? b.overEV : b.underEV) : Math.abs(b.edge?.pct || 0);
-    return b.conf - a.conf || evB - evA;
+    if(sortBy === 'edge') return evB - evA || b.conf - a.conf;
+    if(sortBy === 'proj') return (b.proj || 0) - (a.proj || 0);
+    if(sortBy === 'data') return (b.completeness || 0) - (a.completeness || 0) || (b.dataSource?.gamelog || 0) - (a.dataSource?.gamelog || 0);
+    return b.conf - a.conf || evB - evA; // default: confidence
   });
   list.innerHTML = filtered.map(p => propCardHTML(p)).join('');
   updateMetrics();
@@ -9811,7 +9979,10 @@ function propCardHTML(p) {
     decLow = p.decision === 'PASS' ? 'pass' : p.decision.toLowerCase();
     decBadgeLabel = isAnalysis
       ? 'ANALYSIS ONLY'
-      : (p.decision === 'PASS' && !p.dataSource?.hasRealLine ? 'PASS · No market line' : p.decision);
+      : (p.decision === 'PASS' && !p.dataSource?.hasRealLine ? 'PASS · No market line'
+        : p.decision === 'PASS' && p.conf < 4 ? 'PASS · Low confidence'
+        : p.decision === 'PASS' && p.edge && p.edge.pct < 3 ? 'PASS · Low edge'
+        : p.decision);
     decBadgeClass = isAnalysis ? 'pass' : decLow;
   }
 
@@ -9887,8 +10058,8 @@ function propCardHTML(p) {
     <div class="prop-top">
       <div>
         <div class="prop-player">${p.player}</div>
-        <div class="prop-meta">${p.team || ''} vs ${p.opp || '?'} · ${p.date === 'tomorrow' ? 'TOMORROW' : 'TODAY'}</div>
-        ${p.injuryStatus ? `<div class="injury-flag">⚠ ${p.injuryStatus}</div>` : ''}
+        <div class="prop-meta">${p.team || ''} vs ${p.opp || '?'} · ${p.date === 'tomorrow' ? 'TOMORROW' : 'TODAY'}${p.varianceProfile?.volatilityClass ? ` · <span style="color:${p.varianceProfile.volatilityClass==='LOW'?'var(--accent)':p.varianceProfile.volatilityClass==='MED'?'var(--amber)':'var(--red)'}">${p.varianceProfile.volatilityClass} var</span>` : ''}</div>
+        ${p.injuryStatus ? `<div class="injury-flag" role="status" aria-label="Injury: ${p.injuryStatus}">🤕 ${p.injuryStatus}</div>` : ''}
       </div>
       <div class="prop-sport-tag">${p.sport}</div>
     </div>
@@ -9904,7 +10075,7 @@ function propCardHTML(p) {
     ${narrativeHTML}
     <div class="prop-bottom">
       <div class="decision-badge ${decBadgeClass}">${decBadgeLabel}</div>
-      <div class="conf-block"><div class="conf-dots">${dots}</div><div class="conf-text">${p.conf}/10 · ${p.winProb}% prob</div></div>
+      <div class="conf-block"><div class="conf-dots">${dots}</div><div class="conf-text">${p.conf}/10 · ${p.winProb}% prob${p.confidenceScore100 !== undefined ? ` · <span style="color:${p.confidenceScore100>=80?'var(--accent)':p.confidenceScore100>=55?'var(--amber)':'var(--red)'}">${p.confidenceScore100}</span>` : ''}</div></div>
     </div>
     ${p.edgeTier && p.edgeTier !== 'NO PLAY' && !forceAnalysis && !isAnalysis ? `<div style="font-family:var(--mono);font-size:9px;margin-top:5px;padding:3px 8px;border-radius:5px;display:inline-block;${p.edgeTier==='STRONG BET'?'background:rgba(0,229,160,.12);color:var(--accent);border:1px solid rgba(0,229,160,.3)':p.edgeTier==='SMALL EDGE'?'background:rgba(255,181,71,.08);color:var(--amber);border:1px solid rgba(255,181,71,.25)':p.edgeTier==='FADE'?'background:rgba(255,77,106,.08);color:var(--red);border:1px solid rgba(255,77,106,.25)':''}">⚡ ${p.edgeTier}${p.overOdds && p.overOdds !== -110 ? ` · ${p.decision==='OVER'?p.overOdds:p.underOdds}` : ''}</div>` : ''}
     <button class="expand-btn" onclick="toggleReasoning(${p.id})">▾ full data breakdown</button>
