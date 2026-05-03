@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.83</title>
+<title>PropEdge v17.85</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -332,7 +332,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.83</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.85</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -598,6 +598,22 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           <div id="slate-log-panel"></div>
         </div>
       </div>
+      <!-- ── MLB Opponent Debug ── -->
+      <div class="tool-section">
+        <div class="tool-section-header" onclick="toggleToolSection(this)">
+          <span>🔬 MLB Opponent Field Debug</span>
+          <span class="tool-section-arrow">▶</span>
+        </div>
+        <div class="tool-section-body">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:8px">Fetches a live MLB gameLog and shows raw opponent data returned by the API — use this to identify the correct field name for team abbreviations.</div>
+          <div style="display:flex;gap:6px;margin-bottom:8px">
+            <input id="mlb-debug-id" class="setting-input" placeholder="MLB player ID (e.g. 592450)" style="flex:1;font-size:11px" value="592450"/>
+            <button onclick="runMLBOpponentDebug()" style="font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid rgba(0,229,160,.3);border-radius:8px;padding:6px 14px;color:var(--accent);cursor:pointer;white-space:nowrap">▶ Run</button>
+          </div>
+          <div id="mlb-debug-out" style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:var(--mono);font-size:10px;color:var(--fg);white-space:pre-wrap;max-height:320px;overflow-y:auto;min-height:40px">Tap Run to fetch.</div>
+        </div>
+      </div>
+
       <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
         Pipeline Trace
         <div style="display:flex;gap:6px">
@@ -1206,6 +1222,45 @@ function traceLog(section, msg, level='ok') {
   STATE.trace[section].push({ msg, level });
 }
 function clearTrace() { STATE.trace = null; renderTrace(); }
+
+async function runMLBOpponentDebug() {
+  const out = document.getElementById('mlb-debug-out');
+  const pid = (document.getElementById('mlb-debug-id')?.value || '592450').trim();
+  out.textContent = 'Fetching…';
+  try {
+    const MLB_BASE = 'https://statsapi.mlb.com/api/v1';
+    const yr = new Date().getFullYear();
+    // Try with hydrate=opponent first, then without
+    const urlWith    = `${MLB_BASE}/people/${pid}/stats?stats=gameLog&season=${yr}&group=hitting&gameType=R&hydrate=opponent`;
+    const urlWithout = `${MLB_BASE}/people/${pid}/stats?stats=gameLog&season=${yr}&group=hitting&gameType=R`;
+
+    const [r1, r2] = await Promise.allSettled([fetch(urlWith), fetch(urlWithout)]);
+    const lines = [];
+
+    for(const [label, r] of [['WITH hydrate=opponent', r1], ['WITHOUT hydrate', r2]]) {
+      lines.push(`━━━ ${label} ━━━`);
+      if(r.status !== 'fulfilled') { lines.push(`  FETCH ERROR: ${r.reason}`); continue; }
+      const resp = r.value;
+      if(!resp.ok) { lines.push(`  HTTP ${resp.status}`); continue; }
+      const data = await resp.json();
+      const splits = data?.stats?.[0]?.splits || [];
+      lines.push(`  splits.length: ${splits.length}`);
+      if(splits.length > 0) {
+        const s = splits[splits.length - 1]; // most recent game
+        lines.push(`  Last split top-level keys: [${Object.keys(s).join(', ')}]`);
+        lines.push(`  split.date: ${s.date}`);
+        lines.push(`  split.opponent (raw): ${JSON.stringify(s.opponent)}`);
+        lines.push(`  split.team (raw): ${JSON.stringify(s.team)}`);
+        lines.push(`  split.isHome: ${s.isHome}`);
+      }
+      lines.push('');
+    }
+    out.textContent = lines.join('\n');
+  } catch(e) {
+    out.textContent = `ERROR: ${e.message}`;
+  }
+}
+
 
 function copyTrace() {
   const t = STATE.trace;
@@ -3065,8 +3120,9 @@ async function fetchMLBSchedule(date) {
 
 async function fetchMLBGameLog(mlbPlayerId, season) {
   // Returns per-game hitting or pitching stats
+  // hydrate=opponent populates split.opponent with team info including name
   const yr = season || new Date().getFullYear();
-  const url = `${MLB_BASE}/people/${mlbPlayerId}/stats?stats=gameLog&season=${yr}&group=hitting,pitching&gameType=R`;
+  const url = `${MLB_BASE}/people/${mlbPlayerId}/stats?stats=gameLog&season=${yr}&group=hitting,pitching&gameType=R&hydrate=opponent`;
   const data = await fetchWithFallback(url);
   return data?.stats || [];
 }
@@ -7828,6 +7884,8 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
             }
           }
           traceLog('projectionEngine', `${playerName} (MLB): MLB API got ${mlbApiVals.length} games`, mlbApiVals.length>0?'ok':'warn');
+          // Debug: log first split's opponent structure so we can see what fields are available
+          if(splits.length > 0) traceLog('projectionEngine', `${playerName} (MLB): first split opponent=${JSON.stringify(splits[0]?.opponent)} date=${splits[0]?.date}`, 'ok');
           // Store raw splits for opportunity layer (plateAppearances / battersFaced)
           if(splits.length > 0) {
             if(!gameLogDataRef) gameLogDataRef = {};
