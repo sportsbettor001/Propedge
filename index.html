@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.77</title>
+<title>PropEdge v17.78</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -148,6 +148,19 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .add-slip-btn:active{transform:scale(.97);background:rgba(0,229,160,.14)}
 .add-slip-btn.added{color:var(--muted);background:transparent;border-color:var(--border)}
 .injury-flag{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:9px;color:var(--red);background:rgba(255,77,106,.08);border:1px solid rgba(255,77,106,.25);padding:2px 7px;border-radius:5px;margin-top:4px}
+
+/* RECENT GAMES CHART */
+.recent-chart{margin:8px 0 4px;padding:10px 10px 6px;background:var(--bg3);border:1px solid var(--border);border-radius:10px}
+.recent-chart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.recent-chart-title{font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+.recent-chart-ref{font-family:var(--mono);font-size:9px;color:var(--amber)}
+.recent-bars{display:flex;align-items:flex-end;gap:3px;height:52px}
+.recent-bar-wrap{display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;height:100%;position:relative;justify-content:flex-end}
+.recent-bar{width:100%;border-radius:3px 3px 0 0;min-height:3px;transition:opacity .15s;position:relative}
+.recent-bar-val{font-family:var(--mono);font-size:8px;font-weight:700;text-align:center;margin-bottom:2px;line-height:1}
+.recent-bar-ref-line{position:absolute;left:0;right:0;height:1px;background:rgba(255,181,71,.7);pointer-events:none;z-index:2}
+.recent-labels{display:flex;gap:3px;margin-top:3px}
+.recent-label{flex:1;min-width:0;text-align:center;font-family:var(--mono);font-size:7px;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;line-height:1.3}
 
 /* DATA SOURCE INDICATOR */
 .data-source-bar{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
@@ -319,7 +332,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.77</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.78</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -9611,11 +9624,38 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     const safeEdge     = isAnalysisProp ? { val: 0, pct: 0 } : edgeForDisplay;
     const safeDecision = isAnalysisProp ? 'PASS' : decision;
 
+    // ── RECENT GAME LOG (L10) for bar chart ──
+    // Pull from contextData._snap which has full opponents/dates arrays
+    const _snapForLog = contextData._snap;
+    const _recentGames = (() => {
+      if(!_snapForLog || !allVals || allVals.length < 1) return [];
+      const vals = allVals; // most recent first
+      const opps = _snapForLog.opponents || [];
+      const dts  = _snapForLog.dates     || [];
+      const count = Math.min(10, vals.length);
+      const out = [];
+      for(let i = 0; i < count; i++) {
+        const rawDate = dts[i] || '';
+        // Format date as MM-DD
+        let fmtDate = rawDate;
+        try {
+          if(rawDate) {
+            const d = new Date(rawDate);
+            if(!isNaN(d)) fmtDate = (d.getMonth()+1).toString().padStart(2,'0') + '-' + d.getDate().toString().padStart(2,'0');
+          }
+        } catch(e) {}
+        out.push({ v: vals[i], opp: opps[i] || '?', date: fmtDate });
+      }
+      // Reverse so oldest→newest left to right
+      return out.reverse();
+    })();
+
     return {
       id, player:playerName, sport, team, opp, prop:statLabel,
       line: isAnalysisProp ? null : line,
       proj: finalProjection, edge: safeEdge, conf, decision: safeDecision, winProb, date,
       narrative, reasoning, injuryStatus, hitRateSeason,
+      recentGames: _recentGames,
       completeness: completeness.score,
       completenessThreshold: thresholdInfo.threshold,
       completenessLabel: thresholdInfo.label,
@@ -10161,6 +10201,70 @@ function renderProps() {
   updateMetrics();
 }
 
+function recentGamesChartHTML(p) {
+  const games = p.recentGames;
+  if(!games || games.length < 2) return '';
+
+  const isAnalysis = p.analysisMode === true || viewMode === 'analysis';
+  // Reference line: projection in analysis mode, sportsbook line in betting mode
+  const ref = isAnalysis ? p.proj : (p.line ?? p.proj);
+  if(ref == null || ref <= 0) return '';
+
+  const refLabel = isAnalysis ? `Proj ${ref}` : `Line ${ref}`;
+
+  const vals = games.map(g => g.v);
+  const maxVal = Math.max(...vals, ref * 1.3);
+  const chartH = 44; // px for bar area
+
+  // Build bars — show last 5 highlighted, older ones dimmer
+  const total = games.length;
+  const l5start = Math.max(0, total - 5); // index where L5 begins
+
+  const barsHTML = games.map((g, i) => {
+    const isL5 = i >= l5start;
+    const hit = g.v >= ref;
+    const barH = Math.max(3, Math.round((g.v / maxVal) * chartH));
+    const refLineY = Math.round((ref / maxVal) * chartH);
+    const refLineBottom = refLineY; // px from bottom
+
+    const barColor = hit
+      ? (isL5 ? 'var(--accent)' : 'rgba(0,229,160,0.45)')
+      : (isL5 ? 'var(--red)'    : 'rgba(255,77,106,0.40)');
+
+    const opacity = isL5 ? '1' : '0.6';
+
+    return `<div class="recent-bar-wrap">
+      <div class="recent-bar-val" style="color:${hit?'var(--accent)':'var(--red)'};opacity:${opacity}">${g.v}</div>
+      <div style="position:relative;width:100%;height:${chartH}px;display:flex;align-items:flex-end">
+        <div class="recent-bar" style="height:${barH}px;background:${barColor};opacity:${opacity};width:100%"></div>
+        <div class="recent-bar-ref-line" style="bottom:${refLineBottom}px"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const labelsHTML = games.map(g =>
+    `<div class="recent-label" title="${g.opp} · ${g.date}">${g.opp}<br><span style="color:rgba(107,122,141,0.7)">${g.date}</span></div>`
+  ).join('');
+
+  const l5Games = games.slice(l5start);
+  const l5Hits = l5Games.filter(g => g.v >= ref).length;
+  const l10Hits = games.filter(g => g.v >= ref).length;
+  const hitColor = (n, t) => n/t >= 0.6 ? 'var(--accent)' : n/t >= 0.4 ? 'var(--amber)' : 'var(--red)';
+
+  const statsHTML = `<span style="color:${hitColor(l5Hits,l5Games.length)}">L5: ${l5Hits}/${l5Games.length}</span>` +
+    (games.length >= 10 ? ` &nbsp;<span style="color:${hitColor(l10Hits,games.length)}">L10: ${l10Hits}/${games.length}</span>` : '') +
+    ` <span style="color:var(--muted);font-size:8px">above ${refLabel}</span>`;
+
+  return `<div class="recent-chart">
+    <div class="recent-chart-header">
+      <div class="recent-chart-title">Last ${total} Games</div>
+      <div class="recent-chart-ref" style="font-family:var(--mono);font-size:9px">${statsHTML}</div>
+    </div>
+    <div class="recent-bars">${barsHTML}</div>
+    <div class="recent-labels">${labelsHTML}</div>
+  </div>`;
+}
+
 function propCardHTML(p) {
   // isAnalysis: either the prop was built in analysis mode, OR user toggled to analysis view
   const isAnalysis = p.analysisMode === true || viewMode === 'analysis';
@@ -10276,6 +10380,7 @@ function propCardHTML(p) {
       ${completenessScore !== null ? `<div class="prop-num-block"><div class="prop-num-label">Data</div><div class="prop-num-value" style="font-size:13px;color:${completenessColor}">${completenessScore}%<span style="font-size:8px;color:var(--muted);display:block">min ${p.completenessThreshold ?? 60}%</span></div></div>` : ''}
     </div>
     ${hitRateHTML}
+    ${recentGamesChartHTML(p)}
     ${analysisWarningHTML}
     ${narrativeHTML}
     <div class="prop-bottom">
