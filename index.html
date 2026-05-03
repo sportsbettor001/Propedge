@@ -40,8 +40,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .content{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(env(safe-area-inset-bottom) + 16px)}
 .page{display:none;padding:14px 14px 0}
 .page.active{display:block}
-#props-sticky-bar *{pointer-events:auto}
-#props-sticky-bar{pointer-events:auto}
 
 /* SETTINGS MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:flex-end}
@@ -69,6 +67,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .api-status-btn.fail{color:var(--red);border-color:var(--red);background:rgba(255,77,106,.06)}
 .modal-close{width:100%;padding:12px;background:transparent;color:var(--muted);font-family:var(--mono);font-size:13px;border:1px solid var(--border);border-radius:14px;cursor:pointer;margin-top:8px;box-sizing:border-box}
 .modal-section{font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin:18px 0 10px;padding-top:18px;border-top:1px solid var(--border)}
+
+/* RETURN TO TOP BUTTON */
+.return-top-btn{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 18px);right:16px;z-index:100;background:var(--accent);color:#000;border:none;border-radius:50px;padding:9px 14px;font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,229,160,.35);display:none;align-items:center;gap:5px;transition:opacity .2s,transform .2s;opacity:0;letter-spacing:.3px}
+.return-top-btn.visible{display:flex;opacity:1}
+.return-top-btn:active{transform:scale(.94)}
 
 /* METRIC CARDS */
 .metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
@@ -365,9 +368,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         <div class="metric-card"><div class="metric-label">All-time ROI</div><div class="metric-value" id="m-roi">—</div><div class="metric-sub" id="m-roi-sub">no history</div></div>
       </div>
 
-      <!-- Sticky controls — filters + generate button stay visible while scrolling -->
-      <!-- STICKY: sport chips, decision, prop type, dates, mode toggle, generate -->
-      <div id="props-sticky-bar" style="position:-webkit-sticky;position:sticky;top:0;z-index:10;background:var(--bg);padding:6px 0 4px;margin:-4px 0 0;border-bottom:1px solid var(--border)">
+      <!-- Filters — scroll with page, not sticky -->
+      <div id="props-sticky-bar" style="padding:6px 0 4px;margin:-4px 0 0;border-bottom:1px solid var(--border)">
         <div class="filter-row" id="sport-filters" style="margin-bottom:6px">
           <div class="filter-chip active" data-sport="all" onclick="toggleSportFilter('all',this)">All sports</div>
           <div class="filter-chip" data-sport="NBA" onclick="toggleSportFilter('NBA',this)"><div class="sport-status-dot"></div>NBA</div>
@@ -931,6 +933,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 </div>
 
 <div class="toast" id="toast"></div>
+<button class="return-top-btn" id="return-top-btn" onclick="scrollToTop()" aria-label="Return to top">↑ Top</button>
 
 <script>
 // ═══════════════════════════════════════════════════════
@@ -11005,6 +11008,44 @@ function setStep(id, state) {
 // ═══════════════════════════════════════════════════════
 // TOAST
 // ═══════════════════════════════════════════════════════
+function toggleFiltersPanel() {
+  const panel = document.getElementById('filters-panel');
+  const btn = document.getElementById('filters-toggle-btn');
+  if(!panel) return;
+  const open = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : 'block';
+  if(btn) {
+    btn.style.color = open ? '' : 'var(--accent)';
+    btn.style.borderColor = open ? '' : 'var(--accent)';
+    btn.textContent = open ? '⚙ Filters' : '✕ Filters';
+  }
+}
+
+function scrollToTop() {
+  document.querySelector('.content').scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Return-to-top button visibility
+(function() {
+  function initReturnTop() {
+    const content = document.querySelector('.content');
+    const btn = document.getElementById('return-top-btn');
+    if(!content || !btn) return;
+    content.addEventListener('scroll', function() {
+      if(content.scrollTop > 200) {
+        btn.classList.add('visible');
+      } else {
+        btn.classList.remove('visible');
+      }
+    }, { passive: true });
+  }
+  if(document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initReturnTop);
+  } else {
+    initReturnTop();
+  }
+})();
+
 let toastTimer;
 function showToast(msg, type = '') {
   const t = document.getElementById('toast');
