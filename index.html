@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.91</title>
+<title>PropEdge v17.92</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -335,7 +335,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.91</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.92</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -475,6 +475,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           <div class="filter-chip" data-sort="edge" onclick="setSortBy('edge',this)">Edge</div>
           <div class="filter-chip" data-sort="proj" onclick="setSortBy('proj',this)">Projection</div>
           <div class="filter-chip" data-sort="data" onclick="setSortBy('data',this)">Data quality</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px">
+          <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">🩹 Injury boosts</span>
+          <button id="injury-boost-toggle" onclick="toggleInjuryBoost()" style="font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:6px;border:1px solid var(--accent);background:rgba(0,229,160,.1);color:var(--accent);cursor:pointer">ON</button>
         </div>
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
           <button class="gen-btn" id="gen-btn" onclick="generateProps()" style="flex:1;margin-bottom:0;padding:10px">
@@ -1177,7 +1181,8 @@ let STATE = loadState() || {
     analysisPlayersPerGame: 15
   },
   apiStatus: {},
-  lastGenerated: null
+  lastGenerated: null,
+  showInjuryBoost: true
 };
 
 // Guard: ensure required arrays exist even if loaded from slim/bare save
@@ -1185,6 +1190,7 @@ if(!Array.isArray(STATE.history))    STATE.history    = [];
 if(!Array.isArray(STATE.slip))       STATE.slip       = [];
 if(!Array.isArray(STATE.savedSlips)) STATE.savedSlips = [];
 if(!STATE.settings)                  STATE.settings   = {};
+if(STATE.showInjuryBoost === undefined) STATE.showInjuryBoost = true;
 
 // Legacy migration: if old state had STATE.props, migrate to sportCache
 if(STATE.props && Array.isArray(STATE.props) && STATE.props.length > 0 && !STATE.sportCache) {
@@ -9054,6 +9060,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
 
     // ── ROLE-BASED INJURY BOOST (Spec §3) — apply pre-computed pct to projection ──
     const injuryBoostPct = contextData.injuryBoostPct || 0;
+    const projBeforeInjuryBoost = parseFloat(finalProjection.toFixed(2));
     if(injuryBoostPct > 0) {
       finalProjection = parseFloat((finalProjection * (1 + injuryBoostPct)).toFixed(2));
       traceLog('projectionEngine', `${playerName}: role injury boost +${(injuryBoostPct*100).toFixed(0)}% (${contextData.outPlayerRole}) → ${finalProjection}`, 'ok');
@@ -9811,6 +9818,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       confidenceScore100,
       playerArchetype,
       injuryBoostPct: injuryBoostPct > 0 ? parseFloat((injuryBoostPct*100).toFixed(1)) : null,
+      projNoInjury: injuryBoostPct > 0 ? projBeforeInjuryBoost : null,
       outPlayerRole: contextData.outPlayerRole || null,
     };
   } catch(e) {
@@ -10397,7 +10405,12 @@ function propCardHTML(p) {
   // forceAnalysis: user toggled to analysis view on a betting-mode prop — show proj data prominently
   const forceAnalysis = viewMode === 'analysis' && p.analysisMode !== true;
   const isProbProp = ['Double Double','Triple Double','Anytime Touchdown','Steals + Blocks'].includes(p.prop);
-  const projDisplay = isProbProp ? `${p.proj}%` : p.proj;
+
+  // Injury boost toggle — swap to pre-boost projection when OFF
+  const effectiveProj = (!STATE.showInjuryBoost && p.projNoInjury != null) ? p.projNoInjury : p.proj;
+  const injuryStripped = (!STATE.showInjuryBoost && p.projNoInjury != null);
+
+  const projDisplay = isProbProp ? `${effectiveProj}%` : effectiveProj;
   const edgeStr = isAnalysis ? '—' : ((p.edge.val >= 0 ? '+' : '') + p.edge.val + ' (' + (p.edge.val >= 0 ? '+' : '') + p.edge.pct + '%)');
   const edgeClass = p.edge.val >= 0 ? 'green' : 'red';
 
@@ -10405,8 +10418,8 @@ function propCardHTML(p) {
   let decLow, decBadgeLabel, decBadgeClass;
   if(forceAnalysis) {
     const lineForComp = p.line || p.lineBase;
-    const projVsLine = lineForComp ? (p.proj > lineForComp ? '▲ PROJ OVER' : p.proj < lineForComp ? '▼ PROJ UNDER' : '≈ AT LINE') : 'MODEL';
-    const projColor = lineForComp ? (p.proj > lineForComp ? 'over' : p.proj < lineForComp ? 'under' : 'pass') : 'pass';
+    const projVsLine = lineForComp ? (effectiveProj > lineForComp ? '▲ PROJ OVER' : effectiveProj < lineForComp ? '▼ PROJ UNDER' : '≈ AT LINE') : 'MODEL';
+    const projColor = lineForComp ? (effectiveProj > lineForComp ? 'over' : effectiveProj < lineForComp ? 'under' : 'pass') : 'pass';
     decLow = projColor;
     decBadgeLabel = projVsLine;
     decBadgeClass = projColor;
@@ -10459,7 +10472,6 @@ function propCardHTML(p) {
     : '';
 
   // Injury uplift banner — shown prominently on card when a key teammate is out
-  // Pulls from reasoning array entries that start with 📈 (teammate out) or ⚠ (player injured)
   const injuryBannerHTML = (() => {
     if(!p.reasoning) return '';
     const teammateOut = (p.reasoning || []).find(r => r.startsWith('📈'));
@@ -10468,13 +10480,16 @@ function propCardHTML(p) {
       return '<div style="font-family:var(--mono);font-size:9px;background:rgba(255,77,106,.08);border:1px solid rgba(255,77,106,.25);border-radius:6px;padding:5px 9px;margin-bottom:6px;color:var(--red)">'
         + playerHurt + '</div>';
     }
-    if(teammateOut) {
+    if(teammateOut && !injuryStripped) {
       return '<div style="font-family:var(--mono);font-size:9px;background:rgba(0,229,160,.06);border:1px solid rgba(0,229,160,.2);border-radius:6px;padding:5px 9px;margin-bottom:6px;color:var(--accent)">'
         + teammateOut + '</div>';
     }
+    if(teammateOut && injuryStripped) {
+      return '<div style="font-family:var(--mono);font-size:9px;background:rgba(107,122,141,.08);border:1px solid var(--border);border-radius:6px;padding:5px 9px;margin-bottom:6px;color:var(--muted)">🩹 Injury boost removed — showing base projection</div>';
+    }
     return '';
   })();
-  const narrativeHTML = (injuryBannerHTML || '') + (p.narrative ? `<div class="prop-narrative ${forceAnalysis ? (p.proj > (p.line||p.lineBase||p.proj) ? 'over' : 'under') : (isAnalysis ? 'pass' : decLow)}">${p.narrative}</div>` : '');
+  const narrativeHTML = (injuryBannerHTML || '') + (p.narrative ? `<div class="prop-narrative ${forceAnalysis ? (effectiveProj > (p.line||p.lineBase||effectiveProj) ? 'over' : 'under') : (isAnalysis ? 'pass' : decLow)}">${p.narrative}</div>` : '');
 
   // Numbers row: analysis view hides EV, shows proj vs line cleanly
   const lineDisplay = forceAnalysis
@@ -11008,6 +11023,23 @@ function setStep(id, state) {
 // ═══════════════════════════════════════════════════════
 // TOAST
 // ═══════════════════════════════════════════════════════
+function toggleInjuryBoost() {
+  STATE.showInjuryBoost = !STATE.showInjuryBoost;
+  saveState();
+  syncInjuryBoostBtn();
+  renderProps();
+}
+
+function syncInjuryBoostBtn() {
+  const btn = document.getElementById('injury-boost-toggle');
+  if(!btn) return;
+  const on = STATE.showInjuryBoost !== false;
+  btn.textContent = on ? 'ON' : 'OFF';
+  btn.style.background = on ? 'rgba(0,229,160,.1)' : 'rgba(107,122,141,.1)';
+  btn.style.borderColor = on ? 'var(--accent)' : 'var(--border2)';
+  btn.style.color = on ? 'var(--accent)' : 'var(--muted)';
+}
+
 function toggleFiltersPanel() {
   const panel = document.getElementById('filters-panel');
   const btn = document.getElementById('filters-toggle-btn');
@@ -11060,6 +11092,7 @@ function showToast(msg, type = '') {
 function renderMetrics() {
   updateMetrics();
   renderApiStatus({});
+  syncInjuryBoostBtn();
 }
 </script>
 </body>
