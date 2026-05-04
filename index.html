@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.08</title>
+<title>PropEdge v18.13</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -335,7 +335,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.08</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.13</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -2971,7 +2971,7 @@ function exactMatchESPNId(searchData, targetName) {
 }
 
 // PRIMARY: fetch all players participating in a specific game
-// Returns array of { id, name, teamAbbr, position, starter }
+// Returns array of { id, name, teamAbbr, position, starter, minsPlayed }
 async function fetchESPNGamePlayers(sport, league, gameId) {
   try {
     const data = await fetchWithFallback(`${ESPN_BASE}/${sport}/${league}/summary?event=${gameId}`);
@@ -2979,15 +2979,31 @@ async function fetchESPNGamePlayers(sport, league, gameId) {
     for(const teamEntry of (data?.boxscore?.players || [])) {
       const teamAbbr = teamEntry?.team?.abbreviation || '';
       for(const grp of (teamEntry?.statistics || [])) {
+        // Find the minutes column index from the group's keys/labels
+        const keys = grp?.keys || grp?.names || grp?.labels || [];
+        const minsIdx = keys.findIndex(k => (k||'').toUpperCase() === 'MIN' || (k||'').toLowerCase() === 'min');
         for(const entry of (grp?.athletes || [])) {
           const a = entry?.athlete;
           if(!a?.id || !a?.displayName) continue;
+          // Parse minutes from stats array if available
+          let minsPlayed = 0;
+          if(minsIdx >= 0 && entry?.stats?.[minsIdx]) {
+            const raw = entry.stats[minsIdx];
+            if(typeof raw === 'string' && raw.includes(':')) {
+              const [mm] = raw.split(':').map(Number);
+              minsPlayed = mm;
+            } else {
+              minsPlayed = parseFloat(raw) || 0;
+            }
+          }
           players.push({
             id: String(a.id),
             name: a.displayName,
             teamAbbr,
             position: a.position?.abbreviation || '',
             starter: entry?.starter === true,
+            minsPlayed,
+            didNotPlay: entry?.didNotPlay === true || (entry?.stats?.length === 0 && !entry?.starter),
           });
         }
       }
@@ -4698,8 +4714,10 @@ async function runFetch(sportsToFetch) {
                 candidatePool.push({
                   id: ap.id, name: ap.name, teamAbbr: ap.teamAbbr,
                   starter: ap.starter, position: ap.position,
+                  minsPlayed: ap.minsPlayed || 0,
+                  didNotPlay: ap.didNotPlay || false,
                   prop: db?.prop || defaultPropForSport(sport),
-                  lineBase: db?.lineBase || null, // no line needed in analysis mode
+                  lineBase: db?.lineBase || null,
                   meta: db || null,
                 });
               }
@@ -4744,7 +4762,47 @@ async function runFetch(sportsToFetch) {
               }));
           }
 
-          // ── RANK + SELECT — ROLE_TIERS priority + balanced home/away split ──
+          // ── PRE-RANK: fetch season avg minutes for all candidates in parallel ──
+          // Uses a lightweight gamelog call (limit=5) just to get season summary categories
+          // This gives us real minutes data regardless of cache state — cold or warm
+          if((sport === 'NBA' || sport === 'WNBA' || sport === 'NHL') && candidatePool.length > 0) {
+            const now2 = new Date();
+            const seasonYear2 = (now2.getMonth()+1) >= 10 ? now2.getFullYear()+1 : now2.getFullYear();
+            await Promise.allSettled(candidatePool.map(async p => {
+              if(!p.id) return;
+              // Skip if mins cache already has this player
+              const cachedMins = loadMinsCache()[String(p.id)];
+              if(cachedMins > 0) return;
+              try {
+                const gl = await fetchWithFallback(
+                  `https://site.web.api.espn.com/apis/common/v3/sports/${espnSport}/${espnLeague}/athletes/${p.id}/gamelog?season=${seasonYear2}&seasontype=2`
+                );
+                // Parse avg minutes from season summary categories
+                const cats = gl?.seasonTypes?.[0]?.categories || gl?.categories || [];
+                for(const cat of cats) {
+                  const labels = cat.labels || cat.names || [];
+                  const values = cat.totals || cat.values || [];
+                  const mIdx = labels.findIndex(l => (l||'').toUpperCase() === 'MIN' || l === 'avgMinutes');
+                  if(mIdx >= 0 && values[mIdx]) {
+                    const raw = values[mIdx];
+                    const mins = typeof raw === 'string' && raw.includes(':')
+                      ? parseInt(raw.split(':')[0]) || 0
+                      : parseFloat(raw) || 0;
+                    if(mins > 0) {
+                      // Store in mins cache for future use
+                      const mc = loadMinsCache();
+                      mc[String(p.id)] = mins;
+                      try { localStorage.setItem('pe_mins_cache', JSON.stringify(mc)); } catch(e) {}
+                    }
+                    break;
+                  }
+                }
+              } catch(e) {}
+            }));
+            traceLog('playerDiscovery', `${sport} ${home}v${away}: pre-rank mins fetch complete for ${candidatePool.length} candidates`, 'ok');
+          }
+
+
           // Sort order: ROLE_TIERS score → avg minutes → PLAYER_DB usage → starter flag → alpha
           // After ranking, pool is split into home/away halves:
           //   N=10 → 5 home + 5 away | N=5 → 3 home + 2 away | N=6 → 3+3
@@ -4782,10 +4840,13 @@ async function runFetch(sportsToFetch) {
 
           const _scoredPool = candidatePool
             .filter(p => p.name && p.name.trim().length > 1)
+            .filter(p => !p.didNotPlay) // exclude DNPs immediately
             .map(p => {
               const side    = resolveSide(p);
               const avgMins = getAvgMins(p.name, p.id, p.meta);
-              const starterB = p.starter ? 5 : 0;
+              const starterB = p.starter ? 50 : 0;
+              const dbBonus  = p.meta ? 30 : 0;     // known PLAYER_DB player = meaningful contributor
+              const minsB    = Math.min(30, (p.minsPlayed || 0) * 1.5); // recent game mins signal
               // Penalize players with no snapshot data (likely inactive/retired)
               const verifiedId = getVerifiedESPNId(p.name, p.id || null);
               let dataBonus = 0;
@@ -4794,10 +4855,11 @@ async function runFetch(sportsToFetch) {
                   const snap = loadSnapshot(verifiedId, sport);
                   if(snap && snap.sampleSize >= 10) dataBonus = 20;
                   else if(snap && snap.sampleSize >= 5) dataBonus = 5;
-                  else if(!snap) dataBonus = -50;
+                  else if(!snap) dataBonus = -30;
                 } catch(e) {}
               }
-              return { ...p, _side: side, _score: avgMins * 10 + starterB + dataBonus };
+              const score = avgMins * 10 + starterB + dbBonus + minsB + dataBonus;
+              return { ...p, _side: side, _score: score, _avgMins: avgMins };
             })
             .sort((a, b) => b._score !== a._score ? b._score - a._score : a.name.localeCompare(b.name));
 
@@ -4821,7 +4883,7 @@ async function runFetch(sportsToFetch) {
             if(_homeBkt[_bi]) ranked.push(_homeBkt[_bi]);
             if(_awayBkt[_bi]) ranked.push(_awayBkt[_bi]);
           }
-          // Backfill if a side was short (e.g. injury-depleted roster)
+          // Backfill if a side was short (e.g. injury-depleted roster) — only from filtered pool
           if(ranked.length < maxPlayers) {
             const _allSeen = new Set(ranked.map(p => p.name.toLowerCase().trim()));
             for(const p of [..._unknBkt, ..._scoredPool]) {
