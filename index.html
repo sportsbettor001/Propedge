@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.22</title>
+<title>PropEdge v18.24</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -365,7 +365,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.22</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.24</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -528,8 +528,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
     <!-- GRAPH TAB -->
     <div id="tab-graph" class="page">
-      <div class="check-form">
-        <div class="form-title">Season Hit Rate Graph</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px 0;cursor:pointer" onclick="toggleGraphForm()">
+        <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--text)">Season Hit Rate Graph</div>
+        <span id="graph-form-arrow" style="font-size:13px;color:var(--muted)">▾</span>
+      </div>
+      <div id="graph-form-body" class="check-form" style="margin-top:0;border-top:none;padding-top:8px">
         <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:14px;line-height:1.6">Enter a player, prop type, and line — see how often they hit it across the full season.</div>
 
         <div class="form-group" style="margin-bottom:8px">
@@ -1580,7 +1583,15 @@ async function runGamelogDebug() {
       lines.push(`event[0].stats: [${(events[0].stats||[]).slice(0,10).join(', ')}]`);
     }
 
-    // Show resolved minutes using correct parsing
+    // Show first root event structure
+    lines.push(`\n── Root events (metadata) ──`);
+    const rootEvObj2 = rawGL?.events || {};
+    const rootEvArr2 = Array.isArray(rootEvObj2) ? rootEvObj2 : Object.values(rootEvObj2);
+    lines.push(`Root events count: ${rootEvArr2.length}`);
+    if(rootEvArr2[0]) {
+      lines.push(`event[0] keys: [${Object.keys(rootEvArr2[0]).join(', ')}]`);
+      lines.push(`event[0] sample: ${JSON.stringify(rootEvArr2[0]).slice(0,400)}`);
+    }
     const topLabels2 = gl?.labels || gl?.names || [];
     const mIdx2 = topLabels2.findIndex(l => (l||'').toUpperCase() === 'MIN');
     lines.push(`\n── Minutes Resolution ──`);
@@ -2811,6 +2822,7 @@ function showTab(id, el) {
       if(STATE.lastGraph.opp)    document.getElementById('graph-opp').value    = STATE.lastGraph.opp;
       if(STATE.lastGraph.prop2 && document.getElementById('graph-prop2'))  document.getElementById('graph-prop2').value  = STATE.lastGraph.prop2;
       if(STATE.lastGraph.line2 && document.getElementById('graph-line2'))  document.getElementById('graph-line2').value  = STATE.lastGraph.line2;
+      collapseGraphForm(); // keep form collapsed when restoring a saved graph
     }
   }
 }
@@ -9677,6 +9689,22 @@ function buildNarrative(name, sport, prop, line, projMean, decision,
 // ═══════════════════════════════════════════════════════
 // ANALYZE SINGLE PICK (CHECK MY PICK)
 // ═══════════════════════════════════════════════════════
+function toggleGraphForm() {
+  const body  = document.getElementById('graph-form-body');
+  const arrow = document.getElementById('graph-form-arrow');
+  if(!body) return;
+  const collapsed = body.style.display === 'none';
+  body.style.display = collapsed ? '' : 'none';
+  if(arrow) arrow.textContent = collapsed ? '▾' : '▸';
+}
+
+function collapseGraphForm() {
+  const body  = document.getElementById('graph-form-body');
+  const arrow = document.getElementById('graph-form-arrow');
+  if(body)  body.style.display = 'none';
+  if(arrow) arrow.textContent = '▸';
+}
+
 async function runGraphLookup() {
   const playerName = document.getElementById('graph-player').value.trim();
   const sport      = document.getElementById('graph-sport').value;
@@ -9736,7 +9764,19 @@ async function runGraphLookup() {
     const rawGL = glData._regular || glData;
     const rootEvObj = rawGL?.events || {};
     const rootEvArr = Array.isArray(rootEvObj) ? rootEvObj : Object.values(rootEvObj);
-    // Build metadata list ordered same as allVals (by event order in seasonTypes)
+    // Build eventId → metadata map
+    const evMetaMap = {};
+    for(const ev of rootEvArr) {
+      const id = String(ev?.id || ev?.eventId || '');
+      if(!id) continue;
+      evMetaMap[id] = {
+        opp:  (ev?.opponent?.abbreviation || ev?.opponent?.shortDisplayName || ev?.opponent?.displayName || '?').toUpperCase().slice(0,3),
+        date: (ev?.gameDate || ev?.date || ev?.eventDate || '').slice(5,10),
+        home: ev?.homeAway === 'home' || ev?.atVs === 'vs' || ev?.isHome === true
+      };
+    }
+
+    // Build metadata list ordered same as allVals by walking seasonTypes events
     const metaList = [];
     for(const st of (rawGL?.seasonTypes || [])) {
       const stName = (st?.displayName || '').toLowerCase();
@@ -9748,12 +9788,7 @@ async function runGraphLookup() {
           const evId = String(ev?.eventId || ev?.id || '');
           if(seenEv.has(evId) || !(ev?.stats || ev?.statistics || []).length) continue;
           seenEv.add(evId);
-          const rootEv = rootEvArr.find(e => String(e?.id||e?.eventId) === evId) || {};
-          metaList.push({
-            opp:  (rootEv?.opponent?.abbreviation || rootEv?.opponent?.shortDisplayName || '?').toUpperCase().slice(0,3),
-            date: (rootEv?.gameDate || rootEv?.date || '').slice(5,10),
-            home: rootEv?.homeAway === 'home' || rootEv?.atVs === 'vs' || rootEv?.isHome === true
-          });
+          metaList.push(evMetaMap[evId] || { opp: '?', date: '', home: false });
         }
       }
     }
@@ -9874,7 +9909,8 @@ async function runGraphLookup() {
         </div>`;
       })() : '';
 
-      return `<div class="graph-bar-wrap" title="${isHome?'🏠 ':''}${g.opp} · ${g.date} · ${prop}: ${g.v}${g2?' · '+prop2+': '+g2.v:''}${isVs?' ★ vs '+normOpp(opp):''}">
+      const venueTitle = g.home === true ? '🏠 Home' : g.home === false ? '✈ Away' : '';
+      return `<div class="graph-bar-wrap" title="${venueTitle} ${g.opp} · ${g.date} · ${prop}: ${g.v}${g2?' · '+prop2+': '+g2.v:''}${isVs?' ★ vs '+normOpp(opp):''}">
         <div class="graph-bar-val" style="color:${hit?'var(--accent)':'var(--red)'}">${g.v}</div>
         <div style="position:relative;height:${chartH}px;display:flex;align-items:flex-end;width:${games2?'24':'18'}px">
           <div class="graph-bar" style="height:${barH}px;background:${color};width:${games2?'15':'18'}px;${vsStyle}${homeStyle}">
@@ -9886,9 +9922,10 @@ async function runGraphLookup() {
       </div>`;
     }).join('');
 
-    const labelsHTML = games.map(g =>
-      `<div class="graph-label">${g.home===true?'🏠':g.home===false?'✈':''}${g.opp||''}<br>${(g.date||'').slice(5)}</div>`
-    ).join('');
+    const labelsHTML = games.map(g => {
+      const venueIcon = g.home === true ? '🏠' : g.home === false ? '✈' : '';
+      return `<div class="graph-label">${venueIcon}${g.opp||''}<br>${(g.date||'').slice(0,5)}</div>`;
+    }).join('');
 
     // Connect trend dots with a polyline via SVG overlay
     const trendPoints = rollingAvg.slice(4).map((avg, i) => {
@@ -9955,6 +9992,7 @@ async function runGraphLookup() {
     // Persist graph result so it survives tab switches
     STATE.lastGraph = { html: result.innerHTML, player: resolvedName, sport, prop, line, opp: opp||null, prop2: prop2||null, line2: line2||null };
     saveState();
+    collapseGraphForm(); // auto-collapse form so chart is visible
 
   } catch(e) {
     result.innerHTML = `<div class="error-card">Error: ${e.message}</div>`;
