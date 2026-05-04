@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.94</title>
+<title>PropEdge v17.95</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -335,7 +335,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.94</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.95</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -609,6 +609,28 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           <div id="slate-log-panel"></div>
         </div>
       </div>
+      <!-- ── ESPN Roster Debug ── -->
+      <div class="tool-section">
+        <div class="tool-section-header" onclick="toggleToolSection(this)">
+          <span>🔬 ESPN Roster Debug</span>
+          <span class="tool-section-arrow">▶</span>
+        </div>
+        <div class="tool-section-body">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:8px">Dumps the raw ESPN roster + first player's stats response for any team. Use to verify player structure and team fields.</div>
+          <div style="display:flex;gap:6px;margin-bottom:8px">
+            <select id="espn-roster-debug-sport" style="font-family:var(--mono);font-size:11px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:5px 8px;cursor:pointer">
+              <option value="basketball/nba">NBA</option>
+              <option value="basketball/wnba">WNBA</option>
+              <option value="hockey/nhl">NHL</option>
+              <option value="football/nfl">NFL</option>
+            </select>
+            <input id="espn-roster-debug-id" class="setting-input" placeholder="ESPN team ID (e.g. 1=ATL)" style="flex:1;font-size:11px" value="1"/>
+            <button onclick="runESPNRosterDebug()" style="font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid rgba(0,229,160,.3);border-radius:8px;padding:6px 14px;color:var(--accent);cursor:pointer;white-space:nowrap">▶ Run</button>
+          </div>
+          <div id="espn-roster-debug-out" style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:var(--mono);font-size:9px;color:var(--fg);white-space:pre-wrap;max-height:400px;overflow-y:auto;min-height:40px">Tap Run to fetch.</div>
+        </div>
+      </div>
+
       <!-- ── MLB Opponent Debug ── -->
       <div class="tool-section">
         <div class="tool-section-header" onclick="toggleToolSection(this)">
@@ -1238,6 +1260,59 @@ function traceLog(section, msg, level='ok') {
   STATE.trace[section].push({ msg, level });
 }
 function clearTrace() { STATE.trace = null; renderTrace(); }
+
+async function runESPNRosterDebug() {
+  const out = document.getElementById('espn-roster-debug-out');
+  const sport = document.getElementById('espn-roster-debug-sport').value;
+  const teamId = document.getElementById('espn-roster-debug-id').value.trim();
+  if(!out || !teamId) return;
+  out.textContent = 'Fetching...';
+  try {
+    const url = `https://site.api.espn.com/apis/site/v2/sports/${sport}/teams/${teamId}/roster`;
+    const rData = await fetchWithFallback(url);
+
+    const lines = [];
+    lines.push(`URL: ${url}`);
+    lines.push(`Top-level keys: [${Object.keys(rData||{}).join(', ')}]`);
+
+    const teamObj = rData?.team || {};
+    lines.push(`team.abbreviation: ${teamObj.abbreviation || '(none)'}`);
+    lines.push(`team.displayName: ${teamObj.displayName || '(none)'}`);
+
+    const groups = rData?.athletes || [];
+    lines.push(`athletes groups: ${groups.length}`);
+    groups.forEach((g, gi) => {
+      const items = g?.items || (g?.id ? [g] : []);
+      lines.push(`  group[${gi}] "${g?.displayName||g?.position||''}" → ${items.length} players`);
+      items.slice(0,3).forEach(a => {
+        lines.push(`    athlete id=${a.id} name="${a.displayName||a.fullName}" pos="${a.position?.abbreviation||''}" team="${JSON.stringify(a.team||'(none)').slice(0,60)}"`);
+      });
+    });
+
+    // Fetch stats for first athlete found
+    const allAthletes = groups.flatMap(g => g?.items || (g?.id ? [g] : []));
+    const first = allAthletes[0];
+    if(first?.id) {
+      lines.push(`\n── Stats response for first athlete: ${first.displayName||first.id} ──`);
+      const sUrl = `https://site.api.espn.com/apis/site/v2/sports/${sport}/athletes/${first.id}/statistics`;
+      lines.push(`URL: ${sUrl}`);
+      try {
+        const sd = await fetchWithFallback(sUrl);
+        lines.push(`Top-level keys: [${Object.keys(sd||{}).join(', ')}]`);
+        lines.push(`athlete.team.abbreviation: ${sd?.athlete?.team?.abbreviation || '(none)'}`);
+        lines.push(`athlete.team.displayName: ${sd?.athlete?.team?.displayName || '(none)'}`);
+        lines.push(`team.abbreviation: ${sd?.team?.abbreviation || '(none)'}`);
+        const statTotal = (sd?.statistics||[]).find(s => s.type==='total'||s.type==='perGame'||s.displayName==='Per Game');
+        lines.push(`statistics[perGame].stats[2] (should be avgMins): ${statTotal?.stats?.[2] ?? '(none)'}`);
+        lines.push(`statistics[perGame].names[2]: ${statTotal?.names?.[2] ?? statTotal?.labels?.[2] ?? '(none)'}`);
+      } catch(e2) { lines.push(`Stats fetch error: ${e2.message}`); }
+    }
+
+    out.textContent = lines.join('\n');
+  } catch(e) {
+    out.textContent = 'Error: ' + e.message;
+  }
+}
 
 async function runMLBOpponentDebug() {
   const out = document.getElementById('mlb-debug-out');
@@ -6058,24 +6133,14 @@ async function runRosterTiersSync(sport) {
             if(!a?.id) return null;
             let avgMins = 0;
 
-            // Primary team check: use the team from the roster response itself
-            // This is more reliable than the stats endpoint which can lag for traded players
-            const rosterTeamAbbr = (
-              a.team?.abbreviation || a.team?.slug || ''
-            ).toUpperCase().replace(/\s/g,'');
-            const normMap2 = {'NY':'NYK','SA':'SAS','GS':'GSW','NO':'NOP','PHO':'PHX','UTAH':'UTA'};
-            if(rosterTeamAbbr && rosterTeamAbbr.length >= 2) {
-              const normRoster = normMap2[rosterTeamAbbr] || rosterTeamAbbr;
-              const normExpected = normMap2[team.abbr.toUpperCase()] || team.abbr.toUpperCase();
-              if(normRoster !== normExpected) return null; // player is on a different team's roster entry
-            }
-
             try {
               const sd = await fetchWithFallback(
                 'https://site.api.espn.com/apis/site/v2/sports/' + espnSport + '/' + espnLeague + '/athletes/' + a.id + '/statistics'
               );
 
-              // Secondary team validation from stats response — catches stale roster data
+              // Team validation from stats response.
+              // Only reject if stats explicitly return a DIFFERENT team — not if empty.
+              // Empty = new signing / traded player with no stats yet → keep them.
               const respTeamAbbr = (
                 sd?.athlete?.team?.abbreviation ||
                 sd?.athlete?.team?.slug ||
@@ -6085,9 +6150,9 @@ async function runRosterTiersSync(sport) {
               if(respTeamAbbr && respTeamAbbr.length >= 2 && respTeamAbbr.length <= 4) {
                 const normMap = {'NY':'NYK','SA':'SAS','GS':'GSW','NO':'NOP','PHO':'PHX','UTAH':'UTA'};
                 const normalized = normMap[respTeamAbbr] || respTeamAbbr;
-                const expected = (normMap[team.abbr.toUpperCase()] || team.abbr.toUpperCase());
+                const expected = normMap[team.abbr.toUpperCase()] || team.abbr.toUpperCase();
                 if(normalized !== expected) {
-                  return null; // wrong team — discard
+                  return null; // stats say different team — discard
                 }
               }
 
