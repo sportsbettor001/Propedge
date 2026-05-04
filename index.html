@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.92</title>
+<title>PropEdge v17.93</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -335,7 +335,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.92</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.93</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -577,6 +577,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           <div id="roster-tiers-meta" style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:4px"></div>
           <div id="roster-tiers-detail" style="display:none;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:340px;overflow-y:auto">
             <div id="roster-tiers-detail-inner" style="font-family:var(--mono);font-size:9px;color:var(--text)"></div>
+          </div>
+          <!-- Golf field staleness -->
+          <div id="golf-field-status" style="margin-top:10px;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:9px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <span id="golf-field-age-label" style="color:var(--muted)">⛳ Golf field: checking...</span>
+            <button onclick="markGolfFieldUpdated()" style="font-family:var(--mono);font-size:9px;background:rgba(0,229,160,.1);border:1px solid var(--accent);border-radius:6px;color:var(--accent);padding:3px 9px;cursor:pointer;white-space:nowrap">✓ Updated field</button>
           </div>
         </div>
       </div>
@@ -1182,7 +1187,8 @@ let STATE = loadState() || {
   },
   apiStatus: {},
   lastGenerated: null,
-  showInjuryBoost: true
+  showInjuryBoost: true,
+  golfFieldUpdatedAt: new Date('2026-04-17').getTime() // RBC Heritage field — update when tournament changes
 };
 
 // Guard: ensure required arrays exist even if loaded from slim/bare save
@@ -1191,6 +1197,7 @@ if(!Array.isArray(STATE.slip))       STATE.slip       = [];
 if(!Array.isArray(STATE.savedSlips)) STATE.savedSlips = [];
 if(!STATE.settings)                  STATE.settings   = {};
 if(STATE.showInjuryBoost === undefined) STATE.showInjuryBoost = true;
+if(!STATE.golfFieldUpdatedAt) STATE.golfFieldUpdatedAt = new Date('2026-04-17').getTime();
 
 // Legacy migration: if old state had STATE.props, migrate to sportCache
 if(STATE.props && Array.isArray(STATE.props) && STATE.props.length > 0 && !STATE.sportCache) {
@@ -1779,7 +1786,12 @@ async function inspectRawApi(which) {
     try {
       const lines = [];
       // McDavid NHL ID = 8478402
-      const season = '20242025';
+      const _now = new Date();
+      const _yr = _now.getFullYear();
+      const _mo = _now.getMonth() + 1;
+      // NHL season: Oct start spans two calendar years. Before Oct = season ending this year.
+      const _seasonEnd = _mo >= 10 ? _yr + 1 : _yr;
+      const season = String(_seasonEnd - 1) + String(_seasonEnd);
       // Test 1: per-game skater summary for McDavid
       const url1 = `https://api.nhle.com/stats/rest/en/skater/summary?isAggregate=false&isGame=true&sort=[{"property":"gameDate","direction":"DESC"}]&start=0&limit=100&cayenneExp=playerId=8478402 and gameTypeId=2 and seasonId=${season}`;
       lines.push('Testing: api.nhle.com/stats/rest/en/skater/summary?isGame=true');
@@ -4704,7 +4716,7 @@ async function runFetch(sportsToFetch) {
           const enrichFromDB = (playerName) => {
             const norm = s => (s||'').toLowerCase().trim();
             const target = norm(playerName);
-            return (PLAYER_DB[sport]||[]).find(p => norm(p.name) === target) || null;
+            return getPlayerDB(sport).find(p => norm(p.name) === target) || null;
           };
 
           // ── TIER 1: Player discovery — MLB uses MLB API, others use ESPN ──
@@ -4824,7 +4836,7 @@ async function runFetch(sportsToFetch) {
           // ── TIER 3: PLAYER_DB filtered by team — last resort only ──
           if(candidatePool.length === 0) {
             traceLog('playerDiscovery', `${sport} ${home}v${away} T2 empty — using T3 PLAYER_DB fallback`, 'warn');
-            (PLAYER_DB[sport]||[])
+            getPlayerDB(sport)
               .filter(p => {
                 const t = p.team.toUpperCase();
                 return [home,away].some(a => a===t || a.includes(t.slice(0,3)) || t.includes(a.slice(0,3)));
@@ -5003,6 +5015,12 @@ async function runFetch(sportsToFetch) {
 
     // ── GOLF: analysis mode only — no Odds API lines for golf ──
     if(viewMode === 'analysis' && sportsToFetch.includes('GOLF')) {
+      // Warn if golf field is stale (> 7 days since last manual update)
+      const golfFieldMs = STATE.golfFieldUpdatedAt || 0;
+      const daysSinceUpdate = (Date.now() - golfFieldMs) / (1000 * 60 * 60 * 24);
+      if(daysSinceUpdate > 7) {
+        showToast(`⛳ Golf field is ${Math.floor(daysSinceUpdate)} days old — update the player list in Settings for this week's tournament`, 'warn', 7000);
+      }
       const golfEvent = 'golf_tournament_today';
       const top3Golf = (PLAYER_DB.GOLF||[])
         .slice() // don't mutate original
@@ -5105,7 +5123,7 @@ async function runFetch(sportsToFetch) {
         if(!dbEntry && player.name) {
           const norm = s => (s||'').toLowerCase().trim();
           const target = norm(player.name);
-          dbEntry = (PLAYER_DB[player.sport]||[]).find(p => norm(p.name) === target) || null;
+          dbEntry = getPlayerDB(player.sport).find(p => norm(p.name) === target) || null;
         }
         let espnId = player.espnId || dbEntry?.id || null;
         // Derive myTeam and opp using player._side (set during ESPN/roster discovery).
@@ -5143,7 +5161,7 @@ async function runFetch(sportsToFetch) {
         // Step 1: Check PLAYER_DB for ESPN ID (works for all sports)
         if(!espnId && player.name) {
           const norm = s => (s||'').toLowerCase().trim();
-          const dbMatch = (PLAYER_DB[player.sport]||[]).find(p => norm(p.name) === norm(player.name));
+          const dbMatch = getPlayerDB(player.sport).find(p => norm(p.name) === norm(player.name));
           if(dbMatch?.id) {
             espnId = String(dbMatch.id);
             traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN ID from player database → ${espnId}`, 'ok');
@@ -5640,6 +5658,67 @@ const PLAYER_DB = {
 };
 
 // ═══════════════════════════════════════════════════════
+// DYNAMIC PLAYER_DB — builds from synced roster tiers cache.
+// Falls back to static PLAYER_DB when cache is cold.
+// Golf always uses static (no live sync source).
+// ═══════════════════════════════════════════════════════
+
+// Default prop types by position for dynamic entries (no lineBase known)
+const _DYNAMIC_PROP_DEFAULTS = {
+  NBA:  { 'PG':'Points','SG':'Points','SF':'Points','PF':'Points','C':'Points', default:'Points' },
+  WNBA: { 'PG':'Points','SG':'Points','SF':'Points','PF':'Points','C':'Points', default:'Points' },
+  MLB:  { 'SP':'Strikeouts','C':'Hits','1B':'Hits','2B':'Hits','3B':'Hits','SS':'Hits','LF':'Total Bases','CF':'Total Bases','RF':'Total Bases','DH':'Total Bases', default:'Hits' },
+  NFL:  { 'QB':'Pass Yards','RB':'Rush Yards','WR':'Receiving Yards','TE':'Receiving Yards','K':'Kicking Points', default:'Receiving Yards' },
+  NHL:  { 'LW':'Points','RW':'Points','C':'Points','D':'Shots on Goal','G':'Saves', default:'Points' },
+};
+
+function getPlayerDB(sport) {
+  // Golf always static — no live sync
+  if(!sport || sport === 'GOLF') return PLAYER_DB.GOLF || [];
+
+  const s = sport.toUpperCase();
+  const dynamic = loadDynamicRoleTiers();
+  const sportData = dynamic?.[s];
+
+  // If no synced data for this sport, return static fallback
+  if(!sportData || Object.keys(sportData).length === 0) return PLAYER_DB[s] || [];
+
+  // Build a live player list from the synced roster tiers
+  const propDefaults = _DYNAMIC_PROP_DEFAULTS[s] || {};
+  const staticList   = PLAYER_DB[s] || [];
+  const norm = n => (n||'').toLowerCase().trim();
+
+  const dynamicList = [];
+  Object.entries(sportData).forEach(([teamAbbr, players]) => {
+    if(!Array.isArray(players)) return;
+    players.forEach(p => {
+      if(!p.name || p.tier > 2) return; // skip bench/tier-3 in dynamic build
+      // Find matching static entry to preserve ESPN ID and lineBase hints
+      const staticMatch = staticList.find(s => norm(s.name) === norm(p.name));
+      const prop = staticMatch?.prop
+        || propDefaults[p.position] || propDefaults['default'] || 'Points';
+      dynamicList.push({
+        id:       staticMatch?.id   || null,
+        nbaId:    staticMatch?.nbaId || null,
+        mlbId:    staticMatch?.mlbId || null,
+        name:     p.name,
+        team:     teamAbbr,
+        prop,
+        lineBase: staticMatch?.lineBase || null,
+        usage:    staticMatch?.usage    || (p.tier === 1 ? 0.27 : 0.18),
+        vol:      staticMatch?.vol      || (p.tier === 1 ? 'high' : 'med'),
+        threePct: staticMatch?.threePct || undefined,
+        sgTotal:  staticMatch?.sgTotal  || undefined,
+        _dynamic: true,
+      });
+    });
+  });
+
+  // If dynamic build came up empty (bad sync), fall back to static
+  return dynamicList.length > 0 ? dynamicList : (PLAYER_DB[s] || []);
+}
+
+// ═══════════════════════════════════════════════════════
 // ROLE_TIERS — Starter/rotation priority for ranking only.
 // NEVER used to filter which players are eligible — ESPN live API owns that.
 // Only affects sort order when the minutes cache is cold.
@@ -5955,7 +6034,7 @@ async function runRosterTiersSync(sport) {
     const normKey = s => (s||'').toLowerCase().replace(/[^a-z ]/g,'').trim();
     const dbUsageMap = {};
     const dbSport = sport === 'WNBA' ? 'WNBA' : sport === 'NHL' ? 'NHL' : 'NBA';
-    for(const p of (PLAYER_DB[dbSport]||[])) {
+    for(const p of getPlayerDB(dbSport)) {
       if(p.name && (p.usage || p.snapPct)) {
         dbUsageMap[normKey(p.name)] = p.usage || p.snapPct || 0;
       }
@@ -6204,7 +6283,7 @@ function getPlayersForGame(game, sport) {
   );
   const homeName = competitors.find(c => c.homeAway === 'home')?.team?.abbreviation || '';
   const awayName = competitors.find(c => c.homeAway === 'away')?.team?.abbreviation || '';
-  const sportPlayers = PLAYER_DB[sport] || [];
+  const sportPlayers = getPlayerDB(sport);
   const matched = sportPlayers.filter(p => {
     const t = p.team.toUpperCase();
     return teamAbbrs.some(abbr => abbr === t || abbr.includes(t) || t.includes(abbr));
@@ -11023,6 +11102,24 @@ function setStep(id, state) {
 // ═══════════════════════════════════════════════════════
 // TOAST
 // ═══════════════════════════════════════════════════════
+function markGolfFieldUpdated() {
+  STATE.golfFieldUpdatedAt = Date.now();
+  saveState();
+  renderGolfFieldAge();
+  showToast('⛳ Golf field marked as current', 'success');
+}
+
+function renderGolfFieldAge() {
+  const el = document.getElementById('golf-field-age-label');
+  if(!el) return;
+  const ms = STATE.golfFieldUpdatedAt || 0;
+  if(!ms) { el.textContent = '⛳ Golf field: never marked'; el.style.color = 'var(--red)'; return; }
+  const days = Math.floor((Date.now() - ms) / (1000 * 60 * 60 * 24));
+  if(days <= 2)      { el.textContent = `⛳ Golf field: current (${days}d ago)`; el.style.color = 'var(--accent)'; }
+  else if(days <= 7) { el.textContent = `⛳ Golf field: ${days} days old`; el.style.color = 'var(--amber)'; }
+  else               { el.textContent = `⛳ Golf field: STALE — ${days} days old`; el.style.color = 'var(--red)'; }
+}
+
 function toggleInjuryBoost() {
   STATE.showInjuryBoost = !STATE.showInjuryBoost;
   saveState();
@@ -11093,6 +11190,7 @@ function renderMetrics() {
   updateMetrics();
   renderApiStatus({});
   syncInjuryBoostBtn();
+  renderGolfFieldAge();
 }
 </script>
 </body>
