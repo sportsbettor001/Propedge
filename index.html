@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.13</title>
+<title>PropEdge v18.15</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -335,7 +335,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.13</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.15</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -557,6 +557,28 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         </div>
       </div>
 
+      <!-- ── Gamelog Structure Debug ── -->
+      <div class="tool-section">
+        <div class="tool-section-header" onclick="toggleToolSection(this)">
+          <span>🔬 Gamelog Structure Debug</span>
+          <span class="tool-section-arrow">▶</span>
+        </div>
+        <div class="tool-section-body">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px">Shows raw ESPN gamelog response structure for any player — use to verify the minutes label and category layout.</div>
+          <div style="display:flex;gap:6px;margin-bottom:8px">
+            <input id="gl-debug-id" class="setting-input" placeholder="ESPN athlete ID (e.g. 3945274)" style="flex:1;font-size:11px"/>
+            <select id="gl-debug-sport" style="font-family:var(--mono);font-size:11px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:5px 8px;cursor:pointer">
+              <option value="basketball/nba">NBA</option>
+              <option value="basketball/wnba">WNBA</option>
+              <option value="hockey/nhl">NHL</option>
+              <option value="football/nfl">NFL</option>
+            </select>
+            <button onclick="runGamelogDebug()" style="font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid rgba(0,229,160,.3);border-radius:8px;padding:6px 14px;color:var(--accent);cursor:pointer;white-space:nowrap">▶ Run</button>
+          </div>
+          <div id="gl-debug-out" style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:var(--mono);font-size:9px;color:var(--fg);white-space:pre-wrap;max-height:400px;overflow-y:auto;min-height:40px">Enter an ESPN athlete ID and tap Run.</div>
+        </div>
+      </div>
+
       <!-- ── Injury Lookup ── -->
       <div class="tool-section">
         <div class="tool-section-header" onclick="toggleToolSection(this)">
@@ -577,6 +599,28 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
             <button onclick="runInjuryLookup()" style="font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid rgba(0,229,160,.3);border-radius:8px;padding:6px 14px;color:var(--accent);cursor:pointer;white-space:nowrap">▶ Run</button>
           </div>
           <div id="inj-lookup-out" style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:var(--mono);font-size:9px;color:var(--fg);white-space:pre-wrap;max-height:300px;overflow-y:auto;min-height:40px">Enter a player name and tap Run.</div>
+        </div>
+      </div>
+
+      <!-- ── Gamelog Structure Debug ── -->
+      <div class="tool-section">
+        <div class="tool-section-header" onclick="toggleToolSection(this)">
+          <span>📊 Gamelog Structure</span>
+          <span class="tool-section-arrow">▶</span>
+        </div>
+        <div class="tool-section-body">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px">Shows raw ESPN gamelog response structure for any player — use to verify minutes label and category format.</div>
+          <div style="display:flex;gap:6px;margin-bottom:8px">
+            <input id="gl-debug-name" class="setting-input" placeholder="e.g. Keldon Johnson" style="flex:1;font-size:11px"/>
+            <select id="gl-debug-sport" style="font-family:var(--mono);font-size:11px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:5px 8px;cursor:pointer">
+              <option value="basketball/nba">NBA</option>
+              <option value="basketball/wnba">WNBA</option>
+              <option value="hockey/nhl">NHL</option>
+              <option value="football/nfl">NFL</option>
+            </select>
+            <button onclick="runGamelogDebug()" style="font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid rgba(0,229,160,.3);border-radius:8px;padding:6px 14px;color:var(--accent);cursor:pointer;white-space:nowrap">▶ Run</button>
+          </div>
+          <div id="gl-debug-out" style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:var(--mono);font-size:9px;color:var(--fg);white-space:pre-wrap;max-height:400px;overflow-y:auto;min-height:40px">Enter a player name and tap Run.</div>
         </div>
       </div>
 
@@ -1312,6 +1356,64 @@ async function runNBAIdSync() {
         '<div style="background:var(--bg3);border-radius:4px;margin-top:6px;height:4px"><div style="background:var(--accent);height:4px;border-radius:4px;width:' + pct + '%;transition:width .3s"></div></div>';
     }
   });
+}
+
+async function runGamelogDebug() {
+  const out = document.getElementById('gl-debug-out');
+  const id = document.getElementById('gl-debug-id').value.trim();
+  const sport = document.getElementById('gl-debug-sport').value;
+  if(!id) { out.textContent = 'Enter an ESPN athlete ID.'; return; }
+  out.textContent = 'Fetching...';
+  try {
+    const [espnS, espnL] = sport.split('/');
+    const now = new Date();
+    const seasonYear = (now.getMonth()+1) >= 10 ? now.getFullYear()+1 : now.getFullYear();
+    const url = `https://site.web.api.espn.com/apis/common/v3/sports/${espnS}/${espnL}/athletes/${id}/gamelog?season=${seasonYear}&seasontype=2`;
+    const gl = await fetchWithFallback(url);
+    const lines = [];
+    lines.push(`URL: ${url}`);
+    lines.push(`Top-level keys: [${Object.keys(gl||{}).join(', ')}]`);
+    lines.push(`seasonTypes count: ${gl?.seasonTypes?.length ?? '(none)'}`);
+
+    // Show seasonTypes[0] structure
+    const st = gl?.seasonTypes?.[0];
+    if(st) {
+      lines.push(`\nseasonTypes[0] keys: [${Object.keys(st).join(', ')}]`);
+      lines.push(`seasonTypes[0].displayName: ${st.displayName || '(none)'}`);
+      const cats = st.categories || [];
+      lines.push(`seasonTypes[0].categories count: ${cats.length}`);
+      cats.forEach((cat, ci) => {
+        lines.push(`  cat[${ci}] displayName="${cat.displayName||cat.name||''}" type="${cat.type||''}"`);
+        lines.push(`    labels: [${(cat.labels||cat.names||[]).join(', ')}]`);
+        lines.push(`    totals: [${(cat.totals||cat.values||[]).join(', ')}]`);
+      });
+    }
+
+    // Also check top-level categories
+    const topCats = gl?.categories || [];
+    if(topCats.length > 0) {
+      lines.push(`\nTop-level categories count: ${topCats.length}`);
+      topCats.forEach((cat, ci) => {
+        lines.push(`  cat[${ci}] labels: [${(cat.labels||cat.names||[]).join(', ')}]`);
+        lines.push(`         totals: [${(cat.totals||cat.values||[]).join(', ')}]`);
+      });
+    }
+
+    // Show first event to see raw stats array
+    const events = gl?.events || st?.events || [];
+    lines.push(`\nevents count: ${events.length}`);
+    if(events[0]) {
+      lines.push(`event[0] keys: [${Object.keys(events[0]).join(', ')}]`);
+      lines.push(`event[0].stats: [${(events[0].stats||[]).slice(0,10).join(', ')}]`);
+    }
+
+    // Show labels/names at top level
+    lines.push(`\nTop-level labels: [${(gl?.labels||gl?.names||[]).slice(0,15).join(', ')}]`);
+
+    out.textContent = lines.join('\n');
+  } catch(e) {
+    out.textContent = 'Error: ' + e.message;
+  }
 }
 
 async function runInjuryLookup() {
@@ -4763,43 +4865,51 @@ async function runFetch(sportsToFetch) {
           }
 
           // ── PRE-RANK: fetch season avg minutes for all candidates in parallel ──
-          // Uses a lightweight gamelog call (limit=5) just to get season summary categories
-          // This gives us real minutes data regardless of cache state — cold or warm
+          // Fires parallel gamelog calls, collects season avg minutes, then writes cache once
           if((sport === 'NBA' || sport === 'WNBA' || sport === 'NHL') && candidatePool.length > 0) {
             const now2 = new Date();
             const seasonYear2 = (now2.getMonth()+1) >= 10 ? now2.getFullYear()+1 : now2.getFullYear();
-            await Promise.allSettled(candidatePool.map(async p => {
-              if(!p.id) return;
-              // Skip if mins cache already has this player
-              const cachedMins = loadMinsCache()[String(p.id)];
-              if(cachedMins > 0) return;
+            const currentMinsCache = loadMinsCache();
+            const toFetch = candidatePool.filter(p => p.id && !currentMinsCache[String(p.id)]);
+
+            const results = await Promise.allSettled(toFetch.map(async p => {
               try {
                 const gl = await fetchWithFallback(
                   `https://site.web.api.espn.com/apis/common/v3/sports/${espnSport}/${espnLeague}/athletes/${p.id}/gamelog?season=${seasonYear2}&seasontype=2`
                 );
-                // Parse avg minutes from season summary categories
                 const cats = gl?.seasonTypes?.[0]?.categories || gl?.categories || [];
                 for(const cat of cats) {
                   const labels = cat.labels || cat.names || [];
                   const values = cat.totals || cat.values || [];
-                  const mIdx = labels.findIndex(l => (l||'').toUpperCase() === 'MIN' || l === 'avgMinutes');
+                  const mIdx = labels.findIndex(l => {
+                    const u = (l||'').toUpperCase();
+                    return u === 'MIN' || l === 'avgMinutes' || l === 'min' || l === 'minutes';
+                  });
                   if(mIdx >= 0 && values[mIdx]) {
                     const raw = values[mIdx];
                     const mins = typeof raw === 'string' && raw.includes(':')
                       ? parseInt(raw.split(':')[0]) || 0
                       : parseFloat(raw) || 0;
-                    if(mins > 0) {
-                      // Store in mins cache for future use
-                      const mc = loadMinsCache();
-                      mc[String(p.id)] = mins;
-                      try { localStorage.setItem('pe_mins_cache', JSON.stringify(mc)); } catch(e) {}
-                    }
+                    if(mins > 0) return { id: String(p.id), mins };
                     break;
                   }
                 }
               } catch(e) {}
+              return null;
             }));
-            traceLog('playerDiscovery', `${sport} ${home}v${away}: pre-rank mins fetch complete for ${candidatePool.length} candidates`, 'ok');
+
+            // Write all results to cache in one shot — no race condition
+            let wrote = 0;
+            results.forEach(r => {
+              if(r.status === 'fulfilled' && r.value?.id && r.value?.mins > 0) {
+                currentMinsCache[r.value.id] = r.value.mins;
+                wrote++;
+              }
+            });
+            if(wrote > 0) {
+              try { localStorage.setItem('pe_mins_cache', JSON.stringify(currentMinsCache)); } catch(e) {}
+            }
+            traceLog('playerDiscovery', `${sport} ${home}v${away}: pre-rank mins — fetched ${toFetch.length}, got mins for ${wrote}`, 'ok');
           }
 
 
