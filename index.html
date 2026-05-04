@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.93</title>
+<title>PropEdge v17.94</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -335,7 +335,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.93</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.94</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -6057,24 +6057,33 @@ async function runRosterTiersSync(sport) {
           const results = await Promise.allSettled(batch.map(async a => {
             if(!a?.id) return null;
             let avgMins = 0;
+
+            // Primary team check: use the team from the roster response itself
+            // This is more reliable than the stats endpoint which can lag for traded players
+            const rosterTeamAbbr = (
+              a.team?.abbreviation || a.team?.slug || ''
+            ).toUpperCase().replace(/\s/g,'');
+            const normMap2 = {'NY':'NYK','SA':'SAS','GS':'GSW','NO':'NOP','PHO':'PHX','UTAH':'UTA'};
+            if(rosterTeamAbbr && rosterTeamAbbr.length >= 2) {
+              const normRoster = normMap2[rosterTeamAbbr] || rosterTeamAbbr;
+              const normExpected = normMap2[team.abbr.toUpperCase()] || team.abbr.toUpperCase();
+              if(normRoster !== normExpected) return null; // player is on a different team's roster entry
+            }
+
             try {
               const sd = await fetchWithFallback(
                 'https://site.api.espn.com/apis/site/v2/sports/' + espnSport + '/' + espnLeague + '/athletes/' + a.id + '/statistics'
               );
 
-              // Validate team from stats response athlete object.
-              // ESPN's stats endpoint includes athlete.team — if present and mismatched, skip.
-              // Also check team abbreviation from the team object in various response paths.
+              // Secondary team validation from stats response — catches stale roster data
               const respTeamAbbr = (
                 sd?.athlete?.team?.abbreviation ||
                 sd?.athlete?.team?.slug ||
                 sd?.team?.abbreviation ||
                 ''
               ).toUpperCase().replace(/\s/g,'');
-              // Only reject if we got a clear non-empty team that doesn't match
               if(respTeamAbbr && respTeamAbbr.length >= 2 && respTeamAbbr.length <= 4) {
-                // Normalize ESPN short codes before comparing
-                const normMap = {'NY':'NYK','SA':'SAS','GS':'GSW','NO':'NOP','PHO':'PHX'};
+                const normMap = {'NY':'NYK','SA':'SAS','GS':'GSW','NO':'NOP','PHO':'PHX','UTAH':'UTA'};
                 const normalized = normMap[respTeamAbbr] || respTeamAbbr;
                 const expected = (normMap[team.abbr.toUpperCase()] || team.abbr.toUpperCase());
                 if(normalized !== expected) {
@@ -6139,15 +6148,19 @@ async function runRosterTiersSync(sport) {
           return { ...p, sortVal, dbUsage };
         }).sort((a, b) => b.sortVal - a.sortVal);
 
-        // Step 4: assign tiers based on sorted rank + thresholds
+        // Step 4: assign tiers based on sorted rank
+        // NBA/WNBA: top 5 by minutes = tier 1, next 5 = tier 2, rest = tier 3
+        // This ensures best players on each team always get tier 1 regardless of exact minute count
         const tiered = enriched.map((p, idx) => {
           let tier;
           if(sport === 'NHL') {
             tier = idx < 6 ? 1 : idx < 14 ? 2 : 3;
           } else {
-            // NBA/WNBA: tier by minutes if available, else by rank position
+            // Rank-based: top 5 starters = tier 1, next 5 rotation = tier 2
+            // Secondary guard: if mins available, still use 28+ as tier 1 floor for stars
+            // but always guarantee top 5 are tier 1 regardless
             if(minsDataAvailable && p.avgMins > 0) {
-              tier = p.avgMins >= 28 ? 1 : p.avgMins >= 18 ? 2 : 3;
+              tier = (idx < 5 || p.avgMins >= 30) ? 1 : (idx < 10 || p.avgMins >= 20) ? 2 : 3;
             } else {
               tier = idx < 5 ? 1 : idx < 10 ? 2 : 3;
             }
