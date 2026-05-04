@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.16</title>
+<title>PropEdge v18.21</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -72,6 +72,36 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .return-top-btn{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 18px);right:16px;z-index:100;background:var(--accent);color:#000;border:none;border-radius:50px;padding:9px 14px;font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,229,160,.35);display:none;align-items:center;gap:5px;transition:opacity .2s,transform .2s;opacity:0;letter-spacing:.3px}
 .return-top-btn.visible{display:flex;opacity:1}
 .return-top-btn:active{transform:scale(.94)}
+
+/* GAME GROUP HEADERS */
+.game-group-header{display:flex;justify-content:space-between;align-items:center;padding:10px 4px 6px;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border);margin-bottom:8px;margin-top:12px;user-select:none}
+.game-group-header:first-child{margin-top:0}
+.game-group-arrow{font-size:12px;color:var(--muted);transition:transform .15s}
+.game-group-body{margin-bottom:4px}
+
+/* SETTINGS TABS */
+.settings-tabs{display:flex;gap:0;border:1px solid var(--border2);border-radius:10px;overflow:hidden;margin-bottom:16px}
+.settings-tab{flex:1;font-family:var(--mono);font-size:10px;font-weight:700;padding:8px 4px;border:none;background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;text-align:center}
+.settings-tab.active{background:rgba(0,229,160,.1);color:var(--accent)}
+.settings-pane{display:none}
+.settings-pane.active{display:block}
+
+/* INJURY BOOST BADGE */
+.inj-boost-badge{display:inline-flex;align-items:center;gap:3px;font-family:var(--mono);font-size:8px;background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.3);border-radius:4px;padding:1px 5px;color:var(--accent);vertical-align:middle;margin-left:6px}
+
+/* GRAPH TAB */
+.graph-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:8px}
+.graph-bars{display:flex;gap:3px;align-items:flex-end;min-width:max-content;padding:0 4px}
+.graph-bar-wrap{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:22px}
+.graph-bar-val{font-family:var(--mono);font-size:7px;text-align:center;line-height:1}
+.graph-bar{border-radius:3px 3px 0 0;width:18px;position:relative;transition:height .2s}
+.graph-bar-ref{position:absolute;left:-2px;right:-2px;height:1.5px;background:var(--amber);opacity:.9}
+.graph-labels{display:flex;gap:3px;min-width:max-content;padding:0 4px;margin-top:2px}
+.graph-label{font-family:var(--mono);font-size:7px;color:var(--muted);min-width:22px;text-align:center;line-height:1.3}
+.graph-stat-row{display:flex;gap:10px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;margin:12px 0 8px}
+.graph-stat{display:flex;flex-direction:column;gap:2px}
+.graph-stat-label{font-size:8px;color:var(--muted)}
+.graph-stat-val{font-weight:700;font-size:14px}
 
 /* METRIC CARDS */
 .metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
@@ -335,7 +365,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.16</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.21</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -353,6 +383,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
     <div class="tab" onclick="showTab('check',this)">Check Pick</div>
     <div class="tab" onclick="showTab('slip',this)">Slip</div>
     <div class="tab" onclick="showTab('tracker',this)">Tracker</div>
+    <div class="tab" onclick="showTab('graph',this)">Graph</div>
     <div class="tab" onclick="showTab('trace',this)">Trace</div>
   </div>
 
@@ -495,6 +526,126 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       <div id="props-list" style="padding-top:4px"></div>
     </div>
 
+    <!-- GRAPH TAB -->
+    <div id="tab-graph" class="page">
+      <div class="check-form">
+        <div class="form-title">Season Hit Rate Graph</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:14px;line-height:1.6">Enter a player, prop type, and line — see how often they hit it across the full season.</div>
+
+        <div class="form-group" style="margin-bottom:8px">
+          <label class="form-label">Player name</label>
+          <input class="form-input" id="graph-player" placeholder="e.g. Donovan Mitchell" autocorrect="off" autocapitalize="words"/>
+        </div>
+
+        <div class="form-row" style="margin-bottom:8px">
+          <div class="form-group">
+            <label class="form-label">Sport</label>
+            <select class="form-input form-select" id="graph-sport">
+              <option value="NBA">NBA</option>
+              <option value="WNBA">WNBA</option>
+              <option value="MLB">MLB</option>
+              <option value="NFL">NFL</option>
+              <option value="NHL">NHL</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Line</label>
+            <input class="form-input" id="graph-line" type="number" step="0.5" placeholder="e.g. 20.5"/>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">Opponent <span style="color:var(--muted);font-weight:400">(optional — shows vs stats)</span></label>
+          <input class="form-input" id="graph-opp" placeholder="e.g. ATL" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase"/>
+        </div>
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">Second prop <span style="color:var(--muted);font-weight:400">(optional — overlays on same chart)</span></label>
+          <select class="form-input form-select" id="graph-prop2">
+            <option value="">— None —</option>
+            <optgroup label="── NBA/WNBA ──">
+              <option value="Points">Points</option>
+              <option value="Rebounds">Rebounds</option>
+              <option value="Assists">Assists</option>
+              <option value="Points + Rebounds + Assists">PRA</option>
+              <option value="Points + Rebounds">Points + Rebounds</option>
+              <option value="Points + Assists">Points + Assists</option>
+              <option value="Assists + Rebounds">Assists + Rebounds</option>
+              <option value="Threes Made">Threes Made</option>
+              <option value="Steals">Steals</option>
+              <option value="Blocks">Blocks</option>
+            </optgroup>
+            <optgroup label="── MLB ──">
+              <option value="Hits">Hits</option>
+              <option value="Total Bases">Total Bases</option>
+              <option value="Strikeouts">Strikeouts</option>
+              <option value="RBIs">RBIs</option>
+            </optgroup>
+            <optgroup label="── NFL ──">
+              <option value="Pass Yards">Pass Yards</option>
+              <option value="Rush Yards">Rush Yards</option>
+              <option value="Receiving Yards">Receiving Yards</option>
+              <option value="Receptions">Receptions</option>
+            </optgroup>
+            <optgroup label="── NHL ──">
+              <option value="Points">Points</option>
+              <option value="Goals">Goals</option>
+              <option value="Assists">Assists</option>
+              <option value="Shots on Goal">Shots on Goal</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">Second line <span style="color:var(--muted);font-weight:400">(for second prop)</span></label>
+          <input class="form-input" id="graph-line2" type="number" step="0.5" placeholder="e.g. 7.5"/>
+        </div>
+          <label class="form-label">Prop type</label>
+          <select class="form-input form-select" id="graph-prop">
+            <optgroup label="── NBA/WNBA ──">
+              <option value="Points">Points</option>
+              <option value="Rebounds">Rebounds</option>
+              <option value="Assists">Assists</option>
+              <option value="Points + Rebounds + Assists">PRA</option>
+              <option value="Points + Rebounds">Points + Rebounds</option>
+              <option value="Points + Assists">Points + Assists</option>
+              <option value="Assists + Rebounds">Assists + Rebounds</option>
+              <option value="Threes Made">Threes Made</option>
+              <option value="Steals">Steals</option>
+              <option value="Blocks">Blocks</option>
+              <option value="Turnovers">Turnovers</option>
+            </optgroup>
+            <optgroup label="── MLB Batters ──">
+              <option value="Hits">Hits</option>
+              <option value="Total Bases">Total Bases</option>
+              <option value="Home Runs">Home Runs</option>
+              <option value="Runs">Runs</option>
+              <option value="RBIs">RBIs</option>
+              <option value="Strikeouts">Strikeouts</option>
+            </optgroup>
+            <optgroup label="── NFL ──">
+              <option value="Pass Yards">Pass Yards</option>
+              <option value="Rush Yards">Rush Yards</option>
+              <option value="Receiving Yards">Receiving Yards</option>
+              <option value="Receptions">Receptions</option>
+              <option value="Passing Touchdowns">Passing TDs</option>
+            </optgroup>
+            <optgroup label="── NHL ──">
+              <option value="Points">Points</option>
+              <option value="Goals">Goals</option>
+              <option value="Assists">Assists</option>
+              <option value="Shots on Goal">Shots on Goal</option>
+              <option value="Saves">Saves</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <button class="analyze-btn" id="graph-btn" onclick="runGraphLookup()">
+          <span id="graph-btn-text">Generate Graph</span>
+        </button>
+      </div>
+
+      <div id="graph-result" style="padding:0 16px 24px"></div>
+    </div>
+
     <!-- TRACE TAB -->
     <div id="tab-trace" class="page">
 
@@ -554,28 +705,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
             <button onclick="runMLBIdSync()" id="btn-sync-mlb" style="grid-column:1/-1;font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.5);border-radius:8px;padding:9px;color:var(--amber);cursor:pointer;font-weight:700">⚾ MLB · MLB Stats API</button>
           </div>
           <div id="sync-ids-progress" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg2);border-radius:8px;padding:10px"></div>
-        </div>
-      </div>
-
-      <!-- ── Gamelog Structure Debug ── -->
-      <div class="tool-section">
-        <div class="tool-section-header" onclick="toggleToolSection(this)">
-          <span>🔬 Gamelog Structure Debug</span>
-          <span class="tool-section-arrow">▶</span>
-        </div>
-        <div class="tool-section-body">
-          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px">Shows raw ESPN gamelog response structure for any player — use to verify the minutes label and category layout.</div>
-          <div style="display:flex;gap:6px;margin-bottom:8px">
-            <input id="gl-debug-id" class="setting-input" placeholder="ESPN athlete ID (e.g. 3945274)" style="flex:1;font-size:11px"/>
-            <select id="gl-debug-sport" style="font-family:var(--mono);font-size:11px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:5px 8px;cursor:pointer">
-              <option value="basketball/nba">NBA</option>
-              <option value="basketball/wnba">WNBA</option>
-              <option value="hockey/nhl">NHL</option>
-              <option value="football/nfl">NFL</option>
-            </select>
-            <button onclick="runGamelogDebug()" style="font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid rgba(0,229,160,.3);border-radius:8px;padding:6px 14px;color:var(--accent);cursor:pointer;white-space:nowrap">▶ Run</button>
-          </div>
-          <div id="gl-debug-out" style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:var(--mono);font-size:9px;color:var(--fg);white-space:pre-wrap;max-height:400px;overflow-y:auto;min-height:40px">Enter an ESPN athlete ID and tap Run.</div>
         </div>
       </div>
 
@@ -914,100 +1043,123 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="modal-overlay" id="settings-modal" onclick="handleModalClick(event)">
   <div class="modal">
     <div class="modal-title">⚙ Settings</div>
-    <div class="modal-sub">All keys stored locally on your device only. ⚡ Filter thresholds apply instantly.</div>
+    <div class="modal-sub">All keys stored locally on your device only.</div>
 
-    <!-- Sportsbook Lines -->
-    <div class="setting-card">
-      <div class="setting-card-title">📊 Sportsbook Lines — Odds API</div>
-      <div class="setting-group">
-        <label class="setting-label">API Key</label>
-        <input class="setting-input" id="s-odds-key" placeholder="Paste your Odds API key" autocorrect="off" autocapitalize="none"/>
-        <div class="setting-hint">Free tier: 500 req/month · <a href="https://the-odds-api.com" onclick="openLink('https://the-odds-api.com')">the-odds-api.com</a> — 60 seconds, no credit card</div>
-      </div>
+    <div class="settings-tabs">
+      <button class="settings-tab active" onclick="showSettingsTab('api',this)">🔑 API Keys</button>
+      <button class="settings-tab" onclick="showSettingsTab('thresholds',this)">📊 Thresholds</button>
+      <button class="settings-tab" onclick="showSettingsTab('display',this)">🎨 Display</button>
     </div>
 
-    <!-- Cloudflare Proxy -->
-    <div class="setting-card">
-      <div class="setting-card-title">🔀 Cloudflare Proxy — NBA Full Season Data</div>
-      <div class="setting-group">
-        <label class="setting-label">Worker URL</label>
-        <input class="setting-input" id="s-cors-proxy" placeholder="https://your-worker.your-name.workers.dev" autocorrect="off" autocapitalize="none"/>
-        <div class="setting-hint">Enables full NBA season logs via stats.nba.com. Free to set up.</div>
-      </div>
-      <div class="setting-group">
-        <label class="setting-label">Secret Token</label>
-        <input class="setting-input" id="s-proxy-token" placeholder="Your ALLOWED_TOKEN value" autocorrect="off" autocapitalize="none"/>
-        <div class="setting-hint">The token in your Worker code — keeps your proxy private.</div>
-      </div>
-    </div>
-
-    <!-- Betting Mode -->
-    <div class="setting-card">
-      <div class="setting-card-title">📈 Betting Mode</div>
-      <div class="setting-row">
+    <!-- API Keys pane -->
+    <div class="settings-pane active" id="settings-pane-api">
+      <div class="setting-card">
+        <div class="setting-card-title">📊 Sportsbook Lines — Odds API</div>
         <div class="setting-group">
-          <label class="setting-label">Games per sport</label>
-          <input class="setting-input" id="s-games-per-sport" type="number" placeholder="2" min="1" max="8" inputmode="numeric"/>
-          <div class="setting-hint">Protects Odds API quota (500/mo)</div>
-        </div>
-        <div class="setting-group">
-          <label class="setting-label">Players per game</label>
-          <input class="setting-input" id="s-players-per-game" type="number" placeholder="3" min="1" max="10" inputmode="numeric"/>
-          <div class="setting-hint">Re-fetch required</div>
+          <label class="setting-label">API Key</label>
+          <input class="setting-input" id="s-odds-key" placeholder="Paste your Odds API key" autocorrect="off" autocapitalize="none"/>
+          <div class="setting-hint">Free tier: 500 req/month · <a href="https://the-odds-api.com" onclick="openLink('https://the-odds-api.com')">the-odds-api.com</a> — 60 seconds, no credit card</div>
         </div>
       </div>
-      <div class="setting-row">
+      <div class="setting-card">
+        <div class="setting-card-title">🔀 Cloudflare Proxy — NBA Full Season Data</div>
         <div class="setting-group">
-          <label class="setting-label">Min edge % (OVER/UNDER)</label>
-          <input class="setting-input" id="s-betting-min-edge" type="number" placeholder="5" min="0" max="20" inputmode="decimal"/>
-          <div class="setting-hint">⚡ Instant</div>
+          <label class="setting-label">Worker URL</label>
+          <input class="setting-input" id="s-cors-proxy" placeholder="https://your-worker.your-name.workers.dev" autocorrect="off" autocapitalize="none"/>
+          <div class="setting-hint">Enables full NBA season logs via stats.nba.com. Free to set up.</div>
         </div>
         <div class="setting-group">
-          <label class="setting-label">Min confidence</label>
-          <input class="setting-input" id="s-betting-min-conf" type="number" placeholder="4" min="1" max="10" inputmode="numeric"/>
-          <div class="setting-hint">⚡ Instant</div>
+          <label class="setting-label">Secret Token</label>
+          <input class="setting-input" id="s-proxy-token" placeholder="Your ALLOWED_TOKEN value" autocorrect="off" autocapitalize="none"/>
+          <div class="setting-hint">The token in your Worker code — keeps your proxy private.</div>
+        </div>
+      </div>
+      <div class="setting-card">
+        <div class="setting-card-title">✓ Free Data Sources (no key needed)</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.8">
+          <div><span style="color:var(--accent)">MLB</span> statsapi.mlb.com — game logs, ERA/WHIP, starters</div>
+          <div><span style="color:var(--accent)">NHL</span> api-web.nhle.com — logs, SV%, GAA, TOI</div>
+          <div><span style="color:var(--accent)">NBA/NFL/WNBA</span> ESPN unofficial API — game logs, injuries</div>
+          <div><span style="color:var(--accent)">Weather</span> open-meteo.com — wind/temp for MLB venues</div>
+          <div style="color:var(--amber);margin-top:4px">⚠ ESPN endpoint is unofficial — no SLA</div>
         </div>
       </div>
     </div>
 
-    <!-- Analysis Mode -->
-    <div class="setting-card">
-      <div class="setting-card-title">🔬 Analysis Mode</div>
-      <div class="setting-row">
-        <div class="setting-group">
-          <label class="setting-label">Games per sport</label>
-          <input class="setting-input" id="s-analysis-games" type="number" placeholder="12" min="1" max="12" inputmode="numeric"/>
-          <div class="setting-hint">Free APIs, no quota</div>
+    <!-- Thresholds pane -->
+    <div class="settings-pane" id="settings-pane-thresholds">
+      <div class="setting-card">
+        <div class="setting-card-title">📈 Betting Mode</div>
+        <div class="setting-row">
+          <div class="setting-group">
+            <label class="setting-label">Games per sport</label>
+            <input class="setting-input" id="s-games-per-sport" type="number" placeholder="2" min="1" max="8" inputmode="numeric"/>
+            <div class="setting-hint">Protects Odds API quota (500/mo)</div>
+          </div>
+          <div class="setting-group">
+            <label class="setting-label">Players per game</label>
+            <input class="setting-input" id="s-players-per-game" type="number" placeholder="3" min="1" max="10" inputmode="numeric"/>
+            <div class="setting-hint">Re-fetch required</div>
+          </div>
         </div>
-        <div class="setting-group">
-          <label class="setting-label">Players per game</label>
-          <input class="setting-input" id="s-analysis-players" type="number" placeholder="15" min="1" max="15" inputmode="numeric"/>
-          <div class="setting-hint">Re-fetch required</div>
+        <div class="setting-row">
+          <div class="setting-group">
+            <label class="setting-label">Min edge % (OVER/UNDER)</label>
+            <input class="setting-input" id="s-betting-min-edge" type="number" placeholder="5" min="0" max="20" inputmode="decimal"/>
+            <div class="setting-hint">⚡ Instant</div>
+          </div>
+          <div class="setting-group">
+            <label class="setting-label">Min confidence</label>
+            <input class="setting-input" id="s-betting-min-conf" type="number" placeholder="4" min="1" max="10" inputmode="numeric"/>
+            <div class="setting-hint">⚡ Instant</div>
+          </div>
         </div>
       </div>
-      <div class="setting-group">
-        <label class="setting-label">Min confidence to show</label>
-        <input class="setting-input" id="s-analysis-min-conf" type="number" placeholder="1" min="1" max="10" inputmode="numeric"/>
-        <div class="setting-hint">⚡ Instant · No edge filter in analysis view — shows all projections above this level</div>
+      <div class="setting-card">
+        <div class="setting-card-title">🔬 Analysis Mode</div>
+        <div class="setting-row">
+          <div class="setting-group">
+            <label class="setting-label">Games per sport</label>
+            <input class="setting-input" id="s-analysis-games" type="number" placeholder="12" min="1" max="12" inputmode="numeric"/>
+            <div class="setting-hint">Free APIs, no quota</div>
+          </div>
+          <div class="setting-group">
+            <label class="setting-label">Players per game</label>
+            <input class="setting-input" id="s-analysis-players" type="number" placeholder="15" min="1" max="15" inputmode="numeric"/>
+            <div class="setting-hint">Re-fetch required</div>
+          </div>
+        </div>
+        <div class="setting-group">
+          <label class="setting-label">Min confidence to show</label>
+          <input class="setting-input" id="s-analysis-min-conf" type="number" placeholder="1" min="1" max="10" inputmode="numeric"/>
+          <div class="setting-hint">⚡ Instant · No edge filter in analysis view</div>
+        </div>
       </div>
     </div>
 
-    <!-- Data Sources (read-only info) -->
-    <div class="setting-card">
-      <div class="setting-card-title">✓ Free Data Sources (no key needed)</div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.8">
-        <div><span style="color:var(--accent)">MLB</span> statsapi.mlb.com — game logs, ERA/WHIP, starters</div>
-        <div><span style="color:var(--accent)">NHL</span> api-web.nhle.com — logs, SV%, GAA, TOI</div>
-        <div><span style="color:var(--accent)">NBA/NFL/WNBA</span> ESPN unofficial API — game logs, injuries</div>
-        <div><span style="color:var(--accent)">Weather</span> open-meteo.com — wind/temp for MLB venues</div>
-        <div style="color:var(--amber);margin-top:4px">⚠ ESPN endpoint is unofficial — no SLA</div>
+    <!-- Display pane -->
+    <div class="settings-pane" id="settings-pane-display">
+      <div class="setting-card">
+        <div class="setting-card-title">🎨 Display Preferences</div>
+        <div class="setting-group" style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <label class="setting-label">Injury boosts</label>
+            <div class="setting-hint">Show/hide injury-adjusted projections on prop cards</div>
+          </div>
+          <button id="s-injury-boost-btn" onclick="toggleInjuryBoost()" style="font-family:var(--mono);font-size:10px;padding:4px 12px;border-radius:6px;border:1px solid var(--accent);background:rgba(0,229,160,.1);color:var(--accent);cursor:pointer;white-space:nowrap;flex-shrink:0">ON</button>
+        </div>
+      </div>
+      <div class="setting-card">
+        <div class="setting-card-title">🗑 Data Management</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="modal-close" onclick="revertToDefaults()" style="color:var(--amber);border-color:rgba(255,181,71,.3)">↺ Clear API keys & revert defaults</button>
+          <button class="modal-close" onclick="clearAllData()" style="color:var(--red);border-color:rgba(255,77,106,.3)">⚠ Clear all data</button>
+        </div>
       </div>
     </div>
 
-    <button class="modal-btn" onclick="saveSettings()">Save Settings</button>
+    <button class="modal-btn" onclick="saveSettings()" style="margin-top:8px">Save Settings</button>
     <button class="modal-close" onclick="closeSettings()">Close</button>
-    <button class="modal-close" onclick="revertToDefaults()" style="color:var(--amber);border-color:rgba(255,181,71,.3);margin-top:6px">↺ Clear API keys & revert defaults</button>
-    <button class="modal-close" onclick="clearAllData()" style="color:var(--red);border-color:rgba(255,77,106,.3);margin-top:6px">⚠ Clear all data</button>
   </div>
 </div>
 
@@ -1270,7 +1422,8 @@ let STATE = loadState() || {
   },
   apiStatus: {},
   lastGenerated: null,
-  showInjuryBoost: true
+  showInjuryBoost: true,
+  lastGraph: null
 };
 
 // Guard: ensure required arrays exist even if loaded from slim/bare save
@@ -1360,17 +1513,33 @@ async function runNBAIdSync() {
 
 async function runGamelogDebug() {
   const out = document.getElementById('gl-debug-out');
-  const id = document.getElementById('gl-debug-id').value.trim();
+  const name = document.getElementById('gl-debug-name').value.trim();
   const sport = document.getElementById('gl-debug-sport').value;
-  if(!id) { out.textContent = 'Enter an ESPN athlete ID.'; return; }
-  out.textContent = 'Fetching...';
+  if(!name) { out.textContent = 'Enter a player name.'; return; }
+  out.textContent = 'Resolving player ID...';
   try {
     const [espnS, espnL] = sport.split('/');
+    // Resolve ESPN ID from name
+    let athleteId = null;
+    const normN = s => (s||'').toLowerCase().replace(/[''.,-]/g,'').trim();
+    const dbMatch = (PLAYER_DB[espnL.toUpperCase()]||PLAYER_DB['NBA']||[]).find(p => normN(p.name) === normN(name));
+    if(dbMatch?.id) athleteId = dbMatch.id;
+    if(!athleteId) { const c = getVerifiedESPNId(name, null); if(c) athleteId = String(c); }
+    if(!athleteId) {
+      try {
+        const sd = await searchESPNAthlete(espnS, espnL, name);
+        const hit = sd?.athletes?.[0] || sd?.items?.[0];
+        if(hit?.id) athleteId = String(hit.id);
+      } catch(e) {}
+    }
+    if(!athleteId) { out.textContent = `Could not find ESPN ID for "${name}". Try exact full name.`; return; }
+    out.textContent = `Found ID: ${athleteId}. Fetching gamelog...`;
     const now = new Date();
     const seasonYear = (now.getMonth()+1) >= 10 ? now.getFullYear()+1 : now.getFullYear();
-    const url = `https://site.web.api.espn.com/apis/common/v3/sports/${espnS}/${espnL}/athletes/${id}/gamelog?season=${seasonYear}&seasontype=2`;
+    const url = `https://site.web.api.espn.com/apis/common/v3/sports/${espnS}/${espnL}/athletes/${athleteId}/gamelog?season=${seasonYear}&seasontype=2`;
     const gl = await fetchWithFallback(url);
     const lines = [];
+    lines.push(`Player: ${name} (ID: ${athleteId})`);
     lines.push(`URL: ${url}`);
     lines.push(`Top-level keys: [${Object.keys(gl||{}).join(', ')}]`);
     lines.push(`seasonTypes count: ${gl?.seasonTypes?.length ?? '(none)'}`);
@@ -2366,6 +2535,7 @@ function setSortBy(val, el) {
   renderProps();
 }
 let expandedCards = new Set();
+let collapsedCards = new Set(); // cards collapsed to summary row only
 let isGenerating = false;
 let isAnalyzing = false;
 let viewMode = 'analysis'; // 'betting' | 'analysis' — toggles card display without re-fetch
@@ -2624,6 +2794,21 @@ function showTab(id, el) {
   if(id === 'tracker') renderTracker();
   if(id === 'slip') renderSlip();
   if(id === 'trace') { renderTrace(); renderSlateLog(); }
+  if(id === 'graph') {
+    // Restore last graph result if available
+    const r = document.getElementById('graph-result');
+    if(r && STATE.lastGraph?.html && !r.innerHTML.trim()) {
+      r.innerHTML = STATE.lastGraph.html;
+      // Restore form fields
+      if(STATE.lastGraph.player) document.getElementById('graph-player').value = STATE.lastGraph.player;
+      if(STATE.lastGraph.sport)  document.getElementById('graph-sport').value  = STATE.lastGraph.sport;
+      if(STATE.lastGraph.prop)   document.getElementById('graph-prop').value   = STATE.lastGraph.prop;
+      if(STATE.lastGraph.line)   document.getElementById('graph-line').value   = STATE.lastGraph.line;
+      if(STATE.lastGraph.opp)    document.getElementById('graph-opp').value    = STATE.lastGraph.opp;
+      if(STATE.lastGraph.prop2 && document.getElementById('graph-prop2'))  document.getElementById('graph-prop2').value  = STATE.lastGraph.prop2;
+      if(STATE.lastGraph.line2 && document.getElementById('graph-line2'))  document.getElementById('graph-line2').value  = STATE.lastGraph.line2;
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -9488,6 +9673,263 @@ function buildNarrative(name, sport, prop, line, projMean, decision,
 // ═══════════════════════════════════════════════════════
 // ANALYZE SINGLE PICK (CHECK MY PICK)
 // ═══════════════════════════════════════════════════════
+async function runGraphLookup() {
+  const playerName = document.getElementById('graph-player').value.trim();
+  const sport      = document.getElementById('graph-sport').value;
+  const prop       = document.getElementById('graph-prop').value;
+  const line       = parseFloat(document.getElementById('graph-line').value);
+  const opp        = document.getElementById('graph-opp').value.trim().toUpperCase() || null;
+  const prop2      = document.getElementById('graph-prop2')?.value || '';
+  const line2      = parseFloat(document.getElementById('graph-line2')?.value) || null;
+
+  if(!playerName) { showToast('Enter a player name', 'error'); return; }
+  if(isNaN(line))  { showToast('Enter a line value', 'error'); return; }
+
+  const btn     = document.getElementById('graph-btn');
+  const btnText = document.getElementById('graph-btn-text');
+  const result  = document.getElementById('graph-result');
+  btn.disabled  = true;
+  btnText.innerHTML = '<div class="spinner" style="border-top-color:var(--accent)"></div> Fetching...';
+  result.innerHTML  = '';
+
+  try {
+    const espnMap = {
+      NBA:['basketball','nba'], WNBA:['basketball','wnba'],
+      MLB:['baseball','mlb'],   NFL:['football','nfl'], NHL:['hockey','nhl']
+    };
+    const [espnSport, espnLeague] = espnMap[sport] || ['basketball','nba'];
+
+    // Resolve ESPN ID
+    let athleteId = null, resolvedName = playerName;
+    const norm = s => (s||'').toLowerCase().replace(/[''.,-]/g,'').trim();
+    const dbMatch = (PLAYER_DB[sport]||[]).find(p => norm(p.name) === norm(playerName));
+    if(dbMatch?.id) { athleteId = dbMatch.id; resolvedName = dbMatch.name; }
+    if(!athleteId) {
+      const cached = getVerifiedESPNId(playerName, null);
+      if(cached) athleteId = String(cached);
+    }
+    if(!athleteId) {
+      try {
+        const sd = await searchESPNAthlete(espnSport, espnLeague, playerName);
+        const hit = sd?.athletes?.[0] || sd?.items?.[0];
+        if(hit?.id) { athleteId = String(hit.id); resolvedName = hit.displayName || playerName; }
+      } catch(e) {}
+    }
+    if(!athleteId) {
+      result.innerHTML = `<div class="error-card">Could not find <b>${playerName}</b> in ESPN. Check spelling.</div>`;
+      return;
+    }
+
+    // Fetch full season gamelog
+    const now2 = new Date();
+    const seasonYear = (now2.getMonth()+1) >= 10 ? now2.getFullYear()+1 : now2.getFullYear();
+    const gl = await fetchWithFallback(
+      `https://site.web.api.espn.com/apis/common/v3/sports/${espnSport}/${espnLeague}/athletes/${athleteId}/gamelog?season=${seasonYear}&seasontype=2`
+    );
+
+    // Parse games using the same logic as the projection engine
+    const snap = await buildSnapshotFromGamelog(gl, prop, sport, espnSport, espnLeague, athleteId, resolvedName);
+    if(!snap || !snap.games || snap.games.length < 3) {
+      result.innerHTML = `<div class="error-card">Not enough game data for <b>${resolvedName}</b> this season (need at least 3 games).</div>`;
+      return;
+    }
+
+    const games = snap.games; // [{v, opp, date, home}]
+    const total = games.length;
+    const hits  = games.filter(g => g.v >= line).length;
+
+    const hitColor = pct => pct >= 60 ? 'var(--accent)' : pct >= 40 ? 'var(--amber)' : 'var(--red)';
+    const normOpp  = s => (s||'').toUpperCase().replace(/[^A-Z]/g,'');
+
+    // L5 / L10 / L20
+    const sliceStats = (gs, l, n) => {
+      const slice = gs.slice(Math.max(0, gs.length - n));
+      const h = slice.filter(g => g.v >= l).length;
+      return { h, n: slice.length, pct: slice.length ? Math.round(h/slice.length*100) : 0 };
+    };
+    const l5  = sliceStats(games, line, 5);
+    const l10 = sliceStats(games, line, 10);
+    const l20 = sliceStats(games, line, 20);
+    const season = { h: hits, n: total, pct: Math.round(hits/total*100) };
+
+    // Home / Away split
+    const homeGames = games.filter(g => g.home === true);
+    const awayGames = games.filter(g => g.home === false || g.home === undefined);
+    const homeStat  = homeGames.length >= 3 ? { h: homeGames.filter(g=>g.v>=line).length, n: homeGames.length } : null;
+    const awayStat  = awayGames.length >= 3 ? { h: awayGames.filter(g=>g.v>=line).length, n: awayGames.length } : null;
+    const homeStatHTML = homeStat ? `<div class="graph-stat">
+        <div class="graph-stat-label">Home</div>
+        <div class="graph-stat-val" style="color:${hitColor(Math.round(homeStat.h/homeStat.n*100))}">${Math.round(homeStat.h/homeStat.n*100)}%</div>
+        <div style="font-family:var(--mono);font-size:8px;color:var(--muted)">${homeStat.h}/${homeStat.n}</div>
+      </div>` : '';
+    const awayStatHTML = awayStat ? `<div class="graph-stat">
+        <div class="graph-stat-label">Away</div>
+        <div class="graph-stat-val" style="color:${hitColor(Math.round(awayStat.h/awayStat.n*100))}">${Math.round(awayStat.h/awayStat.n*100)}%</div>
+        <div style="font-family:var(--mono);font-size:8px;color:var(--muted)">${awayStat.h}/${awayStat.n}</div>
+      </div>` : '';
+
+    // Vs opponent
+    const vsGames = opp ? games.filter(g => normOpp(g.opp) === normOpp(opp) || (g.opp||'').toUpperCase().includes(normOpp(opp))) : [];
+    const vsHits  = vsGames.filter(g => g.v >= line).length;
+    const vsStatHTML = vsGames.length > 0
+      ? `<div class="graph-stat">
+          <div class="graph-stat-label">vs ${normOpp(opp)}</div>
+          <div class="graph-stat-val" style="color:${hitColor(Math.round(vsHits/vsGames.length*100))}">${Math.round(vsHits/vsGames.length*100)}%</div>
+          <div style="font-family:var(--mono);font-size:8px;color:var(--muted)">${vsHits}/${vsGames.length}</div>
+        </div>`
+      : opp ? `<div class="graph-stat"><div class="graph-stat-label">vs ${normOpp(opp)}</div><div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px">No games</div></div>` : '';
+
+    // Second prop data
+    let snap2 = null, games2 = null;
+    if(prop2 && line2 && prop2 !== prop) {
+      try {
+        const gl2 = await fetchWithFallback(
+          `https://site.web.api.espn.com/apis/common/v3/sports/${espnSport}/${espnLeague}/athletes/${athleteId}/gamelog?season=${seasonYear}&seasontype=2`
+        );
+        snap2 = await buildSnapshotFromGamelog(gl2, prop2, sport, espnSport, espnLeague, athleteId, resolvedName);
+        if(snap2?.games?.length >= 3) games2 = snap2.games;
+      } catch(e) {}
+    }
+    const prop2Stats = games2 ? (() => {
+      const h2 = games2.filter(g => g.v >= line2).length;
+      return { h: h2, n: games2.length, pct: Math.round(h2/games2.length*100) };
+    })() : null;
+    const prop2StatHTML = prop2Stats ? `<div class="graph-stat">
+        <div class="graph-stat-label">${prop2} >${line2}</div>
+        <div class="graph-stat-val" style="color:${hitColor(prop2Stats.pct)}">${prop2Stats.pct}%</div>
+        <div style="font-family:var(--mono);font-size:8px;color:var(--muted)">${prop2Stats.h}/${prop2Stats.n}</div>
+      </div>` : '';
+
+    // Build chart
+    const vals   = games.map(g => g.v);
+    const allVals = games2 ? [...vals, ...games2.map(g=>g.v)] : vals;
+    const maxVal = Math.max(...allVals, line * 1.3, (line2||0) * 1.3);
+    const chartH = 60;
+
+    // 5-game rolling average for trend line
+    const rollingAvg = games.map((_, i) => {
+      const window = games.slice(Math.max(0, i-4), i+1);
+      return window.reduce((a,b) => a + b.v, 0) / window.length;
+    });
+
+    const barsHTML = games.map((g, i) => {
+      const hit   = g.v >= line;
+      const isL5  = i >= total - 5;
+      const isVs  = opp && (normOpp(g.opp) === normOpp(opp) || (g.opp||'').toUpperCase().includes(normOpp(opp)));
+      const isHome = g.home === true;
+      const barH  = Math.max(3, Math.round((g.v / maxVal) * chartH));
+      const refY  = Math.round((line / maxVal) * chartH);
+      const color = hit
+        ? (isL5 ? 'var(--accent)' : 'rgba(0,229,160,0.5)')
+        : (isL5 ? 'var(--red)'    : 'rgba(255,77,106,0.45)');
+      const vsStyle   = isVs  ? 'outline:1.5px solid var(--amber);outline-offset:1px;' : '';
+      const homeStyle = isHome && !isVs ? 'border-top:2px solid rgba(77,184,255,0.6);' : '';
+
+      // Trend dot position
+      const trendY  = Math.round((rollingAvg[i] / maxVal) * chartH);
+      const trendDot = i >= 4 ? `<div style="position:absolute;bottom:${trendY}px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:rgba(255,181,71,0.9);z-index:2"></div>` : '';
+
+      // Second prop bar (side by side, dimmer)
+      const g2 = games2?.[i];
+      const bar2HTML = g2 ? (() => {
+        const hit2 = g2.v >= line2;
+        const barH2 = Math.max(2, Math.round((g2.v / maxVal) * chartH));
+        const refY2 = Math.round((line2 / maxVal) * chartH);
+        return `<div style="position:absolute;right:0;bottom:0;width:7px;height:${barH2}px;background:${hit2?'rgba(77,184,255,0.7)':'rgba(255,77,106,0.3)'};border-radius:2px 2px 0 0">
+          <div style="position:absolute;left:-2px;right:-2px;height:1px;background:rgba(77,184,255,0.8);bottom:${refY2}px"></div>
+        </div>`;
+      })() : '';
+
+      return `<div class="graph-bar-wrap" title="${isHome?'🏠 ':''}${g.opp} · ${g.date} · ${prop}: ${g.v}${g2?' · '+prop2+': '+g2.v:''}${isVs?' ★ vs '+normOpp(opp):''}">
+        <div class="graph-bar-val" style="color:${hit?'var(--accent)':'var(--red)'}">${g.v}</div>
+        <div style="position:relative;height:${chartH}px;display:flex;align-items:flex-end;width:${games2?'24':'18'}px">
+          <div class="graph-bar" style="height:${barH}px;background:${color};width:${games2?'15':'18'}px;${vsStyle}${homeStyle}">
+            <div class="graph-bar-ref" style="bottom:${refY}px"></div>
+          </div>
+          ${bar2HTML}
+          ${trendDot}
+        </div>
+      </div>`;
+    }).join('');
+
+    const labelsHTML = games.map(g =>
+      `<div class="graph-label">${g.home===true?'🏠':g.home===false?'✈':''}${g.opp||''}<br>${(g.date||'').slice(5)}</div>`
+    ).join('');
+
+    // Connect trend dots with a polyline via SVG overlay
+    const trendPoints = rollingAvg.slice(4).map((avg, i) => {
+      const barW = games2 ? 27 : 21; // bar + gap
+      const x = (i + 4) * barW + (games2 ? 12 : 9);
+      const y = chartH - Math.round((avg / maxVal) * chartH);
+      return `${x},${y}`;
+    }).join(' ');
+    const totalChartW = total * (games2 ? 27 : 21);
+    const trendSVG = total > 5 ? `<svg style="position:absolute;top:0;left:0;width:${totalChartW}px;height:${chartH}px;pointer-events:none;overflow:visible" viewBox="0 0 ${totalChartW} ${chartH}" preserveAspectRatio="none">
+      <polyline points="${trendPoints}" fill="none" stroke="rgba(255,181,71,0.7)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>` : '';
+
+    const legendItems = [
+      `<span style="display:inline-flex;align-items:center;gap:3px"><span style="display:inline-block;width:8px;height:8px;border-radius:1px;background:var(--accent)"></span> ${prop} over ${line}</span>`,
+      games2 ? `<span style="display:inline-flex;align-items:center;gap:3px"><span style="display:inline-block;width:6px;height:8px;border-radius:1px;background:rgba(77,184,255,0.7)"></span> ${prop2} over ${line2}</span>` : '',
+      total > 5 ? `<span style="display:inline-flex;align-items:center;gap:3px"><span style="display:inline-block;width:10px;height:1.5px;background:rgba(255,181,71,0.9)"></span> 5-game avg</span>` : '',
+      opp ? `<span style="display:inline-flex;align-items:center;gap:3px"><span style="display:inline-block;width:8px;height:8px;border:1.5px solid var(--amber);border-radius:1px"></span> vs ${normOpp(opp)}</span>` : '',
+      `<span style="display:inline-flex;align-items:center;gap:3px">🏠 = home</span>`,
+    ].filter(Boolean).join(' &nbsp; ');
+
+    result.innerHTML = `
+      <div style="margin-bottom:14px">
+        <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--text)">${resolvedName}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px">${prop}${prop2?' + '+prop2:''} · ${sport} ${seasonYear-1}-${String(seasonYear).slice(2)}</div>
+      </div>
+
+      <div class="graph-stat-row">
+        <div class="graph-stat">
+          <div class="graph-stat-label">Season</div>
+          <div class="graph-stat-val" style="color:${hitColor(season.pct)}">${season.pct}%</div>
+          <div style="font-family:var(--mono);font-size:8px;color:var(--muted)">${season.h}/${season.n}</div>
+        </div>
+        <div class="graph-stat">
+          <div class="graph-stat-label">L20</div>
+          <div class="graph-stat-val" style="color:${hitColor(l20.pct)}">${l20.pct}%</div>
+          <div style="font-family:var(--mono);font-size:8px;color:var(--muted)">${l20.h}/${l20.n}</div>
+        </div>
+        <div class="graph-stat">
+          <div class="graph-stat-label">L10</div>
+          <div class="graph-stat-val" style="color:${hitColor(l10.pct)}">${l10.pct}%</div>
+          <div style="font-family:var(--mono);font-size:8px;color:var(--muted)">${l10.h}/${l10.n}</div>
+        </div>
+        <div class="graph-stat">
+          <div class="graph-stat-label">L5</div>
+          <div class="graph-stat-val" style="color:${hitColor(l5.pct)}">${l5.pct}%</div>
+          <div style="font-family:var(--mono);font-size:8px;color:var(--muted)">${l5.h}/${l5.n}</div>
+        </div>
+        ${homeStatHTML}
+        ${awayStatHTML}
+        ${vsStatHTML}
+        ${prop2StatHTML}
+      </div>
+
+      <div style="font-family:var(--mono);font-size:8px;color:var(--muted);margin-bottom:6px;display:flex;flex-wrap:wrap;gap:8px">${legendItems}</div>
+      <div class="graph-scroll">
+        <div style="position:relative">
+          ${trendSVG}
+          <div class="graph-bars">${barsHTML}</div>
+        </div>
+        <div class="graph-labels">${labelsHTML}</div>
+      </div>`;
+
+    // Persist graph result so it survives tab switches
+    STATE.lastGraph = { html: result.innerHTML, player: resolvedName, sport, prop, line, opp: opp||null, prop2: prop2||null, line2: line2||null };
+    saveState();
+
+  } catch(e) {
+    result.innerHTML = `<div class="error-card">Error: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = 'Generate Graph';
+  }
+}
+
 async function runManualLookup() {
   const player = document.getElementById('lookup-player').value.trim();
   const sport  = document.getElementById('lookup-sport').value;
@@ -10058,7 +10500,34 @@ function renderProps() {
     if(sortBy === 'data') return (b.completeness || 0) - (a.completeness || 0) || (b.dataSource?.gamelog || 0) - (a.dataSource?.gamelog || 0);
     return b.conf - a.conf || evB - evA; // default: confidence
   });
-  list.innerHTML = filtered.map(p => propCardHTML(p)).join('');
+
+  // Group by game (team vs opp)
+  const normT = s => { const u=(s||'').toUpperCase().trim(); const m={'SA':'SAS','GS':'GSW','NY':'NYK','NJ':'NJN','NO':'NOP','PHO':'PHX','UTAH':'UTA'}; return m[u]||u; };
+  const gameGroups = new Map();
+  filtered.forEach(p => {
+    const [a, b] = [normT(p.team), normT(p.opp)].sort();
+    const key = a + '_' + b;
+    if(!gameGroups.has(key)) gameGroups.set(key, { label: `${normT(p.team)} vs ${normT(p.opp)}`, sport: p.sport, props: [] });
+    gameGroups.get(key).props.push(p);
+  });
+
+  // Render groups
+  const sportEmoji = { NBA:'🏀', WNBA:'🏀', MLB:'⚾', NFL:'🏈', NHL:'🏒', GOLF:'⛳' };
+  let html = '';
+  gameGroups.forEach(({ label, sport, props }) => {
+    const emoji = sportEmoji[sport] || '🏅';
+    html += `<div class="game-group-header" onclick="toggleGameGroup(this)">
+      <span>${emoji} ${label}</span>
+      <span style="display:flex;align-items:center;gap:8px">
+        <span style="font-family:var(--mono);font-size:9px;color:var(--muted)">${props.length} prop${props.length!==1?'s':''}</span>
+        <span class="game-group-arrow">▾</span>
+      </span>
+    </div>
+    <div class="game-group-body">
+      ${props.map(p => propCardHTML(p)).join('')}
+    </div>`;
+  });
+  list.innerHTML = html;
   updateMetrics();
 }
 
@@ -10163,6 +10632,7 @@ function propCardHTML(p) {
 
   const inSlip = STATE.slip.some(s => s.id === p.id);
   const isExpanded = expandedCards.has(p.id);
+  const isCollapsed = collapsedCards.has(p.id);
   const dotSVG = Array.from({length:10}, (_,i) => {
     const filled = i < p.conf;
     return filled
@@ -10232,21 +10702,29 @@ function propCardHTML(p) {
     : `<div class="prop-num-block"><div class="prop-num-label">Edge</div><div class="prop-edge-val ${edgeClass}">${edgeStr}</div></div>`;
 
   return `<div class="prop-card ${decLow}" id="pcard-${p.id}">
-    <div class="prop-top">
+    <div class="prop-top" onclick="toggleCard(${p.id})" style="cursor:pointer;user-select:none">
       <div>
-        <div class="prop-player">${p.player}</div>
+        <div class="prop-player">${p.player}${p.injuryBoostPct && STATE.showInjuryBoost ? `<span class="inj-boost-badge">🩹 +${p.injuryBoostPct}%</span>` : ''}</div>
         <div class="prop-meta">${p.team || ''} vs ${p.opp || '?'} · ${p.date === 'tomorrow' ? 'TOMORROW' : 'TODAY'}${p.varianceProfile?.volatilityClass ? ` · <span style="color:${p.varianceProfile.volatilityClass==='LOW'?'var(--accent)':p.varianceProfile.volatilityClass==='MED'?'var(--amber)':'var(--red)'}">${p.varianceProfile.volatilityClass} var</span>` : ''}</div>
         ${p.injuryStatus ? `<div class="injury-flag" role="status" aria-label="Injury: ${p.injuryStatus}">🤕 ${p.injuryStatus}</div>` : ''}
       </div>
-      <div class="prop-sport-tag">${p.sport}</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+        ${isCollapsed ? `<div style="font-family:var(--mono);font-size:10px;color:${edgeClass==='over'?'var(--accent)':edgeClass==='under'?'var(--red)':'var(--muted)'}">
+          ${p.prop} · <b>${projDisplay}</b>${p.hitRateSeason?.pct != null ? ` · <span style="color:var(--muted)">${p.hitRateSeason.pct}% hit</span>` : ''}
+        </div>` : ''}
+        <div class="prop-sport-tag">${p.sport}</div>
+        <span style="font-size:10px;color:var(--muted);margin-left:2px">${isCollapsed ? '▸' : '▾'}</span>
+      </div>
     </div>
+    ${isCollapsed ? '' : `
     <div class="prop-numbers">
       <div class="prop-num-block"><div class="prop-num-label">Prop</div><div class="prop-num-value" style="font-size:12px;margin-top:2px">${p.prop}</div></div>
       ${lineDisplay}
       <div class="prop-num-block"><div class="prop-num-label">Model μ</div><div class="prop-num-value ${edgeClass}">${projDisplay}</div></div>
       ${probEvBlock}
       ${completenessScore !== null ? `<div class="prop-num-block"><div class="prop-num-label">Data</div><div class="prop-num-value" style="font-size:13px;color:${completenessColor}">${completenessScore}%<span style="font-size:8px;color:var(--muted);display:block">min ${p.completenessThreshold ?? 60}%</span></div></div>` : ''}
-    </div>
+    </div>`}
+    ${isCollapsed ? '' : `
     ${hitRateHTML}
     ${recentGamesChartHTML(p)}
     ${analysisWarningHTML}
@@ -10268,12 +10746,26 @@ function propCardHTML(p) {
       <div class="data-source-line">📡 ${dataLabel}${p._priorSeasonLabel ? ` · ⏮ includes ${p._priorSeasonLabel} prior season (${p._priorSeasonGames} games)` : ''}${isAnalysis && !forceAnalysis ? ' · ANALYSIS MODE — no market data' : p.dataSource?.hasRealLine ? ' · ✓ Live sportsbook line' : ' · Estimated line — add Odds API key'} · completeness ${completenessScore !== null ? completenessScore + '%' : 'N/A'}</div>
     </div>
     ${(!forceAnalysis && p.decision !== 'PASS') ? `<button class="add-slip-btn ${inSlip ? 'added' : ''}" id="slip-btn-${p.id}" onclick="toggleSlip(${p.id})">${inSlip ? '✓ Added to slip' : '+ Add to slip'}</button>` : ''}
+    `}
   </div>`;
 }
 
 function toggleReasoning(id) {
   if(expandedCards.has(id)) expandedCards.delete(id); else expandedCards.add(id);
   renderProps();
+}
+
+function toggleCard(id) {
+  if(collapsedCards.has(id)) collapsedCards.delete(id); else collapsedCards.add(id);
+  renderProps();
+}
+
+function toggleGameGroup(el) {
+  const body = el.nextElementSibling;
+  const arrow = el.querySelector('.game-group-arrow');
+  const collapsed = body.style.display === 'none';
+  body.style.display = collapsed ? '' : 'none';
+  if(arrow) arrow.textContent = collapsed ? '▾' : '▸';
 }
 
 // ═══════════════════════════════════════════════════════
@@ -10757,14 +11249,23 @@ function toggleInjuryBoost() {
   renderProps();
 }
 
+function showSettingsTab(id, el) {
+  document.querySelectorAll('.settings-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('settings-pane-' + id).classList.add('active');
+  if(el) el.classList.add('active');
+}
+
 function syncInjuryBoostBtn() {
-  const btn = document.getElementById('injury-boost-toggle');
-  if(!btn) return;
   const on = STATE.showInjuryBoost !== false;
-  btn.textContent = on ? 'ON' : 'OFF';
-  btn.style.background = on ? 'rgba(0,229,160,.1)' : 'rgba(107,122,141,.1)';
-  btn.style.borderColor = on ? 'var(--accent)' : 'var(--border2)';
-  btn.style.color = on ? 'var(--accent)' : 'var(--muted)';
+  ['injury-boost-toggle', 's-injury-boost-btn'].forEach(id => {
+    const btn = document.getElementById(id);
+    if(!btn) return;
+    btn.textContent = on ? 'ON' : 'OFF';
+    btn.style.background = on ? 'rgba(0,229,160,.1)' : 'rgba(107,122,141,.1)';
+    btn.style.borderColor = on ? 'var(--accent)' : 'var(--border2)';
+    btn.style.color = on ? 'var(--accent)' : 'var(--muted)';
+  });
 }
 
 function toggleFiltersPanel() {
