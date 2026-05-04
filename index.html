@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.25</title>
+<title>PropEdge v18.27</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -365,7 +365,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.25</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.27</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -3183,21 +3183,25 @@ async function fetchESPNGameLog(sport, league, athleteId, seasontype) {
 }
 
 async function fetchESPNGameLogAllSeasonTypes(sport, league, athleteId) {
-  // NBA: regular season (seasontype=2) already includes play-in games.
-  // Do NOT fetch seasontype=3 for NBA — ESPN returns PREVIOUS season's
-  // playoff games which inflate the game count incorrectly.
-  // NHL: fetch both since current playoffs are ongoing and give useful data.
-  if(league === 'nba') {
-    const regular = await fetchESPNGameLog(sport, league, athleteId, 2).catch(() => null);
-    return { _regular: regular, _playoffs: null, _merged: true };
-  }
-  const [regular, playoffs] = await Promise.allSettled([
-    fetchESPNGameLog(sport, league, athleteId, 2),
-    fetchESPNGameLog(sport, league, athleteId, 3),
-  ]);
-  const regData  = regular.status  === 'fulfilled' ? regular.value  : null;
-  const playData = playoffs.status === 'fulfilled' ? playoffs.value : null;
-  return { _regular: regData, _playoffs: playData, _merged: true };
+  // Fetch without specifying seasontype — ESPN returns ALL season types for current season
+  // in a single response (regular season + play-in + playoffs).
+  // Fetching seasontype=3 explicitly returns PREVIOUS season's playoffs, so we avoid that.
+  // The _parseESPNGameLogSingle allowedSeasonType filter controls which games are used downstream.
+  const now = new Date();
+  const seasonYear = (now.getMonth() + 1) >= 10 ? now.getFullYear() + 1 : now.getFullYear();
+  const base = `https://site.web.api.espn.com/apis/common/v3/sports/${sport}/${league}/athletes/${athleteId}/gamelog`;
+  const current = await fetchWithFallback(`${base}?limit=200&season=${seasonYear}`).catch(() => null);
+
+  // Also fetch prior season for blending when current season sample is thin
+  const priorYear = seasonYear - 1;
+  const prior = await fetchWithFallback(`${base}?limit=200&season=${priorYear}`).catch(() => null);
+
+  return {
+    _regular:  current, // contains all current season types (reg + playoffs)
+    _playoffs: null,    // not needed separately — already in _regular
+    _prior:    prior,   // prior season for new-season blending
+    _merged:   true
+  };
 }
 async function fetchESPNInjuries(sport, league) {
   const key = `inj_${sport}_${league}`;
@@ -6023,26 +6027,33 @@ function getPlayersForGame(game, sport) {
 // ═══════════════════════════════════════════════════════
 function parseESPNGameLog(gameLogData, statLabel, opp) {
   if(gameLogData?._merged) {
-    // Pass allowedSeasonType so each response only extracts its intended games
-    // This prevents double-counting when ESPN returns all season types in every response
-    const regParsed  = gameLogData._regular  ? _parseESPNGameLogSingle(gameLogData._regular,  statLabel, opp, 'regular') : { allVals:[], vsOppVals:[] };
-    const playParsed = gameLogData._playoffs ? _parseESPNGameLogSingle(gameLogData._playoffs, statLabel, opp, 'playoff') : { allVals:[], vsOppVals:[] };
-    const regCount  = regParsed.allVals.length;
-    const playCount = playParsed.allVals.length;
-    // Playoff inclusion logic:
-    // - If regular season has data: only merge playoffs when sample is substantial (>= 15 games)
-    //   to avoid early-round playoff games skewing a full regular season sample
-    // - If regular season is EMPTY (e.g. NHL playoffs in progress, reg season over):
-    //   use ALL available playoff games regardless of count — it's all we have
-    // Always combine regular season + playoffs — both are valid data points.
-    // Regular season gives sample depth; playoffs give recency in postseason.
-    // Never discard either. Low sample count is handled by confidence penalty downstream.
-    const mergedVals  = [...regParsed.allVals,   ...playParsed.allVals];
-    const mergedVsOpp = [...regParsed.vsOppVals, ...playParsed.vsOppVals];
+    // _regular now contains ALL current season types (reg + playoffs) in one response
+    // Use null allowedSeasonType to accept everything except preseason
+    const currentParsed = gameLogData._regular
+      ? _parseESPNGameLogSingle(gameLogData._regular, statLabel, opp, null)
+      : { allVals:[], vsOppVals:[] };
+
+    const currentCount = currentParsed.allVals.length;
+
+    // Blend prior season when current season sample is thin (< 10 games)
+    // This handles start-of-season and post-lockout scenarios dynamically
+    const MIN_CURRENT = 10;
+    let priorVals = [], priorVsOpp = [];
+    if(currentCount < MIN_CURRENT && gameLogData._prior) {
+      const priorParsed = _parseESPNGameLogSingle(gameLogData._prior, statLabel, opp, null);
+      // Weight prior season less — take up to 20 games from prior as context
+      priorVals   = priorParsed.allVals.slice(-20);
+      priorVsOpp  = priorParsed.vsOppVals;
+    }
+
+    // Current season games first (most recent), prior season as historical context
+    const mergedVals   = [...priorVals,  ...currentParsed.allVals];
+    const mergedVsOpp  = [...priorVsOpp, ...currentParsed.vsOppVals];
+
     return {
       allVals:   mergedVals,
       vsOppVals: mergedVsOpp,
-      _meta: { regCount, playCount, includePlays: true }
+      _meta: { currentCount, priorCount: priorVals.length, includePlays: true }
     };
   }
   return _parseESPNGameLogSingle(gameLogData, statLabel, opp);
@@ -9765,16 +9776,26 @@ async function runGraphLookup() {
     const rawGL = glData._regular || glData;
     const rootEvObj = rawGL?.events || {};
     const rootEvArr = Array.isArray(rootEvObj) ? rootEvObj : Object.values(rootEvObj);
-    // Build eventId → metadata map
+
+    // Build eventId → metadata map using confirmed ESPN field names from debug
     const evMetaMap = {};
     for(const ev of rootEvArr) {
       const id = String(ev?.id || ev?.eventId || '');
       if(!id) continue;
-      evMetaMap[id] = {
-        opp:  (ev?.opponent?.abbreviation || ev?.opponent?.shortDisplayName || ev?.opponent?.displayName || '?').toUpperCase().slice(0,3),
-        date: (ev?.gameDate || ev?.date || ev?.eventDate || '').slice(5,10),
-        home: ev?.homeAway === 'home' || ev?.atVs === 'vs' || ev?.isHome === true
-      };
+      // atVs: 'vs' = home, '@' or 'at' = away
+      const atVs = (ev?.atVs || '').toLowerCase();
+      const isHome = atVs === 'vs' || atVs === 'home';
+      // opponent abbreviation from opponent object
+      const oppAbbr = (
+        ev?.opponent?.abbreviation ||
+        ev?.opponent?.shortDisplayName ||
+        ev?.opponent?.displayName ||
+        '?'
+      ).toUpperCase().slice(0,3);
+      // gameDate: "2026-04-19T..." → slice to MM-DD
+      const rawDate = ev?.gameDate || ev?.date || '';
+      const date = rawDate.length >= 10 ? rawDate.slice(5,10) : rawDate;
+      evMetaMap[id] = { opp: oppAbbr, date, home: isHome };
     }
 
     // Build metadata list ordered same as allVals by walking seasonTypes events
