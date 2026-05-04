@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.07</title>
+<title>PropEdge v18.08</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -335,7 +335,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.07</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.08</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1331,15 +1331,18 @@ async function runInjuryLookup() {
 
     let found = false;
     teamList.forEach(teamEntry => {
+      const teamName = teamEntry?.displayName || teamEntry?.team?.displayName || '';
       const teamAbbr = (
         teamEntry?.abbreviation ||
         teamEntry?.team?.abbreviation ||
-        teamEntry?.team?.shortDisplayName ||
         teamEntry?.shortDisplayName ||
-        teamEntry?.displayName?.match(/\b([A-Z]{2,4})\b/)?.[1] ||
-        '?'
-      ).toUpperCase();
-      const teamName = teamEntry?.displayName || teamEntry?.team?.displayName || teamAbbr;
+        ''
+      ).toUpperCase() || (() => {
+        // Name lookup — same map used in main engine
+        const n = teamName.toLowerCase().trim();
+        const MAP = {'los angeles lakers':'LAL','boston celtics':'BOS','new york knicks':'NYK','golden state warriors':'GSW','dallas mavericks':'DAL','miami heat':'MIA','phoenix suns':'PHX','denver nuggets':'DEN','milwaukee bucks':'MIL','philadelphia 76ers':'PHI','chicago bulls':'CHI','toronto raptors':'TOR','cleveland cavaliers':'CLE','orlando magic':'ORL','indiana pacers':'IND','atlanta hawks':'ATL','brooklyn nets':'BKN','charlotte hornets':'CHA','detroit pistons':'DET','houston rockets':'HOU','los angeles clippers':'LAC','memphis grizzlies':'MEM','minnesota timberwolves':'MIN','new orleans pelicans':'NOP','oklahoma city thunder':'OKC','portland trail blazers':'POR','sacramento kings':'SAC','san antonio spurs':'SAS','utah jazz':'UTA','washington wizards':'WAS'};
+        return MAP[n] || '?';
+      })();
       const players = teamEntry?.injuries || [];
 
       players.forEach(inj => {
@@ -4932,16 +4935,59 @@ async function runFetch(sportsToFetch) {
         // { injuries: [{ displayName:"Dallas Mavericks", abbreviation:"DAL", injuries:[{ athlete:{displayName:"Luka Doncic"}, status, details }] }] }
         // Top-level injuries[] = teams; each team has injuries[] = players on that team
         const teamList = data?.injuries || data?.items || [];
+        // ESPN injuries API only returns displayName (e.g. "Los Angeles Lakers"), no abbreviation
+        const NBA_NAME_TO_ABBR = {
+          'atlanta hawks':'ATL','boston celtics':'BOS','brooklyn nets':'BKN',
+          'charlotte hornets':'CHA','chicago bulls':'CHI','cleveland cavaliers':'CLE',
+          'dallas mavericks':'DAL','denver nuggets':'DEN','detroit pistons':'DET',
+          'golden state warriors':'GSW','houston rockets':'HOU','indiana pacers':'IND',
+          'los angeles clippers':'LAC','los angeles lakers':'LAL','memphis grizzlies':'MEM',
+          'miami heat':'MIA','milwaukee bucks':'MIL','minnesota timberwolves':'MIN',
+          'new orleans pelicans':'NOP','new york knicks':'NYK','oklahoma city thunder':'OKC',
+          'orlando magic':'ORL','philadelphia 76ers':'PHI','phoenix suns':'PHX',
+          'portland trail blazers':'POR','sacramento kings':'SAC','san antonio spurs':'SAS',
+          'toronto raptors':'TOR','utah jazz':'UTA','washington wizards':'WAS',
+          // NHL
+          'anaheim ducks':'ANA','arizona coyotes':'ARI','boston bruins':'BOS',
+          'buffalo sabres':'BUF','calgary flames':'CGY','carolina hurricanes':'CAR',
+          'chicago blackhawks':'CHI','colorado avalanche':'COL','columbus blue jackets':'CBJ',
+          'dallas stars':'DAL','detroit red wings':'DET','edmonton oilers':'EDM',
+          'florida panthers':'FLA','los angeles kings':'LAK','minnesota wild':'MIN',
+          'montreal canadiens':'MTL','nashville predators':'NSH','new jersey devils':'NJD',
+          'new york islanders':'NYI','new york rangers':'NYR','ottawa senators':'OTT',
+          'philadelphia flyers':'PHI','pittsburgh penguins':'PIT','seattle kraken':'SEA',
+          'san jose sharks':'SJS','st. louis blues':'STL','tampa bay lightning':'TBL',
+          'toronto maple leafs':'TOR','utah hockey club':'UTA','vancouver canucks':'VAN',
+          'vegas golden knights':'VGK','winnipeg jets':'WPG','washington capitals':'WSH',
+          // NFL
+          'arizona cardinals':'ARI','atlanta falcons':'ATL','baltimore ravens':'BAL',
+          'buffalo bills':'BUF','carolina panthers':'CAR','chicago bears':'CHI',
+          'cincinnati bengals':'CIN','cleveland browns':'CLE','dallas cowboys':'DAL',
+          'denver broncos':'DEN','detroit lions':'DET','green bay packers':'GB',
+          'houston texans':'HOU','indianapolis colts':'IND','jacksonville jaguars':'JAX',
+          'kansas city chiefs':'KC','las vegas raiders':'LV','los angeles chargers':'LAC',
+          'los angeles rams':'LAR','miami dolphins':'MIA','minnesota vikings':'MIN',
+          'new england patriots':'NE','new orleans saints':'NO','new york giants':'NYG',
+          'new york jets':'NYJ','philadelphia eagles':'PHI','pittsburgh steelers':'PIT',
+          'san francisco 49ers':'SF','seattle seahawks':'SEA','tampa bay buccaneers':'TB',
+          'tennessee titans':'TEN','washington commanders':'WSH',
+          // WNBA
+          'atlanta dream':'ATL','chicago sky':'CHI','connecticut sun':'CON',
+          'dallas wings':'DAL','indiana fever':'IND','las vegas aces':'LVA',
+          'minnesota lynx':'MIN','new york liberty':'NYL','phoenix mercury':'PHX',
+          'seattle storm':'SEA','washington mystics':'WAS','golden state valkyries':'GS',
+          'toronto tempo':'TOR','portland fire':'POR','cleveland charge':'CLE',
+        };
+        const resolveTeamAbbr = (te) => {
+          const abbr = (te?.abbreviation || te?.team?.abbreviation || te?.shortDisplayName || '').toUpperCase();
+          if(abbr && abbr.length >= 2) return abbr;
+          // Fall back to name lookup
+          const name = (te?.displayName || te?.team?.displayName || te?.team?.name || '').toLowerCase().trim();
+          return NBA_NAME_TO_ABBR[name] || '';
+        };
         // Keep team context — iterate teams, then players within each team
         teamList.forEach(teamEntry => {
-          const teamAbbr = (
-            teamEntry?.abbreviation ||
-            teamEntry?.team?.abbreviation ||
-            teamEntry?.team?.shortDisplayName ||
-            teamEntry?.shortDisplayName ||
-            teamEntry?.displayName?.match(/\b([A-Z]{2,4})\b/)?.[1] ||
-            ''
-          ).toUpperCase();
+          const teamAbbr = resolveTeamAbbr(teamEntry);
           const playerInjuries = teamEntry?.injuries || [];
           playerInjuries.forEach(inj=>{
             const n = inj.athlete?.displayName || inj.displayName || inj.fullName;
