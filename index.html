@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.15</title>
+<title>PropEdge v18.16</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -335,7 +335,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.15</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.16</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1407,8 +1407,19 @@ async function runGamelogDebug() {
       lines.push(`event[0].stats: [${(events[0].stats||[]).slice(0,10).join(', ')}]`);
     }
 
-    // Show labels/names at top level
-    lines.push(`\nTop-level labels: [${(gl?.labels||gl?.names||[]).slice(0,15).join(', ')}]`);
+    // Show resolved minutes using correct parsing
+    const topLabels2 = gl?.labels || gl?.names || [];
+    const mIdx2 = topLabels2.findIndex(l => (l||'').toUpperCase() === 'MIN');
+    lines.push(`\n── Minutes Resolution ──`);
+    lines.push(`Top-level MIN label index: ${mIdx2}`);
+    if(mIdx2 >= 0) {
+      const monthlyCats = gl?.seasonTypes?.[0]?.categories || [];
+      const monthlyMins = monthlyCats.map((cat,i) => `${cat.displayName||i}: ${(cat.totals||[])[mIdx2]}`);
+      lines.push(`Monthly mins: ${monthlyMins.join(' | ')}`);
+      const vals = monthlyCats.map(cat => parseFloat((cat.totals||[])[mIdx2])||0).filter(m=>m>0);
+      const avg = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : '?';
+      lines.push(`→ Season avg minutes: ${avg}`);
+    }
 
     out.textContent = lines.join('\n');
   } catch(e) {
@@ -4877,21 +4888,17 @@ async function runFetch(sportsToFetch) {
                 const gl = await fetchWithFallback(
                   `https://site.web.api.espn.com/apis/common/v3/sports/${espnSport}/${espnLeague}/athletes/${p.id}/gamelog?season=${seasonYear2}&seasontype=2`
                 );
-                const cats = gl?.seasonTypes?.[0]?.categories || gl?.categories || [];
-                for(const cat of cats) {
-                  const labels = cat.labels || cat.names || [];
-                  const values = cat.totals || cat.values || [];
-                  const mIdx = labels.findIndex(l => {
-                    const u = (l||'').toUpperCase();
-                    return u === 'MIN' || l === 'avgMinutes' || l === 'min' || l === 'minutes';
-                  });
-                  if(mIdx >= 0 && values[mIdx]) {
-                    const raw = values[mIdx];
-                    const mins = typeof raw === 'string' && raw.includes(':')
-                      ? parseInt(raw.split(':')[0]) || 0
-                      : parseFloat(raw) || 0;
-                    if(mins > 0) return { id: String(p.id), mins };
-                    break;
+                // Labels are at top level, totals are in seasonTypes[0].categories (by month)
+                const topLabels = gl?.labels || gl?.names || [];
+                const mIdx = topLabels.findIndex(l => (l||'').toUpperCase() === 'MIN');
+                if(mIdx >= 0) {
+                  const monthlyCats = gl?.seasonTypes?.[0]?.categories || [];
+                  const monthlyMins = monthlyCats
+                    .map(cat => parseFloat((cat.totals||[])[mIdx]) || 0)
+                    .filter(m => m > 0);
+                  if(monthlyMins.length > 0) {
+                    const mins = monthlyMins.reduce((a,b) => a+b, 0) / monthlyMins.length;
+                    if(mins > 0) return { id: String(p.id), mins: Math.round(mins * 10) / 10 };
                   }
                 }
               } catch(e) {}
