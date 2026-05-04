@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.21</title>
+<title>PropEdge v18.22</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -365,7 +365,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.21</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.22</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -554,50 +554,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           </div>
         </div>
 
-        <div class="form-group" style="margin-bottom:14px">
-          <label class="form-label">Opponent <span style="color:var(--muted);font-weight:400">(optional — shows vs stats)</span></label>
-          <input class="form-input" id="graph-opp" placeholder="e.g. ATL" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase"/>
-        </div>
-        <div class="form-group" style="margin-bottom:14px">
-          <label class="form-label">Second prop <span style="color:var(--muted);font-weight:400">(optional — overlays on same chart)</span></label>
-          <select class="form-input form-select" id="graph-prop2">
-            <option value="">— None —</option>
-            <optgroup label="── NBA/WNBA ──">
-              <option value="Points">Points</option>
-              <option value="Rebounds">Rebounds</option>
-              <option value="Assists">Assists</option>
-              <option value="Points + Rebounds + Assists">PRA</option>
-              <option value="Points + Rebounds">Points + Rebounds</option>
-              <option value="Points + Assists">Points + Assists</option>
-              <option value="Assists + Rebounds">Assists + Rebounds</option>
-              <option value="Threes Made">Threes Made</option>
-              <option value="Steals">Steals</option>
-              <option value="Blocks">Blocks</option>
-            </optgroup>
-            <optgroup label="── MLB ──">
-              <option value="Hits">Hits</option>
-              <option value="Total Bases">Total Bases</option>
-              <option value="Strikeouts">Strikeouts</option>
-              <option value="RBIs">RBIs</option>
-            </optgroup>
-            <optgroup label="── NFL ──">
-              <option value="Pass Yards">Pass Yards</option>
-              <option value="Rush Yards">Rush Yards</option>
-              <option value="Receiving Yards">Receiving Yards</option>
-              <option value="Receptions">Receptions</option>
-            </optgroup>
-            <optgroup label="── NHL ──">
-              <option value="Points">Points</option>
-              <option value="Goals">Goals</option>
-              <option value="Assists">Assists</option>
-              <option value="Shots on Goal">Shots on Goal</option>
-            </optgroup>
-          </select>
-        </div>
-        <div class="form-group" style="margin-bottom:14px">
-          <label class="form-label">Second line <span style="color:var(--muted);font-weight:400">(for second prop)</span></label>
-          <input class="form-input" id="graph-line2" type="number" step="0.5" placeholder="e.g. 7.5"/>
-        </div>
+        <div class="form-group" style="margin-bottom:8px">
           <label class="form-label">Prop type</label>
           <select class="form-input form-select" id="graph-prop">
             <optgroup label="── NBA/WNBA ──">
@@ -636,6 +593,53 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
               <option value="Saves">Saves</option>
             </optgroup>
           </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom:8px">
+          <label class="form-label">Opponent <span style="color:var(--muted);font-weight:400">(optional — shows vs stats)</span></label>
+          <input class="form-input" id="graph-opp" placeholder="e.g. ATL" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase"/>
+        </div>
+
+        <div class="form-group" style="margin-bottom:8px">
+          <label class="form-label">Second prop <span style="color:var(--muted);font-weight:400">(optional — overlays on same chart)</span></label>
+          <select class="form-input form-select" id="graph-prop2">
+            <option value="">— None —</option>
+            <optgroup label="── NBA/WNBA ──">
+              <option value="Points">Points</option>
+              <option value="Rebounds">Rebounds</option>
+              <option value="Assists">Assists</option>
+              <option value="Points + Rebounds + Assists">PRA</option>
+              <option value="Points + Rebounds">Points + Rebounds</option>
+              <option value="Points + Assists">Points + Assists</option>
+              <option value="Assists + Rebounds">Assists + Rebounds</option>
+              <option value="Threes Made">Threes Made</option>
+              <option value="Steals">Steals</option>
+              <option value="Blocks">Blocks</option>
+            </optgroup>
+            <optgroup label="── MLB ──">
+              <option value="Hits">Hits</option>
+              <option value="Total Bases">Total Bases</option>
+              <option value="Strikeouts">Strikeouts</option>
+              <option value="RBIs">RBIs</option>
+            </optgroup>
+            <optgroup label="── NFL ──">
+              <option value="Pass Yards">Pass Yards</option>
+              <option value="Rush Yards">Rush Yards</option>
+              <option value="Receiving Yards">Receiving Yards</option>
+              <option value="Receptions">Receptions</option>
+            </optgroup>
+            <optgroup label="── NHL ──">
+              <option value="Points">Points</option>
+              <option value="Goals">Goals</option>
+              <option value="Assists">Assists</option>
+              <option value="Shots on Goal">Shots on Goal</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom:14px">
+          <label class="form-label">Second line <span style="color:var(--muted);font-weight:400">(for second prop)</span></label>
+          <input class="form-input" id="graph-line2" type="number" step="0.5" placeholder="e.g. 7.5"/>
         </div>
 
         <button class="analyze-btn" id="graph-btn" onclick="runGraphLookup()">
@@ -2535,7 +2539,7 @@ function setSortBy(val, el) {
   renderProps();
 }
 let expandedCards = new Set();
-let collapsedCards = new Set(); // cards collapsed to summary row only
+let expandedByUser = new Set(); // cards explicitly opened by user tap (collapsed by default)
 let isGenerating = false;
 let isAnalyzing = false;
 let viewMode = 'analysis'; // 'betting' | 'analysis' — toggles card display without re-fetch
@@ -9720,21 +9724,46 @@ async function runGraphLookup() {
       return;
     }
 
-    // Fetch full season gamelog
-    const now2 = new Date();
-    const seasonYear = (now2.getMonth()+1) >= 10 ? now2.getFullYear()+1 : now2.getFullYear();
-    const gl = await fetchWithFallback(
-      `https://site.web.api.espn.com/apis/common/v3/sports/${espnSport}/${espnLeague}/athletes/${athleteId}/gamelog?season=${seasonYear}&seasontype=2`
-    );
-
-    // Parse games using the same logic as the projection engine
-    const snap = await buildSnapshotFromGamelog(gl, prop, sport, espnSport, espnLeague, athleteId, resolvedName);
-    if(!snap || !snap.games || snap.games.length < 3) {
+    // Fetch full season gamelog using the same function as the projection engine
+    const glData = await fetchESPNGameLogAllSeasonTypes(espnSport, espnLeague, athleteId);
+    const parsed = parseESPNGameLog(glData, prop, null);
+    if(!parsed || parsed.allVals.length < 3) {
       result.innerHTML = `<div class="error-card">Not enough game data for <b>${resolvedName}</b> this season (need at least 3 games).</div>`;
       return;
     }
 
-    const games = snap.games; // [{v, opp, date, home}]
+    // Extract game metadata (opp/date/home) from root events in raw gamelog
+    const rawGL = glData._regular || glData;
+    const rootEvObj = rawGL?.events || {};
+    const rootEvArr = Array.isArray(rootEvObj) ? rootEvObj : Object.values(rootEvObj);
+    // Build metadata list ordered same as allVals (by event order in seasonTypes)
+    const metaList = [];
+    for(const st of (rawGL?.seasonTypes || [])) {
+      const stName = (st?.displayName || '').toLowerCase();
+      if(stName.includes('preseason')) continue;
+      const seenEv = new Set();
+      for(const cat of (st?.categories || [])) {
+        const evs = Array.isArray(cat?.events) ? cat.events : Object.values(cat?.events || {});
+        for(const ev of evs) {
+          const evId = String(ev?.eventId || ev?.id || '');
+          if(seenEv.has(evId) || !(ev?.stats || ev?.statistics || []).length) continue;
+          seenEv.add(evId);
+          const rootEv = rootEvArr.find(e => String(e?.id||e?.eventId) === evId) || {};
+          metaList.push({
+            opp:  (rootEv?.opponent?.abbreviation || rootEv?.opponent?.shortDisplayName || '?').toUpperCase().slice(0,3),
+            date: (rootEv?.gameDate || rootEv?.date || '').slice(5,10),
+            home: rootEv?.homeAway === 'home' || rootEv?.atVs === 'vs' || rootEv?.isHome === true
+          });
+        }
+      }
+    }
+
+    const games = parsed.allVals.map((v, i) => ({
+      v,
+      opp:  metaList[i]?.opp  || '?',
+      date: metaList[i]?.date || '',
+      home: metaList[i]?.home || false
+    }));
     const total = games.length;
     const hits  = games.filter(g => g.v >= line).length;
 
@@ -9780,14 +9809,19 @@ async function runGraphLookup() {
       : opp ? `<div class="graph-stat"><div class="graph-stat-label">vs ${normOpp(opp)}</div><div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px">No games</div></div>` : '';
 
     // Second prop data
-    let snap2 = null, games2 = null;
+    let games2 = null;
     if(prop2 && line2 && prop2 !== prop) {
       try {
-        const gl2 = await fetchWithFallback(
-          `https://site.web.api.espn.com/apis/common/v3/sports/${espnSport}/${espnLeague}/athletes/${athleteId}/gamelog?season=${seasonYear}&seasontype=2`
-        );
-        snap2 = await buildSnapshotFromGamelog(gl2, prop2, sport, espnSport, espnLeague, athleteId, resolvedName);
-        if(snap2?.games?.length >= 3) games2 = snap2.games;
+        const parsed2 = parseESPNGameLog(glData, prop2, null);
+        if(parsed2?.allVals?.length >= 3) {
+          // Reuse same metadata from primary prop fetch
+          games2 = parsed2.allVals.map((v, i) => ({
+            v,
+            opp:  metaList[i]?.opp  || '?',
+            date: metaList[i]?.date || '',
+            home: metaList[i]?.home || false
+          }));
+        }
       } catch(e) {}
     }
     const prop2Stats = games2 ? (() => {
@@ -9879,7 +9913,7 @@ async function runGraphLookup() {
     result.innerHTML = `
       <div style="margin-bottom:14px">
         <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--text)">${resolvedName}</div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px">${prop}${prop2?' + '+prop2:''} · ${sport} ${seasonYear-1}-${String(seasonYear).slice(2)}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px">${prop}${prop2?' + '+prop2:''} · ${sport} ${new Date().getFullYear()-1}-${String(new Date().getFullYear()).slice(2)}</div>
       </div>
 
       <div class="graph-stat-row">
@@ -10632,7 +10666,7 @@ function propCardHTML(p) {
 
   const inSlip = STATE.slip.some(s => s.id === p.id);
   const isExpanded = expandedCards.has(p.id);
-  const isCollapsed = collapsedCards.has(p.id);
+  const isCollapsed = !expandedByUser.has(p.id); // collapsed by default, tap to expand
   const dotSVG = Array.from({length:10}, (_,i) => {
     const filled = i < p.conf;
     return filled
@@ -10756,7 +10790,7 @@ function toggleReasoning(id) {
 }
 
 function toggleCard(id) {
-  if(collapsedCards.has(id)) collapsedCards.delete(id); else collapsedCards.add(id);
+  if(expandedByUser.has(id)) expandedByUser.delete(id); else expandedByUser.add(id);
   renderProps();
 }
 
