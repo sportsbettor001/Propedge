@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.04</title>
+<title>PropEdge v18.05</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -335,7 +335,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.04</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.05</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1286,6 +1286,27 @@ async function runNBAIdSync() {
         '<div style="background:var(--bg3);border-radius:4px;margin-top:6px;height:4px"><div style="background:var(--accent);height:4px;border-radius:4px;width:' + pct + '%;transition:width .3s"></div></div>';
     }
   });
+}
+
+function makeSyncRunner(btnId, color, sportLabel, syncFn) {
+  return async function() {
+    const btn      = document.getElementById(btnId);
+    const progress = document.getElementById('sync-ids-progress');
+    if(btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+    if(progress) progress.style.display = 'block';
+    await syncFn(({ done, total, current, finished, totalPlayers }) => {
+      if(!progress) return;
+      if(finished) {
+        progress.innerHTML = '<div style="color:' + color + ';font-weight:700">✓ ' + sportLabel + ' sync complete — ' + (totalPlayers || total || 0) + ' players cached</div>';
+        if(btn) btn.style.opacity = '0.6';
+      } else {
+        const pct = total > 0 ? Math.round(done / total * 100) : 0;
+        progress.innerHTML =
+          '<div style="color:' + color + '">' + sportLabel + ' — Team ' + done + '/' + total + ' — ' + (current||'') + '</div>' +
+          '<div style="background:var(--bg3);border-radius:4px;margin-top:6px;height:4px"><div style="background:' + color + ';height:4px;border-radius:4px;width:' + pct + '%;transition:width .3s"></div></div>';
+      }
+    });
+  };
 }
 
 const runWNBAIdSync = makeSyncRunner('btn-sync-wnba', 'var(--accent)', 'WNBA', syncAllWNBAIds);
