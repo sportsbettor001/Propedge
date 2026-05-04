@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.05</title>
+<title>PropEdge v18.07</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -335,7 +335,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.05</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.07</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -554,6 +554,29 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
             <button onclick="runMLBIdSync()" id="btn-sync-mlb" style="grid-column:1/-1;font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.5);border-radius:8px;padding:9px;color:var(--amber);cursor:pointer;font-weight:700">⚾ MLB · MLB Stats API</button>
           </div>
           <div id="sync-ids-progress" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg2);border-radius:8px;padding:10px"></div>
+        </div>
+      </div>
+
+      <!-- ── Injury Lookup ── -->
+      <div class="tool-section">
+        <div class="tool-section-header" onclick="toggleToolSection(this)">
+          <span>🩹 Injury Lookup</span>
+          <span class="tool-section-arrow">▶</span>
+        </div>
+        <div class="tool-section-body">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px">Check what the ESPN injury API returns for a specific player — confirms team abbreviation is being captured correctly.</div>
+          <div style="display:flex;gap:6px;margin-bottom:8px">
+            <input id="inj-lookup-name" class="setting-input" placeholder="e.g. Luka Doncic" style="flex:1;font-size:11px"/>
+            <select id="inj-lookup-sport" style="font-family:var(--mono);font-size:11px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:5px 8px;cursor:pointer">
+              <option value="basketball/nba">NBA</option>
+              <option value="basketball/wnba">WNBA</option>
+              <option value="hockey/nhl">NHL</option>
+              <option value="football/nfl">NFL</option>
+              <option value="baseball/mlb">MLB</option>
+            </select>
+            <button onclick="runInjuryLookup()" style="font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid rgba(0,229,160,.3);border-radius:8px;padding:6px 14px;color:var(--accent);cursor:pointer;white-space:nowrap">▶ Run</button>
+          </div>
+          <div id="inj-lookup-out" style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:var(--mono);font-size:9px;color:var(--fg);white-space:pre-wrap;max-height:300px;overflow-y:auto;min-height:40px">Enter a player name and tap Run.</div>
         </div>
       </div>
 
@@ -944,6 +967,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
   </div>
 </div>
 
+<div class="toast" id="toast"></div>
+<button class="return-top-btn" id="return-top-btn" onclick="scrollToTop()" aria-label="Return to top">↑ Top</button>
+
 <script>
 window.onerror = function(msg, src, line, col, err) {
   const div = document.createElement('div');
@@ -1286,6 +1312,67 @@ async function runNBAIdSync() {
         '<div style="background:var(--bg3);border-radius:4px;margin-top:6px;height:4px"><div style="background:var(--accent);height:4px;border-radius:4px;width:' + pct + '%;transition:width .3s"></div></div>';
     }
   });
+}
+
+async function runInjuryLookup() {
+  const out = document.getElementById('inj-lookup-out');
+  const name = document.getElementById('inj-lookup-name').value.trim().toLowerCase();
+  const sport = document.getElementById('inj-lookup-sport').value;
+  if(!name) { out.textContent = 'Enter a player name.'; return; }
+  out.textContent = 'Fetching...';
+  try {
+    const [espnSport, espnLeague] = sport.split('/');
+    const data = await fetchWithFallback(`https://site.api.espn.com/apis/site/v2/sports/${espnSport}/${espnLeague}/injuries`);
+    const teamList = data?.injuries || data?.items || [];
+    const lines = [];
+    lines.push(`Total teams in response: ${teamList.length}`);
+    lines.push(`Searching for: "${name}"`);
+    lines.push('');
+
+    let found = false;
+    teamList.forEach(teamEntry => {
+      const teamAbbr = (
+        teamEntry?.abbreviation ||
+        teamEntry?.team?.abbreviation ||
+        teamEntry?.team?.shortDisplayName ||
+        teamEntry?.shortDisplayName ||
+        teamEntry?.displayName?.match(/\b([A-Z]{2,4})\b/)?.[1] ||
+        '?'
+      ).toUpperCase();
+      const teamName = teamEntry?.displayName || teamEntry?.team?.displayName || teamAbbr;
+      const players = teamEntry?.injuries || [];
+
+      players.forEach(inj => {
+        const pName = (inj.athlete?.displayName || inj.displayName || '').toLowerCase();
+        if(pName.includes(name) || name.includes(pName.split(' ').pop())) {
+          found = true;
+          lines.push(`✓ FOUND: ${inj.athlete?.displayName || pName}`);
+          lines.push(`  Team entry displayName: ${teamEntry?.displayName || '(none)'}`);
+          lines.push(`  teamEntry.abbreviation: ${teamEntry?.abbreviation || '(none)'}`);
+          lines.push(`  teamEntry.team.abbreviation: ${teamEntry?.team?.abbreviation || '(none)'}`);
+          lines.push(`  teamEntry.shortDisplayName: ${teamEntry?.shortDisplayName || '(none)'}`);
+          lines.push(`  → Resolved teamAbbr: ${teamAbbr}`);
+          lines.push(`  Status: ${inj.status || inj.details?.type || '(none)'}`);
+          lines.push(`  Date: ${inj.date || inj.details?.date || '(none)'}`);
+          lines.push(`  Position: ${inj.athlete?.position?.abbreviation || '(none)'}`);
+          lines.push('');
+        }
+      });
+    });
+
+    if(!found) {
+      lines.push(`✗ "${name}" not found in injury report.`);
+      lines.push('');
+      lines.push('First 5 teams and their abbreviation fields:');
+      teamList.slice(0, 5).forEach(te => {
+        lines.push(`  "${te?.displayName}" → abbr: ${te?.abbreviation||'?'} | team.abbr: ${te?.team?.abbreviation||'?'} | short: ${te?.shortDisplayName||'?'}`);
+      });
+    }
+
+    out.textContent = lines.join('\n');
+  } catch(e) {
+    out.textContent = 'Error: ' + e.message;
+  }
 }
 
 function makeSyncRunner(btnId, color, sportLabel, syncFn) {
@@ -4850,7 +4937,9 @@ async function runFetch(sportsToFetch) {
           const teamAbbr = (
             teamEntry?.abbreviation ||
             teamEntry?.team?.abbreviation ||
+            teamEntry?.team?.shortDisplayName ||
             teamEntry?.shortDisplayName ||
+            teamEntry?.displayName?.match(/\b([A-Z]{2,4})\b/)?.[1] ||
             ''
           ).toUpperCase();
           const playerInjuries = teamEntry?.injuries || [];
@@ -4889,6 +4978,7 @@ async function runFetch(sportsToFetch) {
           });
         });
         injuriesBySport[sport] = map;
+        traceLog('filteringLog', `${sport} injuries: ${Object.keys(map).length} players mapped. Sample teams: ${[...new Set(Object.values(map).map(v=>v.team||'?').filter(Boolean))].slice(0,8).join(', ')}`, 'ok');
       } catch(e) {}
     }));
 
@@ -7769,10 +7859,10 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
             // ESPN injury map now includes team abbreviation per entry
             const normInjName = s => (s||'').toLowerCase().replace(/[^a-z ]/g,'');
             const injTeam = (_injEntry.team || '').toUpperCase();
-            const normAbbr = a => { const m={'NY':'NYK','SA':'SAS','GS':'GSW','NO':'NOP','PHO':'PHX','UTAH':'UTA'}; return m[(a||'').toUpperCase()]||(a||'').toUpperCase(); };
-            if(injTeam && injTeam.length >= 2) {
-              if(normAbbr(injTeam) !== normAbbr(myTeam)) continue; // different team — skip
-            }
+            const normAbbr = a => { const m={'NY':'NYK','SA':'SAS','GS':'GSW','NO':'NOP','PHO':'PHX','UTAH':'UTA','BKN':'BKN','NOP':'NOP'}; return m[(a||'').toUpperCase()]||(a||'').toUpperCase(); };
+            // If no team info, skip — better to miss a boost than apply a wrong one
+            if(!injTeam || injTeam.length < 2) continue;
+            if(normAbbr(injTeam) !== normAbbr(myTeam)) continue; // different team — skip
 
             const injLast = normInjName(injName).split(' ').pop();
             const normPlayerName = normInjName(playerName);
