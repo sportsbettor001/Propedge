@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.96</title>
+<title>PropEdge v18.03</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -335,7 +335,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.96</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.03</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -557,35 +557,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         </div>
       </div>
 
-      <!-- ── Roster Tiers Sync ── -->
-      <div class="tool-section">
-        <div class="tool-section-header" onclick="toggleToolSection(this)">
-          <span>🏅 Roster Tiers Sync</span>
-          <span class="tool-section-arrow">▶</span>
-        </div>
-        <div class="tool-section-body">
-          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:10px;line-height:1.6">Pulls every team's roster from ESPN and ranks players by avg minutes. Run at the start of each season or after major trades.</div>
-          <div id="roster-tiers-status" style="font-family:var(--mono);font-size:9px;margin-bottom:8px;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;display:none"></div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-            <button onclick="runRosterTiersSync('NBA')" id="btn-roster-nba" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏀 NBA<br><span style="font-size:8px;font-weight:400;opacity:.7">30 teams · by minutes</span></button>
-            <button onclick="runRosterTiersSync('WNBA')" id="btn-roster-wnba" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏀 WNBA<br><span style="font-size:8px;font-weight:400;opacity:.7">12 teams · by minutes</span></button>
-            <button onclick="runRosterTiersSync('NHL')" id="btn-roster-nhl" style="font-family:var(--mono);font-size:10px;background:rgba(77,184,255,.15);border:1px solid rgba(77,184,255,.5);border-radius:8px;padding:9px;color:var(--blue);cursor:pointer;font-weight:700">🏒 NHL<br><span style="font-size:8px;font-weight:400;opacity:.7">32 teams · by TOI</span></button>
-            <button onclick="runRosterTiersSync('NFL')" id="btn-roster-nfl" style="font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.5);border-radius:8px;padding:9px;color:var(--amber);cursor:pointer;font-weight:700">🏈 NFL<br><span style="font-size:8px;font-weight:400;opacity:.7">32 teams · by snap%</span></button>
-            <button onclick="runRosterTiersSync('MLB')" id="btn-roster-mlb" style="font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.5);border-radius:8px;padding:9px;color:var(--amber);cursor:pointer;font-weight:700">⚾ MLB<br><span style="font-size:8px;font-weight:400;opacity:.7">30 teams · starters</span></button>
-            <button onclick="viewRosterTiers()" id="btn-roster-view" style="font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:9px;color:var(--muted);cursor:pointer">👁 View Tiers</button>
-          </div>
-          <div id="roster-tiers-meta" style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:4px"></div>
-          <div id="roster-tiers-detail" style="display:none;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:340px;overflow-y:auto">
-            <div id="roster-tiers-detail-inner" style="font-family:var(--mono);font-size:9px;color:var(--text)"></div>
-          </div>
-          <!-- Golf field staleness -->
-          <div id="golf-field-status" style="margin-top:10px;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:9px;display:flex;align-items:center;justify-content:space-between;gap:8px">
-            <span id="golf-field-age-label" style="color:var(--muted)">⛳ Golf field: checking...</span>
-            <button onclick="markGolfFieldUpdated()" style="font-family:var(--mono);font-size:9px;background:rgba(0,229,160,.1);border:1px solid var(--accent);border-radius:6px;color:var(--accent);padding:3px 9px;cursor:pointer;white-space:nowrap">✓ Updated field</button>
-          </div>
-        </div>
-      </div>
-
       <!-- ── Odds API Quota ── -->
       <div class="tool-section">
         <div class="tool-section-header" onclick="toggleToolSection(this)">
@@ -609,44 +580,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           <div id="slate-log-panel"></div>
         </div>
       </div>
-      <!-- ── ESPN Roster Debug ── -->
-      <div class="tool-section">
-        <div class="tool-section-header" onclick="toggleToolSection(this)">
-          <span>🔬 ESPN Roster Debug</span>
-          <span class="tool-section-arrow">▶</span>
-        </div>
-        <div class="tool-section-body">
-          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:8px">Dumps the raw ESPN roster + first player's stats response for any team. Use to verify player structure and team fields.</div>
-          <div style="display:flex;gap:6px;margin-bottom:8px">
-            <select id="espn-roster-debug-sport" style="font-family:var(--mono);font-size:11px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:5px 8px;cursor:pointer">
-              <option value="basketball/nba">NBA</option>
-              <option value="basketball/wnba">WNBA</option>
-              <option value="hockey/nhl">NHL</option>
-              <option value="football/nfl">NFL</option>
-            </select>
-            <input id="espn-roster-debug-id" class="setting-input" placeholder="ESPN team ID (e.g. 1=ATL)" style="flex:1;font-size:11px" value="1"/>
-            <button onclick="runESPNRosterDebug()" style="font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid rgba(0,229,160,.3);border-radius:8px;padding:6px 14px;color:var(--accent);cursor:pointer;white-space:nowrap">▶ Run</button>
-          </div>
-          <div id="espn-roster-debug-out" style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:var(--mono);font-size:9px;color:var(--fg);white-space:pre-wrap;max-height:400px;overflow-y:auto;min-height:40px">Tap Run to fetch.</div>
-        </div>
-      </div>
-
-      <!-- ── MLB Opponent Debug ── -->
-      <div class="tool-section">
-        <div class="tool-section-header" onclick="toggleToolSection(this)">
-          <span>🔬 MLB Opponent Field Debug</span>
-          <span class="tool-section-arrow">▶</span>
-        </div>
-        <div class="tool-section-body">
-          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:8px">Fetches a live MLB gameLog and shows raw opponent data returned by the API — use this to identify the correct field name for team abbreviations.</div>
-          <div style="display:flex;gap:6px;margin-bottom:8px">
-            <input id="mlb-debug-id" class="setting-input" placeholder="MLB player ID (e.g. 592450)" style="flex:1;font-size:11px" value="592450"/>
-            <button onclick="runMLBOpponentDebug()" style="font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid rgba(0,229,160,.3);border-radius:8px;padding:6px 14px;color:var(--accent);cursor:pointer;white-space:nowrap">▶ Run</button>
-          </div>
-          <div id="mlb-debug-out" style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:var(--mono);font-size:10px;color:var(--fg);white-space:pre-wrap;max-height:320px;overflow-y:auto;min-height:40px">Tap Run to fetch.</div>
-        </div>
-      </div>
-
       <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
         Pipeline Trace
         <div style="display:flex;gap:6px">
@@ -778,6 +711,96 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         </button>
       </div>
       <div id="check-result-area"></div>
+
+      <!-- ── Manual Player Lookup ── -->
+      <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
+        <div class="section-title" style="margin-bottom:4px">Manual Player Lookup</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:12px;line-height:1.6">Generate a full projection for any player not pulled automatically. Uses the same engine as normal generation.</div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label class="form-label">Player name</label>
+          <input class="form-input" id="lookup-player" placeholder="e.g. Nikola Jokic" autocorrect="off" autocapitalize="words"/>
+        </div>
+        <div class="form-row" style="margin-bottom:8px">
+          <div class="form-group">
+            <label class="form-label">Sport</label>
+            <select class="form-input form-select" id="lookup-sport">
+              <option value="NBA">NBA</option>
+              <option value="WNBA">WNBA</option>
+              <option value="MLB">MLB</option>
+              <option value="NFL">NFL</option>
+              <option value="NHL">NHL</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Prop type</label>
+            <select class="form-input form-select" id="lookup-prop">
+              <optgroup label="── NBA/WNBA ──">
+                <option value="Points">Points</option>
+                <option value="Rebounds">Rebounds</option>
+                <option value="Assists">Assists</option>
+                <option value="Points + Rebounds + Assists">PRA</option>
+                <option value="Points + Rebounds">Points + Rebounds</option>
+                <option value="Points + Assists">Points + Assists</option>
+                <option value="Assists + Rebounds">Assists + Rebounds</option>
+                <option value="Threes Made">Threes Made</option>
+                <option value="Steals">Steals</option>
+                <option value="Blocks">Blocks</option>
+                <option value="Turnovers">Turnovers</option>
+                <option value="Steals + Blocks">Steals + Blocks</option>
+                <option value="Double Double">Double Double</option>
+                <option value="Triple Double">Triple Double</option>
+              </optgroup>
+              <optgroup label="── MLB Batters ──">
+                <option value="Hits">Hits</option>
+                <option value="Total Bases">Total Bases</option>
+                <option value="Home Runs">Home Runs</option>
+                <option value="Runs">Runs</option>
+                <option value="RBIs">RBIs</option>
+                <option value="Hits + Runs + RBIs">H+R+RBI</option>
+                <option value="Singles">Singles</option>
+                <option value="Doubles">Doubles</option>
+                <option value="Stolen Bases">Stolen Bases</option>
+                <option value="Walks">Walks</option>
+              </optgroup>
+              <optgroup label="── MLB Pitchers ──">
+                <option value="Strikeouts">Strikeouts</option>
+                <option value="Total Outs">Total Outs</option>
+                <option value="Hits Allowed">Hits Allowed</option>
+                <option value="Earned Runs">Earned Runs</option>
+                <option value="Runs First Inning">Runs First Inning</option>
+              </optgroup>
+              <optgroup label="── NFL ──">
+                <option value="Pass Yards">Pass Yards</option>
+                <option value="Rush Yards">Rush Yards</option>
+                <option value="Receiving Yards">Receiving Yards</option>
+                <option value="Receptions">Receptions</option>
+                <option value="Passing Touchdowns">Passing TDs</option>
+                <option value="Receiving Touchdown">Receiving TD</option>
+                <option value="Anytime Touchdown">Anytime TD</option>
+                <option value="Sacks">Sacks</option>
+                <option value="Total Tackles">Total Tackles</option>
+                <option value="Kicking Points">Kicking Points</option>
+              </optgroup>
+              <optgroup label="── NHL ──">
+                <option value="Points">Points</option>
+                <option value="Goals">Goals</option>
+                <option value="Assists">Assists</option>
+                <option value="Shots on Goal">Shots on Goal</option>
+                <option value="Saves">Saves</option>
+                <option value="Goals Against">Goals Against</option>
+              </optgroup>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:12px">
+          <label class="form-label">Opponent team (optional)</label>
+          <input class="form-input" id="lookup-opp" placeholder="e.g. BOS" autocorrect="off" autocapitalize="characters"/>
+        </div>
+        <button class="analyze-btn" id="manual-lookup-btn" onclick="runManualLookup()">
+          <span id="manual-lookup-text">Generate Projection</span>
+        </button>
+        <div id="manual-lookup-result" style="margin-top:12px"></div>
+      </div>
     </div>
 
     <!-- SLIP BUILDER TAB -->
@@ -916,55 +939,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
     <button class="modal-btn" onclick="saveSettings()">Save Settings</button>
     <button class="modal-close" onclick="closeSettings()">Close</button>
-    <button class="modal-close" onclick="openRosterEditor()" style="color:var(--accent);border-color:rgba(0,212,255,.3);margin-top:6px">🏀 Edit Roster Tiers</button>
     <button class="modal-close" onclick="revertToDefaults()" style="color:var(--amber);border-color:rgba(255,181,71,.3);margin-top:6px">↺ Clear API keys & revert defaults</button>
     <button class="modal-close" onclick="clearAllData()" style="color:var(--red);border-color:rgba(255,77,106,.3);margin-top:6px">⚠ Clear all data</button>
   </div>
 </div>
-
-<!-- ── Roster Tier Editor Modal ── -->
-<div class="modal-overlay" id="roster-editor-modal" onclick="handleRosterEditorClick(event)">
-  <div class="modal" style="max-width:600px">
-    <div class="modal-title">🏀 Roster Tier Editor</div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:12px">
-      Edit which players are on each team and their tier (1=star, 2=rotation, 3=bench). Changes persist across sessions.
-    </div>
-
-    <!-- Sport + Team selector -->
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-      <select id="re-sport" onchange="reLoadTeams()" style="flex:1;min-width:90px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px">
-        <option value="NBA">NBA</option>
-        <option value="NHL">NHL</option>
-      </select>
-      <select id="re-team" onchange="reLoadRoster()" style="flex:2;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px">
-      </select>
-    </div>
-
-    <!-- Player list -->
-    <div id="re-roster-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
-
-    <!-- Add player row -->
-    <div style="display:flex;gap:6px;margin-bottom:12px">
-      <input id="re-new-name" placeholder="Player name" style="flex:3;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px" />
-      <select id="re-new-tier" style="flex:1;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px">
-        <option value="1">T1 Star</option>
-        <option value="2" selected>T2 Role</option>
-        <option value="3">T3 Bench</option>
-      </select>
-      <button onclick="reAddPlayer()" style="flex:1;background:var(--accent);color:#000;border:none;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600">+ Add</button>
-    </div>
-
-    <!-- Save / close -->
-    <div style="display:flex;gap:8px">
-      <button onclick="reSaveRoster()" style="flex:1;background:var(--green);color:#000;border:none;border-radius:8px;padding:10px;font-size:13px;cursor:pointer;font-weight:700">💾 Save Team</button>
-      <button onclick="closeRosterEditor()" style="flex:1;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:13px;cursor:pointer">Close</button>
-    </div>
-    <div id="re-status" style="margin-top:8px;font-size:11px;color:var(--green);min-height:16px"></div>
-  </div>
-</div>
-
-<div class="toast" id="toast"></div>
-<button class="return-top-btn" id="return-top-btn" onclick="scrollToTop()" aria-label="Return to top">↑ Top</button>
 
 <script>
 // ═══════════════════════════════════════════════════════
@@ -1209,8 +1187,7 @@ let STATE = loadState() || {
   },
   apiStatus: {},
   lastGenerated: null,
-  showInjuryBoost: true,
-  golfFieldUpdatedAt: new Date('2026-04-17').getTime() // RBC Heritage field — update when tournament changes
+  showInjuryBoost: true
 };
 
 // Guard: ensure required arrays exist even if loaded from slim/bare save
@@ -1219,7 +1196,6 @@ if(!Array.isArray(STATE.slip))       STATE.slip       = [];
 if(!Array.isArray(STATE.savedSlips)) STATE.savedSlips = [];
 if(!STATE.settings)                  STATE.settings   = {};
 if(STATE.showInjuryBoost === undefined) STATE.showInjuryBoost = true;
-if(!STATE.golfFieldUpdatedAt) STATE.golfFieldUpdatedAt = new Date('2026-04-17').getTime();
 
 // Legacy migration: if old state had STATE.props, migrate to sportCache
 if(STATE.props && Array.isArray(STATE.props) && STATE.props.length > 0 && !STATE.sportCache) {
@@ -1260,194 +1236,6 @@ function traceLog(section, msg, level='ok') {
   STATE.trace[section].push({ msg, level });
 }
 function clearTrace() { STATE.trace = null; renderTrace(); }
-
-async function runESPNRosterDebug() {
-  const out = document.getElementById('espn-roster-debug-out');
-  const sport = document.getElementById('espn-roster-debug-sport').value;
-  const teamId = document.getElementById('espn-roster-debug-id').value.trim();
-  if(!out || !teamId) return;
-  out.textContent = 'Fetching...';
-  try {
-    const url = `https://site.api.espn.com/apis/site/v2/sports/${sport}/teams/${teamId}/roster`;
-    const rData = await fetchWithFallback(url);
-
-    const lines = [];
-    lines.push(`URL: ${url}`);
-    lines.push(`Top-level keys: [${Object.keys(rData||{}).join(', ')}]`);
-
-    const teamObj = rData?.team || {};
-    lines.push(`team.abbreviation: ${teamObj.abbreviation || '(none)'}`);
-    lines.push(`team.displayName: ${teamObj.displayName || '(none)'}`);
-
-    const groups = rData?.athletes || [];
-    lines.push(`athletes groups: ${groups.length}`);
-    groups.forEach((g, gi) => {
-      const items = g?.items || (g?.id ? [g] : []);
-      lines.push(`  group[${gi}] "${g?.displayName||g?.position||''}" → ${items.length} players`);
-      items.slice(0,3).forEach(a => {
-        lines.push(`    athlete id=${a.id} name="${a.displayName||a.fullName}" pos="${a.position?.abbreviation||''}" team="${JSON.stringify(a.team||'(none)').slice(0,60)}"`);
-      });
-    });
-
-    // Fetch stats for first athlete found - try gamelog instead of deprecated statistics endpoint
-    const allAthletes = groups.flatMap(g => g?.items || (g?.id ? [g] : []));
-    const first = allAthletes[0];
-    if(first?.id) {
-      lines.push(`\n── Gamelog response for first athlete: ${first.displayName||first.id} ──`);
-      const now = new Date();
-      const seasonYear = (now.getMonth()+1) >= 10 ? now.getFullYear()+1 : now.getFullYear();
-      const [espnS, espnL] = sport.split('/');
-      const glUrl = `https://site.web.api.espn.com/apis/common/v3/sports/${espnS}/${espnL}/athletes/${first.id}/gamelog?limit=200&season=${seasonYear}&seasontype=2`;
-      lines.push(`URL: ${glUrl}`);
-      try {
-        const gl = await fetchWithFallback(glUrl);
-        lines.push(`Top-level keys: [${Object.keys(gl||{}).join(', ')}]`);
-        // Show team info
-        lines.push(`athlete.team.abbreviation: ${gl?.athlete?.team?.abbreviation || '(none)'}`);
-        lines.push(`team.abbreviation: ${gl?.team?.abbreviation || '(none)'}`);
-        // Show categories to find minutes label
-        const cats = gl?.seasonTypes?.[0]?.categories || gl?.categories || [];
-        lines.push(`categories count: ${cats.length}`);
-        cats.slice(0,3).forEach((c,ci) => {
-          lines.push(`  cat[${ci}] "${c.name||c.displayName||''}" labels[0..4]: [${(c.labels||c.names||[]).slice(0,5).join(', ')}]`);
-          lines.push(`           values[0..4]: [${(c.totals||c.values||[]).slice(0,5).join(', ')}]`);
-        });
-        // Show first few events
-        const events = gl?.events || gl?.seasonTypes?.[0]?.events || [];
-        lines.push(`events count: ${events.length}`);
-        if(events[0]) {
-          const ev = events[0];
-          lines.push(`  event[0] keys: [${Object.keys(ev).join(', ')}]`);
-          lines.push(`  event[0].stats: [${(ev.stats||ev.statistics||[]).slice(0,8).join(', ')}]`);
-        }
-      } catch(e2) { lines.push(`Gamelog fetch error: ${e2.message}`); }
-    }
-
-    out.textContent = lines.join('\n');
-  } catch(e) {
-    out.textContent = 'Error: ' + e.message;
-  }
-}
-
-async function runMLBOpponentDebug() {
-  const out = document.getElementById('mlb-debug-out');
-  const pid = (document.getElementById('mlb-debug-id')?.value || '592450').trim();
-  out.textContent = 'Fetching…';
-  try {
-    const MLB_BASE = 'https://statsapi.mlb.com/api/v1';
-    const yr = new Date().getFullYear();
-    // Try with hydrate=opponent first, then without
-    const urlWith    = `${MLB_BASE}/people/${pid}/stats?stats=gameLog&season=${yr}&group=hitting&gameType=R&hydrate=opponent`;
-    const urlWithout = `${MLB_BASE}/people/${pid}/stats?stats=gameLog&season=${yr}&group=hitting&gameType=R`;
-
-    const [r1, r2] = await Promise.allSettled([fetch(urlWith), fetch(urlWithout)]);
-    const lines = [];
-
-    for(const [label, r] of [['WITH hydrate=opponent', r1], ['WITHOUT hydrate', r2]]) {
-      lines.push(`━━━ ${label} ━━━`);
-      if(r.status !== 'fulfilled') { lines.push(`  FETCH ERROR: ${r.reason}`); continue; }
-      const resp = r.value;
-      if(!resp.ok) { lines.push(`  HTTP ${resp.status}`); continue; }
-      const data = await resp.json();
-      const splits = data?.stats?.[0]?.splits || [];
-      lines.push(`  splits.length: ${splits.length}`);
-      if(splits.length > 0) {
-        const s = splits[splits.length - 1]; // most recent game
-        lines.push(`  Last split top-level keys: [${Object.keys(s).join(', ')}]`);
-        lines.push(`  split.date: ${s.date}`);
-        lines.push(`  split.opponent (raw): ${JSON.stringify(s.opponent)}`);
-        lines.push(`  split.team (raw): ${JSON.stringify(s.team)}`);
-        lines.push(`  split.isHome: ${s.isHome}`);
-        lines.push('');
-        lines.push(`  --- All splits: date | opponent | H | AB | HR | RBI | gamePk ---`);
-        for(const sp of splits) {
-          lines.push(`  ${sp.date} | ${(sp.opponent?.name||'?').padEnd(25)} | H:${String(sp.stat?.hits??'?').padStart(2)} AB:${String(sp.stat?.atBats??'?').padStart(2)} HR:${sp.stat?.homeRuns??'?'} RBI:${sp.stat?.rbi??'?'} | pk:${sp.game?.gamePk??'?'}`);
-        }
-      }
-      lines.push('');
-    }
-    out.textContent = lines.join('\n');
-  } catch(e) {
-    out.textContent = `ERROR: ${e.message}`;
-  }
-}
-
-
-function copyTrace() {
-  const t = STATE.trace;
-  if(!t) { showToast('No trace data to copy', 'error'); return; }
-  const labels = { gameIngestion:'GAME INGESTION', playerDiscovery:'PLAYER DISCOVERY',
-    projectionEngine:'PROJECTION ENGINE', filteringLog:'FILTERING', outputLog:'OUTPUT' };
-  let text = `PropEdge Trace — ${t.runAt} — Mode: ${(t.mode||'unknown').toUpperCase()}\n`;
-  text += '='.repeat(60) + '\n';
-  for(const s of ['gameIngestion','playerDiscovery','projectionEngine','filteringLog','outputLog']) {
-    const entries = t[s] || [];
-    text += `\n${labels[s]} (${entries.length})\n${'-'.repeat(40)}\n`;
-    if(!entries.length) text += 'No entries\n';
-    else entries.forEach(e => { text += `${e.msg}\n`; });
-  }
-  navigator.clipboard.writeText(text).then(() => {
-    showToast('✓ Trace copied to clipboard', 'success');
-  }).catch(() => {
-    // Fallback for browsers that block clipboard
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.position = 'fixed';
-    ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    showToast('✓ Trace copied', 'success');
-  });
-}
-
-function getNBASeason() {
-  const y = new Date().getFullYear();
-  const m = new Date().getMonth() + 1;
-  const startYear = m >= 10 ? y : y - 1;
-  return `${startYear}-${String(startYear+1).slice(2)}`;
-}
-
-function fetchWithTimeout(url, options, ms) {
-  const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error(`Timed out after ${ms/1000}s`)), ms)
-  );
-  return Promise.race([fetch(url, options), timeout]);
-}
-
-// ── Generic sync UI runner ──
-function makeSyncRunner(btnId, color, label, syncFn) {
-  return async function() {
-    const btn      = document.getElementById(btnId);
-    const progress = document.getElementById('sync-ids-progress');
-    if(btn) { btn.disabled=true; btn.style.opacity='0.6'; }
-    progress.style.display='block';
-
-    await syncFn(({ done, total, current, finished, totalPlayers, nhlCount, espnCount, corrections, error }) => {
-      if(error) {
-        progress.innerHTML = '<div style="color:var(--red)">✗ Sync failed: ' + error + '</div>';
-        if(btn) { btn.disabled=false; btn.style.opacity='1'; }
-        return;
-      }
-      if(finished) {
-        let detail = 'IDs cached permanently';
-        if(nhlCount !== undefined) detail = nhlCount + ' NHL IDs + ' + espnCount + ' ESPN IDs cached';
-        progress.innerHTML =
-          '<div style="color:' + color + ';font-weight:700;margin-bottom:6px">✓ ' + label + ' sync complete — ' + (totalPlayers||0) + ' players cached</div>' +
-          '<div style="color:var(--muted);font-size:9px">' + detail + '</div>' +
-          (corrections?.length ? '<div style="color:var(--amber);margin-top:4px">' + corrections.length + ' DB corrections found</div>' : '');
-        if(btn) { btn.textContent = btn.textContent.split('\n')[0].replace('Sync','✓ Synced'); }
-      } else {
-        const pct = total > 0 ? Math.round(done/total*100) : 0;
-        progress.innerHTML =
-          '<div style="color:' + color + '">' + label + ': team ' + done + '/' + total + ' — ' + (current||'') + '</div>' +
-          '<div style="background:var(--bg3);border-radius:4px;margin-top:6px;height:4px">' +
-          '<div style="background:' + color + ';height:4px;border-radius:4px;width:' + pct + '%;transition:width .3s"></div></div>';
-      }
-    });
-  };
-}
 
 async function runNBAIdSync() {
   const btn      = document.getElementById('btn-sync-nba') || document.getElementById('btn-sync-ids');
@@ -2636,14 +2424,12 @@ function clearAllData() {
     const nhlIds      = localStorage.getItem(NHL_ID_CACHE_KEY);
     const mlbIds      = localStorage.getItem(MLB_ID_CACHE_KEY);
     const teamIds     = localStorage.getItem(TEAM_ID_STORAGE_KEY);
-    const roleTiers   = localStorage.getItem(ROLE_TIERS_STORAGE_KEY);
     const calibration = localStorage.getItem(CALIBRATION_KEY);
     localStorage.clear();
     if(espnIds)     localStorage.setItem(ESPN_ID_CACHE_KEY,      espnIds);
     if(nhlIds)      localStorage.setItem(NHL_ID_CACHE_KEY,       nhlIds);
     if(mlbIds)      localStorage.setItem(MLB_ID_CACHE_KEY,       mlbIds);
     if(teamIds)     localStorage.setItem(TEAM_ID_STORAGE_KEY,    teamIds);
-    if(roleTiers)   localStorage.setItem(ROLE_TIERS_STORAGE_KEY, roleTiers);
     if(calibration) localStorage.setItem(CALIBRATION_KEY,        calibration);
     // Reset in-memory STATE so nothing re-saves during reload delay
     STATE.analysisCache = {};
@@ -2667,109 +2453,6 @@ function handleModalClick(e) {
   if(e.target === document.getElementById('settings-modal')) closeSettings();
 }
 
-// ── Roster Tier Editor ──────────────────────────────────────────────────────
-// Edits the dynamic ROLE_TIERS stored in localStorage (pe_role_tiers_v1).
-// Falls back to static ROLE_TIERS for reading, always saves to dynamic store.
-
-let _reCurrentRoster = []; // working copy while editing
-
-function openRosterEditor() {
-  closeSettings();
-  reLoadTeams();
-  document.getElementById('roster-editor-modal').classList.add('open');
-}
-function closeRosterEditor() {
-  document.getElementById('roster-editor-modal').classList.remove('open');
-}
-function handleRosterEditorClick(e) {
-  if(e.target === document.getElementById('roster-editor-modal')) closeRosterEditor();
-}
-
-function reGetAllTiers() {
-  // Merge static + dynamic, dynamic wins
-  const dyn = loadDynamicRoleTiers() || {};
-  const sport = document.getElementById('re-sport')?.value || 'NBA';
-  const staticForSport = {};
-  // Pull relevant teams from ROLE_TIERS
-  const nbaTeams = ['OKC','MEM','GSW','HOU','LAL','DEN','MIN','BOS','NYK','NY','CLE','IND','MIL','MIA','ORL','ATL','PHX','SAC','DAL','SAS','PHI','CHI','TOR','NO','DET','CHA','WAS','POR','UTA'];
-  const nhlTeams = ['FLA','TBL'];
-  const relevantKeys = sport === 'NHL' ? nhlTeams : nbaTeams;
-  for(const k of relevantKeys) {
-    if(ROLE_TIERS[k]) staticForSport[k] = ROLE_TIERS[k];
-  }
-  const dynForSport = dyn[sport] || {};
-  return { ...staticForSport, ...dynForSport };
-}
-
-function reLoadTeams() {
-  const sport = document.getElementById('re-sport')?.value || 'NBA';
-  const allTiers = reGetAllTiers();
-  const teamSel = document.getElementById('re-team');
-  if(!teamSel) return;
-  const teams = Object.keys(allTiers).sort();
-  teamSel.innerHTML = teams.map(t => `<option value="${t}">${t}</option>`).join('');
-  reLoadRoster();
-}
-
-function reLoadRoster() {
-  const team = document.getElementById('re-team')?.value;
-  if(!team) return;
-  const allTiers = reGetAllTiers();
-  _reCurrentRoster = JSON.parse(JSON.stringify(allTiers[team] || []));
-  reRenderRoster();
-}
-
-function reRenderRoster() {
-  const list = document.getElementById('re-roster-list');
-  if(!list) return;
-  if(!_reCurrentRoster.length) {
-    list.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px">No players. Add one below.</div>';
-    return;
-  }
-  list.innerHTML = _reCurrentRoster.map((p, i) => `
-    <div style="display:flex;gap:6px;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 8px">
-      <span style="flex:3;font-size:12px;color:var(--text)">${p.name}</span>
-      <select onchange="_reCurrentRoster[${i}].tier=parseInt(this.value)" style="flex:1;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px;font-size:11px">
-        <option value="1" ${p.tier===1?'selected':''}>T1 ⭐</option>
-        <option value="2" ${p.tier===2?'selected':''}>T2 🔵</option>
-        <option value="3" ${p.tier===3?'selected':''}>T3 ⚪</option>
-      </select>
-      <button onclick="_reCurrentRoster.splice(${i},1);reRenderRoster()" style="background:rgba(255,77,106,.15);color:var(--red);border:1px solid rgba(255,77,106,.3);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">✕</button>
-    </div>
-  `).join('');
-}
-
-function reAddPlayer() {
-  const nameEl = document.getElementById('re-new-name');
-  const tierEl = document.getElementById('re-new-tier');
-  const name = nameEl?.value.trim();
-  if(!name) { showToast('Enter a player name', 'warn'); return; }
-  const tier = parseInt(tierEl?.value || '2');
-  if(_reCurrentRoster.find(p => p.name.toLowerCase() === name.toLowerCase())) {
-    showToast(`${name} already in roster`, 'warn'); return;
-  }
-  _reCurrentRoster.push({ name, tier });
-  nameEl.value = '';
-  reRenderRoster();
-}
-
-function reSaveRoster() {
-  const sport = document.getElementById('re-sport')?.value || 'NBA';
-  const team = document.getElementById('re-team')?.value;
-  if(!team) return;
-  // Load existing dynamic tiers
-  let dyn = loadDynamicRoleTiers() || {};
-  if(!dyn[sport]) dyn[sport] = {};
-  dyn[sport][team] = JSON.parse(JSON.stringify(_reCurrentRoster));
-  try {
-    localStorage.setItem(ROLE_TIERS_STORAGE_KEY, JSON.stringify(dyn));
-    const statusEl = document.getElementById('re-status');
-    if(statusEl) { statusEl.textContent = `✓ ${team} saved — ${_reCurrentRoster.length} players`; setTimeout(()=>{ if(statusEl) statusEl.textContent=''; }, 3000); }
-    showToast(`${team} roster saved`, 'success');
-  } catch(e) {
-    showToast('Save failed: ' + e.message, 'error');
-  }
-}
 function loadSettingsIntoForm() {
   const s = STATE.settings;
   document.getElementById('s-odds-key').value = s.oddsApiKey || '';
@@ -4806,7 +4489,7 @@ async function runFetch(sportsToFetch) {
           const enrichFromDB = (playerName) => {
             const norm = s => (s||'').toLowerCase().trim();
             const target = norm(playerName);
-            return getPlayerDB(sport).find(p => norm(p.name) === target) || null;
+            return ((PLAYER_DB[sport]||[])).find(p => norm(p.name) === target) || null;
           };
 
           // ── TIER 1: Player discovery — MLB uses MLB API, others use ESPN ──
@@ -4926,7 +4609,7 @@ async function runFetch(sportsToFetch) {
           // ── TIER 3: PLAYER_DB filtered by team — last resort only ──
           if(candidatePool.length === 0) {
             traceLog('playerDiscovery', `${sport} ${home}v${away} T2 empty — using T3 PLAYER_DB fallback`, 'warn');
-            getPlayerDB(sport)
+            ((PLAYER_DB[sport]||[]))
               .filter(p => {
                 const t = p.team.toUpperCase();
                 return [home,away].some(a => a===t || a.includes(t.slice(0,3)) || t.includes(a.slice(0,3)));
@@ -4977,27 +4660,20 @@ async function runFetch(sportsToFetch) {
             .filter(p => p.name && p.name.trim().length > 1)
             .map(p => {
               const side    = resolveSide(p);
-              // Normalize ESPN short codes so getRoleTierScore finds the right ROLE_TIERS entry
-              const _nAbbr = a => { const m={'NY':'NYK','SA':'SAS','GS':'GSW','NO':'NOP','PHO':'PHX','UTAH':'UTA'}; return m[(a||'').toUpperCase()]||(a||''); };
-              const teamKey = _nAbbr(side === 'home' ? home : side === 'away' ? away : (p.meta?.team || p.teamAbbr || ''));
-              const rolePts = getRoleTierScore(p.name, teamKey, sport);
               const avgMins = getAvgMins(p.name, p.id, p.meta);
               const starterB = p.starter ? 5 : 0;
               // Penalize players with no snapshot data (likely inactive/retired)
-              // A cached snapshot with <5 games means ESPN has insufficient data for them
               const verifiedId = getVerifiedESPNId(p.name, p.id || null);
               let dataBonus = 0;
               if(verifiedId) {
                 try {
                   const snap = loadSnapshot(verifiedId, sport);
-                  if(snap && snap.sampleSize >= 10) dataBonus = 20;      // active player confirmed
-                  else if(snap && snap.sampleSize >= 5) dataBonus = 5;   // marginal
-                  else if(!snap) dataBonus = -50;                        // no snapshot = likely inactive
+                  if(snap && snap.sampleSize >= 10) dataBonus = 20;
+                  else if(snap && snap.sampleSize >= 5) dataBonus = 5;
+                  else if(!snap) dataBonus = -50;
                 } catch(e) {}
-              } else if(rolePts === 0) {
-                dataBonus = -30; // no ROLE_TIERS entry AND no ESPN ID = fringe/inactive
               }
-              return { ...p, _side: side, _score: rolePts * 10 + avgMins + starterB + dataBonus };
+              return { ...p, _side: side, _score: avgMins * 10 + starterB + dataBonus };
             })
             .sort((a, b) => b._score !== a._score ? b._score - a._score : a.name.localeCompare(b.name));
 
@@ -5105,17 +4781,11 @@ async function runFetch(sportsToFetch) {
 
     // ── GOLF: analysis mode only — no Odds API lines for golf ──
     if(viewMode === 'analysis' && sportsToFetch.includes('GOLF')) {
-      // Warn if golf field is stale (> 7 days since last manual update)
-      const golfFieldMs = STATE.golfFieldUpdatedAt || 0;
-      const daysSinceUpdate = (Date.now() - golfFieldMs) / (1000 * 60 * 60 * 24);
-      if(daysSinceUpdate > 7) {
-        showToast(`⛳ Golf field is ${Math.floor(daysSinceUpdate)} days old — update the player list in Settings for this week's tournament`, 'warn', 7000);
-      }
       const golfEvent = 'golf_tournament_today';
       const top3Golf = (PLAYER_DB.GOLF||[])
-        .slice() // don't mutate original
-        .sort((a, b) => (b.sgTotal || 0) - (a.sgTotal || 0)) // rank by SG:Total desc
-        .slice(0, 3); // HARD CAP: max 3 golf players
+        .slice()
+        .sort((a, b) => (b.sgTotal || 0) - (a.sgTotal || 0))
+        .slice(0, 3);
       for(const p of top3Golf) {
         playersToProcess.push({
           name:p.name, sport:'GOLF', espnSport:'golf', espnLeague:'pga', gameId: golfEvent,
@@ -5138,46 +4808,52 @@ async function runFetch(sportsToFetch) {
         const data = await fetchESPNInjuries(es,el);
         const map = {};
         // Confirmed site API structure (Apr 2026):
-        // { injuries: [{ displayName:"Dallas Mavericks", injuries:[{ athlete:{displayName:"Luka Doncic"}, status, details }] }] }
+        // { injuries: [{ displayName:"Dallas Mavericks", abbreviation:"DAL", injuries:[{ athlete:{displayName:"Luka Doncic"}, status, details }] }] }
         // Top-level injuries[] = teams; each team has injuries[] = players on that team
         const teamList = data?.injuries || data?.items || [];
-        // Flatten all player injury entries from all teams
-        const allPlayerInjuries = teamList.flatMap(team => team?.injuries || []);
-        allPlayerInjuries.forEach(inj=>{
-          // Player name is inside athlete.displayName
-          const n = inj.athlete?.displayName || inj.displayName || inj.fullName;
-          if(!n) return;
-          const rawStatus = (
-            inj.status ||
-            inj.details?.type ||
-            inj.injury?.type ||
-            inj.type?.description ||
+        // Keep team context — iterate teams, then players within each team
+        teamList.forEach(teamEntry => {
+          const teamAbbr = (
+            teamEntry?.abbreviation ||
+            teamEntry?.team?.abbreviation ||
+            teamEntry?.shortDisplayName ||
             ''
-          ).toLowerCase();
-          let normalized;
-          if(rawStatus.includes('out') || rawStatus.includes('injured reserve') ||
-             rawStatus.includes('ir') || rawStatus.includes('did not play') ||
-             rawStatus.includes('dnp') || rawStatus.includes('inactive') ||
-             rawStatus.includes('suspended')) {
-            normalized = 'Out';
-          } else if(rawStatus.includes('doubtful')) {
-            normalized = 'Doubtful';
-          } else if(rawStatus.includes('questionable') || rawStatus.includes('day-to-day') ||
-                    rawStatus.includes('dtd') || rawStatus.includes('limited')) {
-            normalized = 'Questionable';
-          } else if(rawStatus.includes('probable')) {
-            normalized = 'Probable';
-          } else if(rawStatus) {
-            normalized = inj.status || 'Questionable';
-          } else {
-            return; // skip if no meaningful status
-          }
-          // Store as object with status + date + position
-          const injDate = inj.date || inj.startDate || inj.details?.date ||
-                         inj.details?.returnDate || null;
-          const injPos = inj.athlete?.position?.abbreviation || inj.athlete?.position?.name || null;
-          map[n.toLowerCase()] = { status: normalized, date: injDate, position: injPos };
-        }); // end allPlayerInjuries.forEach
+          ).toUpperCase();
+          const playerInjuries = teamEntry?.injuries || [];
+          playerInjuries.forEach(inj=>{
+            const n = inj.athlete?.displayName || inj.displayName || inj.fullName;
+            if(!n) return;
+            const rawStatus = (
+              inj.status ||
+              inj.details?.type ||
+              inj.injury?.type ||
+              inj.type?.description ||
+              ''
+            ).toLowerCase();
+            let normalized;
+            if(rawStatus.includes('out') || rawStatus.includes('injured reserve') ||
+               rawStatus.includes('ir') || rawStatus.includes('did not play') ||
+               rawStatus.includes('dnp') || rawStatus.includes('inactive') ||
+               rawStatus.includes('suspended')) {
+              normalized = 'Out';
+            } else if(rawStatus.includes('doubtful')) {
+              normalized = 'Doubtful';
+            } else if(rawStatus.includes('questionable') || rawStatus.includes('day-to-day') ||
+                      rawStatus.includes('dtd') || rawStatus.includes('limited')) {
+              normalized = 'Questionable';
+            } else if(rawStatus.includes('probable')) {
+              normalized = 'Probable';
+            } else if(rawStatus) {
+              normalized = inj.status || 'Questionable';
+            } else {
+              return;
+            }
+            const injDate = inj.date || inj.startDate || inj.details?.date ||
+                           inj.details?.returnDate || null;
+            const injPos = inj.athlete?.position?.abbreviation || inj.athlete?.position?.name || null;
+            map[n.toLowerCase()] = { status: normalized, date: injDate, position: injPos, team: teamAbbr };
+          });
+        });
         injuriesBySport[sport] = map;
       } catch(e) {}
     }));
@@ -5213,7 +4889,7 @@ async function runFetch(sportsToFetch) {
         if(!dbEntry && player.name) {
           const norm = s => (s||'').toLowerCase().trim();
           const target = norm(player.name);
-          dbEntry = getPlayerDB(player.sport).find(p => norm(p.name) === target) || null;
+          dbEntry = ((PLAYER_DB[player.sport]||[])).find(p => norm(p.name) === target) || null;
         }
         let espnId = player.espnId || dbEntry?.id || null;
         // Derive myTeam and opp using player._side (set during ESPN/roster discovery).
@@ -5251,7 +4927,7 @@ async function runFetch(sportsToFetch) {
         // Step 1: Check PLAYER_DB for ESPN ID (works for all sports)
         if(!espnId && player.name) {
           const norm = s => (s||'').toLowerCase().trim();
-          const dbMatch = getPlayerDB(player.sport).find(p => norm(p.name) === norm(player.name));
+          const dbMatch = ((PLAYER_DB[player.sport]||[])).find(p => norm(p.name) === norm(player.name));
           if(dbMatch?.id) {
             espnId = String(dbMatch.id);
             traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN ID from player database → ${espnId}`, 'ok');
@@ -5748,609 +5424,8 @@ const PLAYER_DB = {
 };
 
 // ═══════════════════════════════════════════════════════
-// DYNAMIC PLAYER_DB — builds from synced roster tiers cache.
-// Falls back to static PLAYER_DB when cache is cold.
-// Golf always uses static (no live sync source).
+// PLAYER_DB lookup — static list, used for ESPN ID resolution and prop hints
 // ═══════════════════════════════════════════════════════
-
-// Default prop types by position for dynamic entries (no lineBase known)
-const _DYNAMIC_PROP_DEFAULTS = {
-  NBA:  { 'PG':'Points','SG':'Points','SF':'Points','PF':'Points','C':'Points', default:'Points' },
-  WNBA: { 'PG':'Points','SG':'Points','SF':'Points','PF':'Points','C':'Points', default:'Points' },
-  MLB:  { 'SP':'Strikeouts','C':'Hits','1B':'Hits','2B':'Hits','3B':'Hits','SS':'Hits','LF':'Total Bases','CF':'Total Bases','RF':'Total Bases','DH':'Total Bases', default:'Hits' },
-  NFL:  { 'QB':'Pass Yards','RB':'Rush Yards','WR':'Receiving Yards','TE':'Receiving Yards','K':'Kicking Points', default:'Receiving Yards' },
-  NHL:  { 'LW':'Points','RW':'Points','C':'Points','D':'Shots on Goal','G':'Saves', default:'Points' },
-};
-
-function getPlayerDB(sport) {
-  // Golf always static — no live sync
-  if(!sport || sport === 'GOLF') return PLAYER_DB.GOLF || [];
-
-  const s = sport.toUpperCase();
-  const dynamic = loadDynamicRoleTiers();
-  const sportData = dynamic?.[s];
-
-  // If no synced data for this sport, return static fallback
-  if(!sportData || Object.keys(sportData).length === 0) return PLAYER_DB[s] || [];
-
-  // Build a live player list from the synced roster tiers
-  const propDefaults = _DYNAMIC_PROP_DEFAULTS[s] || {};
-  const staticList   = PLAYER_DB[s] || [];
-  const norm = n => (n||'').toLowerCase().trim();
-
-  const dynamicList = [];
-  Object.entries(sportData).forEach(([teamAbbr, players]) => {
-    if(!Array.isArray(players)) return;
-    players.forEach(p => {
-      if(!p.name || p.tier > 2) return; // skip bench/tier-3 in dynamic build
-      // Find matching static entry to preserve ESPN ID and lineBase hints
-      const staticMatch = staticList.find(s => norm(s.name) === norm(p.name));
-      const prop = staticMatch?.prop
-        || propDefaults[p.position] || propDefaults['default'] || 'Points';
-      dynamicList.push({
-        id:       staticMatch?.id   || null,
-        nbaId:    staticMatch?.nbaId || null,
-        mlbId:    staticMatch?.mlbId || null,
-        name:     p.name,
-        team:     teamAbbr,
-        prop,
-        lineBase: staticMatch?.lineBase || null,
-        usage:    staticMatch?.usage    || (p.tier === 1 ? 0.27 : 0.18),
-        vol:      staticMatch?.vol      || (p.tier === 1 ? 'high' : 'med'),
-        threePct: staticMatch?.threePct || undefined,
-        sgTotal:  staticMatch?.sgTotal  || undefined,
-        _dynamic: true,
-      });
-    });
-  });
-
-  // If dynamic build came up empty (bad sync), fall back to static
-  return dynamicList.length > 0 ? dynamicList : (PLAYER_DB[s] || []);
-}
-
-// ═══════════════════════════════════════════════════════
-// ROLE_TIERS — Starter/rotation priority for ranking only.
-// NEVER used to filter which players are eligible — ESPN live API owns that.
-// Only affects sort order when the minutes cache is cold.
-// tier:1 = star/clear starter, tier:2 = rotation, tier:3 = bench/end-of-rotation
-// ═══════════════════════════════════════════════════════
-const ROLE_TIERS = {
-  // NBA 2025-26 verified current rosters (updated April 2026)
-  OKC: [{name:'Shai Gilgeous-Alexander',tier:1},{name:'Jalen Williams',tier:1},{name:'Chet Holmgren',tier:1},{name:'Luguentz Dort',tier:2},{name:'Isaiah Hartenstein',tier:2},{name:'Aaron Wiggins',tier:2},{name:'Alex Caruso',tier:2},{name:'Isaiah Joe',tier:3}],
-  // MEM: Desmond Bane traded to ORL
-  MEM: [{name:'Ja Morant',tier:1},{name:'Jaren Jackson Jr.',tier:1},{name:'Marcus Smart',tier:2},{name:'Santi Aldama',tier:2},{name:'Scotty Pippen Jr.',tier:2},{name:'GG Jackson II',tier:2}],
-  // GSW: Jimmy Butler IN (from MIA), Kristaps Porzingis IN (from ATL mid-season)
-  GSW: [{name:'Stephen Curry',tier:1},{name:'Jimmy Butler',tier:1},{name:'Draymond Green',tier:1},{name:'Kristaps Porzingis',tier:2},{name:'Jonathan Kuminga',tier:2},{name:'Moses Moody',tier:2}],
-  // HOU: Jalen Green + Dillon Brooks → PHX. Kevin Durant IN, Dorian Finney-Smith IN, Clint Capela IN
-  HOU: [{name:'Kevin Durant',tier:1},{name:'Alperen Sengun',tier:1},{name:'Amen Thompson',tier:2},{name:'Fred VanVleet',tier:2},{name:'Jabari Smith Jr.',tier:2},{name:'Tari Eason',tier:2},{name:'Dorian Finney-Smith',tier:2}],
-  // LAL: Luka Doncic IN (from DAL). Anthony Davis → DAL. Dorian Finney-Smith → HOU
-  LAL: [{name:'LeBron James',tier:1},{name:'Luka Doncic',tier:1},{name:'Austin Reaves',tier:2},{name:'Rui Hachimura',tier:2},{name:'Bronny James',tier:3}],
-  // DEN: MPJ → BKN, Westbrook → SAC. Cam Johnson IN, Tim Hardaway Jr. IN, Jonas Valanciunas IN
-  DEN: [{name:'Nikola Jokic',tier:1},{name:'Jamal Murray',tier:1},{name:'Aaron Gordon',tier:2},{name:'Cam Johnson',tier:2},{name:'Kentavious Caldwell-Pope',tier:2},{name:'Christian Braun',tier:2},{name:'Tim Hardaway Jr.',tier:2},{name:'Jonas Valanciunas',tier:2}],
-  MIN: [{name:'Anthony Edwards',tier:1},{name:'Rudy Gobert',tier:1},{name:'Jaden McDaniels',tier:2},{name:'Naz Reid',tier:2},{name:'Julius Randle',tier:2},{name:'Mike Conley',tier:2}],
-  // BOS: Porzingis → ATL, Jrue Holiday → POR, Al Horford gone. Anfernee Simons IN (from POR). Tatum out (Achilles)
-  BOS: [{name:'Jaylen Brown',tier:1},{name:'Derrick White',tier:2},{name:'Payton Pritchard',tier:2},{name:'Anfernee Simons',tier:2},{name:'Sam Hauser',tier:2}],
-  NYK: [{name:'Jalen Brunson',tier:1},{name:'Karl-Anthony Towns',tier:1},{name:'OG Anunoby',tier:2},{name:'Mikal Bridges',tier:2},{name:'Josh Hart',tier:2},{name:'Miles McBride',tier:2}],
-  NY:  [{name:'Jalen Brunson',tier:1},{name:'Karl-Anthony Towns',tier:1},{name:'OG Anunoby',tier:2},{name:'Mikal Bridges',tier:2},{name:'Josh Hart',tier:2},{name:'Miles McBride',tier:2}],
-  CLE: [{name:'Donovan Mitchell',tier:1},{name:'Darius Garland',tier:1},{name:'Evan Mobley',tier:1},{name:'Jarrett Allen',tier:2},{name:'Max Strus',tier:2},{name:'Ty Jerome',tier:2},{name:'Isaac Okoro',tier:2}],
-  IND: [{name:'Tyrese Haliburton',tier:1},{name:'Pascal Siakam',tier:1},{name:'Myles Turner',tier:2},{name:'Bennedict Mathurin',tier:2},{name:'Andrew Nembhard',tier:2},{name:'Aaron Nesmith',tier:2},{name:'T.J. McConnell',tier:2}],
-  // MIL: Damian Lillard out (torn Achilles/buyout), Khris Middleton → DAL. Kyle Kuzma IN (trade deadline), Bobby Portis re-signed
-  MIL: [{name:'Giannis Antetokounmpo',tier:1},{name:'Bobby Portis',tier:2},{name:'Brook Lopez',tier:2},{name:'Gary Trent Jr.',tier:2},{name:'Kyle Kuzma',tier:2}],
-  // MIA: Jimmy Butler → GSW. Andrew Wiggins + Norman Powell IN. Haywood Highsmith → PHX
-  MIA: [{name:'Bam Adebayo',tier:1},{name:'Tyler Herro',tier:1},{name:'Andrew Wiggins',tier:2},{name:'Norman Powell',tier:2},{name:'Terry Rozier',tier:2},{name:'Duncan Robinson',tier:2}],
-  // ORL: Desmond Bane IN (from MEM)
-  ORL: [{name:'Paolo Banchero',tier:1},{name:'Franz Wagner',tier:1},{name:'Desmond Bane',tier:1},{name:'Jalen Suggs',tier:2},{name:'Wendell Carter Jr.',tier:2},{name:'Moritz Wagner',tier:2}],
-  // ATL: Porzingis → GSW mid-season, Trae Young → WAS. NAW still there
-  ATL: [{name:'Dyson Daniels',tier:1},{name:'Jalen Johnson',tier:1},{name:'Zaccharie Risacher',tier:1},{name:'Onyeka Okongwu',tier:2},{name:'Bogdan Bogdanovic',tier:2},{name:'Nickeil Alexander-Walker',tier:2}],
-  // PHX: KD → HOU, Beal buyout, Nurkic buyout. Jalen Green + Dillon Brooks IN from HOU
-  PHX: [{name:'Devin Booker',tier:1},{name:'Jalen Green',tier:1},{name:'Dillon Brooks',tier:2},{name:'Grayson Allen',tier:2},{name:"Royce O'Neale",tier:2},{name:'Ryan Dunn',tier:2}],
-  // SAC: De'Aaron Fox → SAS. Zach LaVine IN, Russell Westbrook IN
-  SAC: [{name:'Domantas Sabonis',tier:1},{name:'Zach LaVine',tier:1},{name:'DeMar DeRozan',tier:2},{name:'Keegan Murray',tier:2},{name:'Malik Monk',tier:2},{name:'Russell Westbrook',tier:3}],
-  // DAL: Luka → LAL, THJ → DEN. Anthony Davis IN from LAL. Kyrie Irving still there
-  DAL: [{name:'Anthony Davis',tier:1},{name:'Kyrie Irving',tier:1},{name:'Klay Thompson',tier:2},{name:'PJ Washington',tier:2},{name:'Daniel Gafford',tier:2},{name:'Dereck Lively II',tier:2}],
-  // SAS: Fox IN ✓. Chris Paul retired. Zach Collins → CHI
-  SAS: [{name:'Victor Wembanyama',tier:1},{name:"De'Aaron Fox",tier:1},{name:'Stephon Castle',tier:2},{name:'Devin Vassell',tier:2},{name:'Keldon Johnson',tier:2},{name:'Julian Champagnie',tier:2}],
-  PHI: [{name:'Joel Embiid',tier:1},{name:'Tyrese Maxey',tier:1},{name:'Paul George',tier:1},{name:'Kelly Oubre Jr.',tier:2},{name:'Caleb Martin',tier:2},{name:'Neemias Queta',tier:2},{name:'Andre Drummond',tier:3}],
-  // CHI: Zach LaVine → SAC. Zach Collins IN from SAS
-  CHI: [{name:'Nikola Vucevic',tier:1},{name:'Coby White',tier:2},{name:'Patrick Williams',tier:2},{name:'Ayo Dosunmu',tier:2},{name:'Matas Buzelis',tier:2},{name:'Zach Collins',tier:2}],
-  // TOR: Bruce Brown gone (went to DEN). Brandon Ingram IN (from NO)
-  TOR: [{name:'Scottie Barnes',tier:1},{name:'RJ Barrett',tier:1},{name:'Brandon Ingram',tier:1},{name:'Immanuel Quickley',tier:2},{name:'Jakob Poeltl',tier:2},{name:'Gradey Dick',tier:2}],
-  // NO: Jonas Valanciunas → DEN, CJ McCollum → WAS. Jordan Poole IN from WAS. Brandon Ingram → TOR
-  NO:  [{name:'Zion Williamson',tier:1},{name:'Trey Murphy III',tier:2},{name:'Herb Jones',tier:2},{name:'Jordan Poole',tier:2},{name:'Dejounte Murray',tier:2}],
-  // DET: Tim Hardaway Jr. → DEN
-  DET: [{name:'Cade Cunningham',tier:1},{name:'Jalen Duren',tier:2},{name:'Ausar Thompson',tier:2},{name:'Isaiah Stewart',tier:2},{name:'Malik Beasley',tier:2}],
-  CHA: [{name:'LaMelo Ball',tier:1},{name:'Brandon Miller',tier:2},{name:'Miles Bridges',tier:2},{name:'Nick Richards',tier:2}],
-  // WAS: CJ McCollum IN from NO. Trae Young IN from ATL mid-season
-  WAS: [{name:'Trae Young',tier:1},{name:'Alexandre Sarr',tier:1},{name:'CJ McCollum',tier:2},{name:'Tyus Jones',tier:2},{name:'Bilal Coulibaly',tier:2}],
-  // POR: Anfernee Simons → BOS, Deandre Ayton buyout, Malcolm Brogdon retired. Jrue Holiday + Damian Lillard IN (Lillard out with Achilles)
-  POR: [{name:'Deni Avdija',tier:1},{name:'Scoot Henderson',tier:1},{name:'Jerami Grant',tier:1},{name:'Jrue Holiday',tier:2},{name:'Toumani Camara',tier:2},{name:'Robert Williams III',tier:2},{name:'Shaedon Sharpe',tier:2}],
-  UTA: [{name:'Lauri Markkanen',tier:1},{name:'Keyonte George',tier:2},{name:'Walker Kessler',tier:2},{name:'Jordan Clarkson',tier:2},{name:'Collin Sexton',tier:2}],
-  // NHL playoff teams
-  FLA: [{name:'Aleksander Barkov',tier:1},{name:'Matthew Tkachuk',tier:1},{name:'Sam Reinhart',tier:1},{name:'Carter Verhaeghe',tier:2},{name:'Sergei Bobrovsky',tier:1},{name:'Gustav Forsling',tier:2}],
-  TBL: [{name:'Nikita Kucherov',tier:1},{name:'Brayden Point',tier:1},{name:'Steven Stamkos',tier:2},{name:'Andrei Vasilevskiy',tier:1},{name:'Victor Hedman',tier:1}],
-};
-
-// ===================================================
-// DYNAMIC ROLE TIERS — persisted to localStorage, never deleted.
-// Built by runRosterTiersSync(). Falls back to static ROLE_TIERS.
-// ===================================================
-const ROLE_TIERS_STORAGE_KEY = 'pe_role_tiers_v1';
-function loadDynamicRoleTiers() {
-  try { return JSON.parse(localStorage.getItem(ROLE_TIERS_STORAGE_KEY) || 'null'); } catch(e) { return null; }
-}
-function saveDynamicRoleTiers(data) {
-  try { localStorage.setItem(ROLE_TIERS_STORAGE_KEY, JSON.stringify(data)); return true; } catch(e) { return false; }
-}
-
-// Get ROLE_TIERS priority score for ranking only. Checks live synced tiers first, then static.
-// Returns 100/50/20/0. Never blocks a player from appearing.
-function getRoleTierScore(playerName, teamAbbr, sport) {
-  if(!playerName || !teamAbbr) return 0;
-  const norm = s => (s||'').toLowerCase().trim().replace(/[\x27''.,-]/g,'');
-  const target = norm(playerName);
-  const abbrMap = { 'NY':'NYK','SA':'SAS','GS':'GSW','NO':'NOP','PHO':'PHX','UTAH':'UTA' };
-  const abbr = abbrMap[teamAbbr.toUpperCase()] || teamAbbr.toUpperCase();
-  const findIn = list => list && list.find(p => {
-    const pn = norm(p.name);
-    if(pn === target) return true;
-    const tL = target.split(' ').pop(), pL = pn.split(' ').pop();
-    return tL.length > 3 && tL === pL;
-  });
-  const toScore = e => e ? (e.tier === 1 ? 100 : e.tier === 2 ? 50 : 20) : 0;
-  // 1. Dynamic synced tiers (most current — from Roster Tiers Sync button)
-  const dynamic = loadDynamicRoleTiers();
-  const dynTeam = dynamic?.[(sport||'NBA').toUpperCase()]?.[abbr];
-  if(dynTeam && dynTeam.length > 0) { const e = findIn(dynTeam); if(e) return toScore(e); }
-  // 2. Static fallback
-  return toScore(findIn(ROLE_TIERS[abbr]));
-}
-
-// ===================================================
-// ROSTER TIERS SYNC — pulls all rosters + minutes from ESPN,
-// ranks players by avg minutes, saves to localStorage permanently.
-// Run from Trace tab > Roster Tiers Sync. Never deleted on clear.
-// ===================================================
-const ROSTER_SYNC_TEAM_IDS = {
-  NBA: [
-    {id:'1',abbr:'ATL'},{id:'2',abbr:'BOS'},{id:'3',abbr:'BKN'},
-    {id:'4',abbr:'CHA'},{id:'5',abbr:'CHI'},{id:'6',abbr:'CLE'},
-    {id:'7',abbr:'DAL'},{id:'8',abbr:'DEN'},{id:'9',abbr:'DET'},
-    {id:'10',abbr:'GSW'},{id:'11',abbr:'HOU'},{id:'12',abbr:'IND'},
-    {id:'13',abbr:'LAC'},{id:'14',abbr:'LAL'},{id:'15',abbr:'MEM'},
-    {id:'16',abbr:'MIA'},{id:'17',abbr:'MIL'},{id:'18',abbr:'MIN'},
-    {id:'19',abbr:'NOP'},{id:'20',abbr:'NYK'},{id:'21',abbr:'OKC'},
-    {id:'22',abbr:'ORL'},{id:'23',abbr:'PHI'},{id:'24',abbr:'PHX'},
-    {id:'25',abbr:'POR'},{id:'26',abbr:'SAC'},{id:'27',abbr:'SAS'},
-    {id:'28',abbr:'TOR'},{id:'29',abbr:'UTA'},{id:'30',abbr:'WAS'},
-  ],
-  WNBA: [
-    {id:'1',abbr:'ATL'},{id:'2',abbr:'CHI'},{id:'3',abbr:'CON'},
-    {id:'4',abbr:'DAL'},{id:'5',abbr:'IND'},{id:'6',abbr:'LVA'},
-    {id:'7',abbr:'MIN'},{id:'8',abbr:'NYL'},{id:'9',abbr:'PHX'},
-    {id:'10',abbr:'SEA'},{id:'11',abbr:'WAS'},{id:'14',abbr:'GS'},
-    {id:'16',abbr:'TOR'},{id:'17',abbr:'POR'},{id:'20',abbr:'CLE'},
-  ],
-  NHL: [
-    {id:'1',abbr:'ANA'},{id:'2',abbr:'ARI'},{id:'3',abbr:'BOS'},
-    {id:'4',abbr:'BUF'},{id:'5',abbr:'CGY'},{id:'6',abbr:'CAR'},
-    {id:'7',abbr:'CHI'},{id:'8',abbr:'COL'},{id:'9',abbr:'CBJ'},
-    {id:'10',abbr:'DAL'},{id:'11',abbr:'DET'},{id:'12',abbr:'EDM'},
-    {id:'13',abbr:'FLA'},{id:'14',abbr:'LAK'},{id:'15',abbr:'MIN'},
-    {id:'16',abbr:'MTL'},{id:'17',abbr:'NSH'},{id:'18',abbr:'NJD'},
-    {id:'19',abbr:'NYI'},{id:'20',abbr:'NYR'},{id:'21',abbr:'OTT'},
-    {id:'22',abbr:'PHI'},{id:'23',abbr:'PIT'},{id:'24',abbr:'STL'},
-    {id:'25',abbr:'SJS'},{id:'26',abbr:'SEA'},{id:'27',abbr:'TBL'},
-    {id:'28',abbr:'TOR'},{id:'29',abbr:'VAN'},{id:'30',abbr:'VGK'},
-    {id:'31',abbr:'WSH'},{id:'32',abbr:'WPG'},
-  ],
-  // NFL uses existing NFL_TEAM_IDS — mapped here for unified sync interface
-  NFL: [
-    {id:'1',abbr:'ATL'},{id:'2',abbr:'BUF'},{id:'3',abbr:'CHI'},{id:'4',abbr:'CIN'},
-    {id:'5',abbr:'CLE'},{id:'6',abbr:'DAL'},{id:'7',abbr:'DEN'},{id:'8',abbr:'DET'},
-    {id:'9',abbr:'GB'},{id:'10',abbr:'TEN'},{id:'11',abbr:'IND'},{id:'12',abbr:'KC'},
-    {id:'13',abbr:'LV'},{id:'14',abbr:'LAR'},{id:'15',abbr:'MIA'},{id:'16',abbr:'MIN'},
-    {id:'17',abbr:'NE'},{id:'18',abbr:'NO'},{id:'19',abbr:'NYG'},{id:'20',abbr:'NYJ'},
-    {id:'21',abbr:'PHI'},{id:'22',abbr:'ARI'},{id:'23',abbr:'PIT'},{id:'24',abbr:'LAC'},
-    {id:'25',abbr:'SF'},{id:'26',abbr:'SEA'},{id:'27',abbr:'TB'},{id:'28',abbr:'WSH'},
-    {id:'29',abbr:'CAR'},{id:'30',abbr:'JAX'},{id:'33',abbr:'BAL'},{id:'34',abbr:'HOU'},
-  ],
-  // MLB uses MLB Stats API (null = dynamic fetch in runRosterTiersSync)
-  MLB: null,
-};
-
-async function runRosterTiersSync(sport) {
-  sport = (sport || 'NBA').toUpperCase();
-  const STATUS_EL = document.getElementById('roster-tiers-status');
-  const detailEl  = document.getElementById('roster-tiers-detail');
-  const btnIds = { NBA:'btn-roster-nba', WNBA:'btn-roster-wnba', NHL:'btn-roster-nhl',
-                   NFL:'btn-roster-nfl', MLB:'btn-roster-mlb' };
-  const btn = document.getElementById(btnIds[sport]);
-
-  if(STATUS_EL) { STATUS_EL.style.display = 'block'; STATUS_EL.innerHTML = 'Starting ' + sport + ' sync...'; }
-  if(detailEl)  detailEl.style.display = 'none';
-  if(btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
-
-  // Sport-specific ESPN config
-  const espnConfig = {
-    NBA:  { sport:'basketball', league:'nba',      teams: ROSTER_SYNC_TEAM_IDS.NBA  },
-    WNBA: { sport:'basketball', league:'wnba',     teams: ROSTER_SYNC_TEAM_IDS.WNBA },
-    NHL:  { sport:'hockey',     league:'nhl',      teams: ROSTER_SYNC_TEAM_IDS.NHL  },
-    NFL:  { sport:'football',   league:'nfl',      teams: ROSTER_SYNC_TEAM_IDS.NFL  },
-    MLB:  { sport:'baseball',   league:'mlb',      teams: null }, // uses MLB Stats API
-  };
-  const cfg = espnConfig[sport];
-  if(!cfg) { if(STATUS_EL) STATUS_EL.innerHTML = 'Unknown sport: ' + sport; return; }
-
-  // Load existing data to preserve other sports, then overwrite this sport fresh.
-  // Hitting the button always gives you a clean slate for that sport.
-  const allTiers = loadDynamicRoleTiers() || {};
-  if(!allTiers._meta) allTiers._meta = {};
-  allTiers[sport] = {}; // full overwrite for this sport — no merge with old data
-
-  let doneTeams = 0, totalPlayers = 0;
-  const pBar = (d, t) => {
-    const pct = t > 0 ? Math.round(d/t*100) : 0;
-    return '<div style="background:var(--bg3);border-radius:4px;margin-top:5px;height:3px">'
-         + '<div style="background:var(--accent);height:3px;border-radius:4px;width:' + pct + '%;transition:width .2s"></div></div>';
-  };
-
-  // ── MLB: special path — uses MLB Stats API, ranks batters by PA/G, SP only for pitchers ──
-  if(sport === 'MLB') {
-    if(STATUS_EL) STATUS_EL.innerHTML = 'Fetching MLB team list...';
-    let teams = [];
-    try {
-      const td = await fetchWithFallback('https://statsapi.mlb.com/api/v1/teams?sportId=1&activeStatus=Y');
-      teams = td?.teams || [];
-    } catch(e) { if(STATUS_EL) STATUS_EL.innerHTML = '<span style="color:var(--red)">Failed to fetch MLB teams: ' + e.message + '</span>'; if(btn){btn.disabled=false;btn.style.opacity='1';} return; }
-
-    for(const team of teams) {
-      if(STATUS_EL) STATUS_EL.innerHTML = '<div>Syncing MLB — ' + (doneTeams+1) + '/' + teams.length + ': <b>' + (team.abbreviation||team.name) + '</b></div>' + pBar(doneTeams, teams.length);
-      try {
-        // Fetch active roster
-        const rData = await fetchWithFallback('https://statsapi.mlb.com/api/v1/teams/' + team.id + '/roster?rosterType=active');
-        const roster = rData?.roster || [];
-
-        // For each player fetch season stats to get plate appearances / ERA
-        const BATCH = 5;
-        const playerData = [];
-        for(let i = 0; i < roster.length; i += BATCH) {
-          const batch = roster.slice(i, i + BATCH);
-          const results = await Promise.allSettled(batch.map(async p => {
-            const pid  = p.person?.id;
-            const name = p.person?.fullName || '';
-            const pos  = p.position?.abbreviation || '';
-            if(!pid || !name) return null;
-            let sortVal = 0, isPitcher = pos === 'P' || pos === 'SP' || pos === 'RP';
-            try {
-              const group = isPitcher ? 'pitching' : 'hitting';
-              const sd = await fetchWithFallback(
-                'https://statsapi.mlb.com/api/v1/people/' + pid + '/stats?stats=season&season=' + new Date().getFullYear() + '&group=' + group
-              );
-              const splits = sd?.stats?.[0]?.splits || [];
-              if(splits.length > 0) {
-                const stat = splits[0].stat || {};
-                // Batters: rank by plateAppearances; SP: rank by inningsPitched; RP: de-prioritize
-                if(!isPitcher) sortVal = stat.plateAppearances || stat.atBats || 0;
-                else if(pos === 'SP') sortVal = parseFloat(stat.inningsPitched || 0) + 1000; // SP always above RP
-                else sortVal = parseFloat(stat.inningsPitched || 0); // RP
-              }
-            } catch(e2) {}
-            return { name, position: pos, sortVal, isPitcher };
-          }));
-          results.forEach(r => { if(r.status === 'fulfilled' && r.value?.name) playerData.push(r.value); });
-          await new Promise(r => setTimeout(r, 50));
-        }
-
-        // Separate batters and pitchers
-        const batters  = playerData.filter(p => !p.isPitcher).sort((a,b) => b.sortVal - a.sortVal);
-        const starters = playerData.filter(p => p.isPitcher && (p.position === 'SP' || p.sortVal > 1000)).sort((a,b) => b.sortVal - a.sortVal);
-        // Tier batters: top 9 = lineup (tier 1), next 4 = bench (tier 2), rest = tier 3
-        // Pitchers: only SP tier 1 — RP are not tiered (excluded from projections)
-        const tiered = [
-          ...batters.map((p, idx) => ({ name: p.name, tier: idx < 9 ? 1 : idx < 13 ? 2 : 3, position: p.position, sortVal: p.sortVal })),
-          ...starters.slice(0, 5).map((p, idx) => ({ name: p.name, tier: 1, position: 'SP', sortVal: p.sortVal, isSP: true })),
-        ];
-        allTiers[sport][team.abbreviation || team.name] = tiered;
-        totalPlayers += tiered.length;
-      } catch(e) { /* skip */ }
-      doneTeams++;
-      await new Promise(r => setTimeout(r, 100));
-    }
-
-  // ── NFL: ESPN roster, filter to skill positions only, tier by PLAYER_DB snapPct then position rank ──
-  } else if(sport === 'NFL') {
-    const SKILL_POS = new Set(['QB','RB','WR','TE','K']); // offensive skill + kicker
-    // DE/LB/CB/S are worth tracking for tackles/sacks props — include top defenders
-    const DEF_POS   = new Set(['DE','DT','LB','CB','S','OLB','MLB','ILB','SS','FS','NT']);
-    const teams = cfg.teams || [];
-
-    for(const team of teams) {
-      if(STATUS_EL) STATUS_EL.innerHTML = '<div>Syncing NFL — ' + (doneTeams+1) + '/' + teams.length + ': <b>' + team.abbr + '</b></div>' + pBar(doneTeams, teams.length);
-      try {
-        const rData = await fetchWithFallback(
-          'https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/' + team.id + '/roster'
-        );
-        const athletes = (rData?.athletes || []).flatMap(g => g?.items || (g?.id ? [g] : []));
-
-        // Filter to skill + key defensive positions, match against PLAYER_DB for snapPct
-        const normKey = s => (s||'').toLowerCase().replace(/[^a-z ]/g,'').trim();
-        const players = athletes.map(a => {
-          const pos  = a.position?.abbreviation || '';
-          const name = a.displayName || a.fullName || '';
-          if(!name) return null;
-          const isSkill = SKILL_POS.has(pos);
-          const isDef   = DEF_POS.has(pos);
-          if(!isSkill && !isDef) return null; // skip OL, P, LS etc.
-          // Look up snapPct from PLAYER_DB
-          const dbEntry = (PLAYER_DB.NFL||[]).find(p => normKey(p.name) === normKey(name));
-          const snapPct = dbEntry?.snapPct || 0;
-          return { name, position: pos, snapPct, isSkill, isDef };
-        }).filter(Boolean);
-
-        // Sort: QB first (always tier 1), then by snapPct desc within skill/def groups
-        const qbs  = players.filter(p => p.position === 'QB');
-        const skill = players.filter(p => p.isSkill && p.position !== 'QB').sort((a,b) => b.snapPct - a.snapPct);
-        const defs  = players.filter(p => p.isDef).sort((a,b) => b.snapPct - a.snapPct);
-
-        const tiered = [
-          ...qbs.map((p, idx)   => ({ name: p.name, tier: idx === 0 ? 1 : 3, position: p.position, snapPct: p.snapPct })),
-          ...skill.map((p, idx) => ({ name: p.name, tier: idx < 4 ? 1 : idx < 8 ? 2 : 3, position: p.position, snapPct: p.snapPct })),
-          ...defs.map((p, idx)  => ({ name: p.name, tier: idx < 3 ? 2 : 3, position: p.position, snapPct: p.snapPct })),
-        ];
-        allTiers[sport][team.abbr] = tiered;
-        totalPlayers += tiered.length;
-      } catch(e) { /* skip */ }
-      doneTeams++;
-      await new Promise(r => setTimeout(r, 100));
-    }
-
-  // ── NBA / WNBA / NHL: ESPN stats endpoint for avg minutes, with intelligent fallback ──
-  } else {
-    const espnSport  = cfg.sport;
-    const espnLeague = cfg.league;
-    const teams = cfg.teams || [];
-
-    // Position priority for fallback ranking when minutes data is unavailable
-    // (e.g. pre-season, off-season, or ESPN returns empty stats)
-    const POS_PRIORITY = {
-      // NBA/WNBA — starter positions rank higher
-      'PG':10,'SG':10,'SF':9,'PF':9,'C':9,'G':8,'F':8,'G-F':7,'F-G':7,'F-C':7,'C-F':7,
-      // NHL — forwards and key D rank higher
-      'LW':10,'RW':10,'C':10,'D':8,'G':1,
-    };
-    const posScore = p => POS_PRIORITY[(p.position||'').toUpperCase()] || 5;
-
-    // PLAYER_DB usage lookup — reliable signal when ESPN stats are empty
-    const normKey = s => (s||'').toLowerCase().replace(/[^a-z ]/g,'').trim();
-    const dbUsageMap = {};
-    const dbSport = sport === 'WNBA' ? 'WNBA' : sport === 'NHL' ? 'NHL' : 'NBA';
-    for(const p of getPlayerDB(dbSport)) {
-      if(p.name && (p.usage || p.snapPct)) {
-        dbUsageMap[normKey(p.name)] = p.usage || p.snapPct || 0;
-      }
-    }
-
-    for(const team of teams) {
-      if(STATUS_EL) STATUS_EL.innerHTML = '<div>Syncing ' + sport + ' — ' + (doneTeams+1) + '/' + teams.length + ': <b>' + team.abbr + '</b></div>' + pBar(doneTeams, teams.length);
-      try {
-        const rData = await fetchWithFallback(
-          'https://site.api.espn.com/apis/site/v2/sports/' + espnSport + '/' + espnLeague + '/teams/' + team.id + '/roster'
-        );
-        const athletes = (rData?.athletes || []).flatMap(g => g?.items || (g?.id ? [g] : []));
-        if(!athletes.length) { doneTeams++; continue; }
-
-        // Step 1: fetch minutes via gamelog in batches
-        // Uses the same gamelog endpoint the projection engine uses — reliable and current
-        const now2 = new Date();
-        const seasonYear2 = (now2.getMonth()+1) >= 10 ? now2.getFullYear()+1 : now2.getFullYear();
-        const BATCH = 6;
-        const playerData = [];
-        for(let i = 0; i < athletes.length; i += BATCH) {
-          const batch = athletes.slice(i, i + BATCH);
-          const results = await Promise.allSettled(batch.map(async a => {
-            if(!a?.id) return null;
-            let avgMins = 0;
-
-            try {
-              const glUrl = `https://site.web.api.espn.com/apis/common/v3/sports/${espnSport}/${espnLeague}/athletes/${a.id}/gamelog?limit=200&season=${seasonYear2}&seasontype=2`;
-              const gl = await fetchWithFallback(glUrl);
-
-              // Team validation from gamelog response — this endpoint reliably returns current team
-              const glTeamAbbr = (
-                gl?.athlete?.team?.abbreviation ||
-                gl?.team?.abbreviation ||
-                ''
-              ).toUpperCase().replace(/\s/g,'');
-              if(glTeamAbbr && glTeamAbbr.length >= 2) {
-                const normMap = {'NY':'NYK','SA':'SAS','GS':'GSW','NO':'NOP','PHO':'PHX','UTAH':'UTA'};
-                const normalized = normMap[glTeamAbbr] || glTeamAbbr;
-                const expected   = normMap[team.abbr.toUpperCase()] || team.abbr.toUpperCase();
-                if(normalized !== expected) return null; // player is on a different team per gamelog
-              }
-
-              // Parse minutes from season summary categories
-              const cats = gl?.seasonTypes?.[0]?.categories || gl?.categories || [];
-              for(const cat of cats) {
-                const labels = cat.labels || cat.names || [];
-                const values = cat.totals || cat.values || [];
-                const mIdx = labels.findIndex(l => l === 'MIN' || l === 'avgMinutes' || l === 'min');
-                if(mIdx >= 0 && values[mIdx]) {
-                  const raw = values[mIdx];
-                  if(typeof raw === 'string' && raw.includes(':')) {
-                    const [mm, ss] = raw.split(':').map(Number);
-                    avgMins = mm + (ss/60);
-                  } else {
-                    avgMins = parseFloat(raw) || 0;
-                  }
-                  if(avgMins > 0) break;
-                }
-              }
-
-              // Fallback: average minutes from individual game events
-              if(!avgMins) {
-                const events = gl?.events || gl?.seasonTypes?.[0]?.events || [];
-                if(events.length > 0) {
-                  // Find the min label index from the first event's category
-                  const firstCats = gl?.seasonTypes?.[0]?.categories || [];
-                  let minIdx = -1;
-                  for(const cat of firstCats) {
-                    const labels = cat.labels || cat.names || [];
-                    minIdx = labels.findIndex(l => l === 'MIN' || l === 'min');
-                    if(minIdx >= 0) break;
-                  }
-                  if(minIdx >= 0) {
-                    const minsArr = events.map(ev => parseFloat((ev.stats||ev.statistics||[])[minIdx]||0)).filter(m => m > 0);
-                    if(minsArr.length) avgMins = minsArr.reduce((a,b)=>a+b,0) / minsArr.length;
-                  }
-                }
-              }
-            } catch(e2) {}
-            return { name: a.displayName||a.fullName||'', position: a.position?.abbreviation||'', avgMins };
-          }));
-          results.forEach(r => { if(r.status === 'fulfilled' && r.value?.name) playerData.push(r.value); });
-          await new Promise(r => setTimeout(r, 80));
-        }
-
-        const validPlayers = playerData.filter(p => p.name.length > 1);
-
-        // Step 2: detect if ESPN returned meaningful minutes data
-        // If >80% of players have 0 mins, ESPN stats are empty (off-season / new season)
-        const withMins = validPlayers.filter(p => p.avgMins > 0).length;
-        const minsDataAvailable = withMins > 0 && (withMins / validPlayers.length) > 0.2;
-
-        // Step 3: enrich each player with PLAYER_DB usage as fallback sort signal
-        const enriched = validPlayers.map(p => {
-          const dbUsage = dbUsageMap[normKey(p.name)] || 0;
-          // sortVal: ESPN mins if available, else PLAYER_DB usage*100 (rescaled to ~mpg range),
-          // else position priority score. This gives a meaningful rank regardless of season timing.
-          const sortVal = minsDataAvailable && p.avgMins > 0
-            ? p.avgMins
-            : dbUsage > 0
-              ? dbUsage * 100          // usage 0.30 → 30, comparable to mpg
-              : posScore(p) * 2;       // position fallback: PG/SG → 20, C/F → 18 etc.
-          return { ...p, sortVal, dbUsage };
-        }).sort((a, b) => b.sortVal - a.sortVal);
-
-        // Step 4: assign tiers based on sorted rank
-        // NBA/WNBA: top 5 by minutes = tier 1, next 5 = tier 2, rest = tier 3
-        // This ensures best players on each team always get tier 1 regardless of exact minute count
-        const tiered = enriched.map((p, idx) => {
-          let tier;
-          if(sport === 'NHL') {
-            tier = idx < 6 ? 1 : idx < 14 ? 2 : 3;
-          } else {
-            // Rank-based: top 5 starters = tier 1, next 5 rotation = tier 2
-            // Secondary guard: if mins available, still use 28+ as tier 1 floor for stars
-            // but always guarantee top 5 are tier 1 regardless
-            if(minsDataAvailable && p.avgMins > 0) {
-              tier = (idx < 5 || p.avgMins >= 30) ? 1 : (idx < 10 || p.avgMins >= 20) ? 2 : 3;
-            } else {
-              tier = idx < 5 ? 1 : idx < 10 ? 2 : 3;
-            }
-          }
-          return {
-            name: p.name, tier,
-            avgMins: parseFloat((p.avgMins || 0).toFixed(1)),
-            position: p.position,
-            // Flag so View Tiers can show a note when mins came from fallback
-            ...(minsDataAvailable ? {} : { fallback: p.dbUsage > 0 ? 'db' : 'pos' }),
-          };
-        });
-
-        allTiers[sport][team.abbr] = tiered;
-        totalPlayers += tiered.length;
-      } catch(e) { /* skip */ }
-      doneTeams++;
-      await new Promise(r => setTimeout(r, 100));
-    }
-  }
-
-  // Stamp season + sync date so View shows when data is from
-  const year = new Date().getFullYear();
-  const month = new Date().getMonth() + 1;
-  // NBA season: Oct-Jun spans two calendar years
-  const nbaSeasonLabel = (sport === 'NBA' || sport === 'WNBA')
-    ? (month >= 10 ? year + '-' + (year+1) : (year-1) + '-' + year)
-    : String(year);
-  allTiers._meta[sport] = {
-    syncedAt: new Date().toISOString(),
-    season: nbaSeasonLabel,
-    teams: doneTeams,
-    players: totalPlayers,
-    note: 'Ranked by: ESPN avg minutes (if available) → PLAYER_DB usage → position',
-  };
-
-  saveDynamicRoleTiers(allTiers);
-  if(STATUS_EL) STATUS_EL.innerHTML =
-    '<div style="color:var(--accent);font-weight:700">✓ ' + sport + ' tiers synced — ' + totalPlayers + ' players, ' + doneTeams + ' teams</div>' +
-    '<div style="color:var(--muted);margin-top:3px;font-size:9px">Season: ' + nbaSeasonLabel + ' · Saved ' + new Date().toLocaleString() + ' · Never deleted · Re-sync anytime after trades</div>';
-  if(btn) { btn.disabled = false; btn.style.opacity = '1'; }
-}
-
-function viewRosterTiers() {
-  const detailEl = document.getElementById('roster-tiers-detail');
-  const innerEl  = document.getElementById('roster-tiers-detail-inner');
-  if(!detailEl || !innerEl) return;
-  if(detailEl.style.display !== 'none') { detailEl.style.display = 'none'; return; }
-
-  const data = loadDynamicRoleTiers();
-  if(!data) {
-    innerEl.innerHTML = '<div style="color:var(--muted)">No synced tiers yet — run a sync first.</div>';
-    detailEl.style.display = 'block'; return;
-  }
-
-  // Sport display order
-  const SPORT_ORDER = ['NBA','WNBA','NHL','NFL','MLB'];
-  let html = '';
-
-  for(const sp of SPORT_ORDER) {
-    const teams = data[sp];
-    if(!teams || typeof teams !== 'object') continue;
-    const meta = data._meta?.[sp];
-    const teamCount = Object.keys(teams).length;
-    const playerCount = Object.values(teams).reduce((n, arr) => n + (arr?.length||0), 0);
-    const metaStr = meta
-      ? ' <span style="color:var(--muted);font-weight:400;font-size:8px">season ' + meta.season
-        + ' · synced ' + new Date(meta.syncedAt).toLocaleDateString()
-        + ' · ' + teamCount + ' teams · ' + playerCount + ' players</span>'
-      : teamCount > 0
-        ? ' <span style="color:var(--muted);font-weight:400;font-size:8px">' + teamCount + ' teams · ' + playerCount + ' players · re-sync to add season stamp</span>'
-        : '';
-    html += '<div style="color:var(--accent);font-weight:700;margin-bottom:5px;margin-top:10px">' + sp + metaStr + '</div>';
-
-    if(teamCount === 0 || playerCount === 0) {
-      html += '<div style="color:var(--amber);font-size:9px;margin-bottom:8px;padding:4px 8px;background:rgba(255,181,71,.06);border-radius:5px">'
-        + 'Sync ran but returned no players — ESPN may have returned empty data. Re-sync to try again.</div>';
-      continue;
-    }
-
-    const teamEntries = Object.entries(teams).sort(([a],[b]) => a.localeCompare(b));
-    for(const [abbr, players] of teamEntries) {
-      if(!players?.length) continue;
-      const t1 = players.filter(p=>p.tier===1).map(p => {
-        const mins = p.avgMins > 0 ? ' ('+p.avgMins+'m)' : p.snapPct ? ' ('+Math.round(p.snapPct*100)+'%)' : '';
-        return '<span style="color:var(--accent)">' + p.name + mins + '</span>';
-      }).join(', ');
-      const t2 = players.filter(p=>p.tier===2).map(p =>
-        '<span style="color:var(--text)">' + p.name + '</span>'
-      ).join(', ');
-      html += '<div style="margin-bottom:4px;line-height:1.5">'
-        + '<span style="color:var(--blue);display:inline-block;min-width:40px;font-weight:700">' + abbr + '</span>'
-        + '<span style="color:var(--muted);font-size:8px"> T1: </span>' + (t1 || '<span style="color:var(--muted)">—</span>')
-        + '<span style="color:var(--muted);font-size:8px"> · T2: </span>' + (t2 || '<span style="color:var(--muted)">—</span>')
-        + '</div>';
-    }
-  }
-
-  // Show any unrecognized sport keys (future-proofing)
-  for(const [sp, teams] of Object.entries(data)) {
-    if(sp === '_meta' || SPORT_ORDER.includes(sp)) continue;
-    html += '<div style="color:var(--muted);margin-top:6px">' + sp + ' (unrecognized sport)</div>';
-  }
-
-  innerEl.innerHTML = html || '<div style="color:var(--muted)">No data.</div>';
-  detailEl.style.display = 'block';
-}
 
 function mlbTeamAbbrev(teamName) {
   if(!teamName) return '???';
@@ -6379,7 +5454,7 @@ function getPlayersForGame(game, sport) {
   );
   const homeName = competitors.find(c => c.homeAway === 'home')?.team?.abbreviation || '';
   const awayName = competitors.find(c => c.homeAway === 'away')?.team?.abbreviation || '';
-  const sportPlayers = getPlayerDB(sport);
+  const sportPlayers = ((PLAYER_DB[sport]||[]));
   const matched = sportPlayers.filter(p => {
     const t = p.team.toUpperCase();
     return teamAbbrs.some(abbr => abbr === t || abbr.includes(t) || t.includes(abbr));
@@ -8655,33 +7730,30 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
             if(_skipLongTerm) continue;
             // Skip if this IS the player being projected
             if(normName(injName) === normName(playerName)) continue;
-            // Check if this injured player is on the same team using ROLE_TIERS
-            // We check both dynamic and static tiers for team membership
-            const dynData = loadDynamicRoleTiers();
-            const normAbbr = a => { const m={'NY':'NYK','SA':'SAS','GS':'GSW','NO':'NOP'}; return m[(a||'').toUpperCase()]||(a||'').toUpperCase(); };
-            const teamKey = normAbbr(myTeam);
-            const teamPlayers = dynData?.NBA?.[teamKey] || ROLE_TIERS[teamKey] || [];
+
+            // Team filter — only boost from teammates, not league-wide injuries
+            // ESPN injury map now includes team abbreviation per entry
             const normInjName = s => (s||'').toLowerCase().replace(/[^a-z ]/g,'');
+            const injTeam = (_injEntry.team || '').toUpperCase();
+            const normAbbr = a => { const m={'NY':'NYK','SA':'SAS','GS':'GSW','NO':'NOP','PHO':'PHX','UTAH':'UTA'}; return m[(a||'').toUpperCase()]||(a||'').toUpperCase(); };
+            if(injTeam && injTeam.length >= 2) {
+              if(normAbbr(injTeam) !== normAbbr(myTeam)) continue; // different team — skip
+            }
+
             const injLast = normInjName(injName).split(' ').pop();
-            const teamEntry = teamPlayers.find(p => {
-              const pn = normInjName(p.name);
-              // Full name match only — last-name fuzzy matching causes false positives
-              // e.g. "Jalen Williams Out" incorrectly matching "Jalen Johnson" via "johnson"≠"williams"
-              // Common last names (Johnson, Williams, Green, Davis) cause too many collisions
-              return pn === normInjName(injName);
-            });
-            if(!teamEntry) continue; // not on this team in our data — skip
-            // Skip if the injured player IS the player being projected — can't boost yourself
             const normPlayerName = normInjName(playerName);
             const normInjNameStr = normInjName(injName);
             if(normPlayerName === normInjNameStr) continue;
             // Found a teammate who is out — track the most impactful one
-            const entryTier = teamEntry.tier || 3;
+            // Derive tier from PLAYER_DB if available, otherwise default to tier 2 (rotation)
+            const _dbMatch = (PLAYER_DB[sport]||[]).find(p => normInjName(p.name) === normInjName(injName));
+            const entryTier = _dbMatch ? (_dbMatch.usage >= 0.28 ? 1 : _dbMatch.usage >= 0.18 ? 2 : 3) : 2;
+            const entryPos  = _injEntry.position || _dbMatch?.position || null;
             if(entryTier < bestTier) {
               bestTier = entryTier;
-              bestTeammateOut = teamEntry.name;
+              bestTeammateOut = injName;
               bestSeverity = entryTier === 1 ? 'major' : entryTier === 2 ? 'moderate' : 'minor';
-              bestOutPosition = _injEntry.position || teamEntry.pos || null;
+              bestOutPosition = entryPos;
             }
           }
 
@@ -10067,6 +9139,137 @@ function buildNarrative(name, sport, prop, line, projMean, decision,
 // ═══════════════════════════════════════════════════════
 // ANALYZE SINGLE PICK (CHECK MY PICK)
 // ═══════════════════════════════════════════════════════
+async function runManualLookup() {
+  const player = document.getElementById('lookup-player').value.trim();
+  const sport  = document.getElementById('lookup-sport').value;
+  const prop   = document.getElementById('lookup-prop').value;
+  const opp    = document.getElementById('lookup-opp').value.trim().toUpperCase() || null;
+
+  if(!player) { showToast('Enter a player name', 'error'); return; }
+
+  const btn = document.getElementById('manual-lookup-btn');
+  const btnText = document.getElementById('manual-lookup-text');
+  const resultArea = document.getElementById('manual-lookup-result');
+  btn.disabled = true;
+  btnText.innerHTML = '<div class="spinner" style="border-top-color:var(--accent)"></div> Looking up...';
+  resultArea.innerHTML = '';
+
+  try {
+    const espnMap = {
+      NBA:['basketball','nba'], WNBA:['basketball','wnba'],
+      MLB:['baseball','mlb'], NFL:['football','nfl'], NHL:['hockey','nhl']
+    };
+    const [espnSport, espnLeague] = espnMap[sport] || ['basketball','nba'];
+
+    // Step 1: resolve ESPN ID
+    let athleteId = null, athleteName = player, athleteTeam = null;
+
+    // Check PLAYER_DB first
+    const norm = s => (s||'').toLowerCase().replace(/[''.,-]/g,'').trim();
+    const dbMatch = (PLAYER_DB[sport]||[]).find(p => norm(p.name) === norm(player));
+    if(dbMatch?.id) {
+      athleteId = dbMatch.id;
+      athleteName = dbMatch.name;
+      athleteTeam = dbMatch.team || null;
+    }
+
+    // Check verified ESPN ID cache
+    if(!athleteId) {
+      const cached = getVerifiedESPNId(player, null);
+      if(cached) athleteId = String(cached);
+    }
+
+    // ESPN name search fallback
+    if(!athleteId) {
+      try {
+        const searchData = await searchESPNAthlete(espnSport, espnLeague, player);
+        const hit = searchData?.athletes?.[0] || searchData?.items?.[0];
+        if(hit?.id) {
+          athleteId = String(hit.id);
+          athleteName = hit.displayName || hit.fullName || player;
+          athleteTeam = hit.team?.abbreviation || hit.teamAbbreviation || null;
+          // Cache the ESPN ID for future use
+          const cache = loadESPNIdCache();
+          cache[athleteName.toLowerCase().replace(/[^a-z ]/g,'').trim()] = athleteId;
+          saveESPNIdCache();
+        }
+      } catch(e) {}
+    }
+
+    if(!athleteId) {
+      resultArea.innerHTML = `<div class="error-card">Could not find <b>${player}</b> in ESPN. Check the spelling or try their full name.</div>`;
+      return;
+    }
+
+    // Step 2: fetch injuries for context
+    const injuriesBySport = {};
+    try {
+      const [es, el] = [espnSport, espnLeague];
+      const injData = await fetchESPNInjuries(es, el);
+      const map = {};
+      const teamList = injData?.injuries || injData?.items || [];
+      teamList.forEach(te => {
+        const teamAbbr = (te?.abbreviation || te?.team?.abbreviation || '').toUpperCase();
+        (te?.injuries || []).forEach(inj => {
+          const n = inj.athlete?.displayName || inj.displayName;
+          if(!n) return;
+          const raw = (inj.status || inj.details?.type || '').toLowerCase();
+          const status = raw.includes('out') || raw.includes('ir') ? 'Out'
+                       : raw.includes('doubtful') ? 'Doubtful'
+                       : raw.includes('questionable') || raw.includes('dtd') ? 'Questionable' : null;
+          if(!status) return;
+          const injPos = inj.athlete?.position?.abbreviation || null;
+          map[n.toLowerCase()] = { status, date: inj.date || null, position: injPos, team: teamAbbr };
+        });
+      });
+      injuriesBySport[sport] = map;
+    } catch(e) {}
+
+    const injuries = injuriesBySport[sport] || {};
+
+    // Step 3: run the full projection engine
+    const today = new Date().toISOString().slice(0, 10);
+    const playerMeta = dbMatch || {};
+    const team = athleteTeam || playerMeta.team || '';
+
+    resultArea.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--muted);padding:10px;text-align:center">⚙ Running projection engine for ${athleteName}...</div>`;
+
+    const prop_result = await buildPlayerProp(
+      athleteId, athleteName, sport, espnSport, espnLeague,
+      team, opp || '', today, injuries, Date.now(),
+      prop, null, null, playerMeta
+    );
+
+    if(!prop_result) {
+      resultArea.innerHTML = `<div class="error-card">Could not build projection for <b>${athleteName}</b>. They may not have enough game log data, or ESPN returned no stats.</div>`;
+      return;
+    }
+
+    // Step 4: render as a full prop card
+    // Tag it as analysis mode so it shows cleanly without needing a line
+    prop_result.analysisMode = true;
+    prop_result.id = prop_result.id || Date.now();
+
+    // Add to analysis cache so it shows on PROPS tab too
+    const cacheKey = sport;
+    if(!STATE.analysisCache[cacheKey]) STATE.analysisCache[cacheKey] = { props: [], fetchedAt: Date.now(), propCount: 0 };
+    const existing = STATE.analysisCache[cacheKey].props.findIndex(p => p.player === prop_result.player && p.prop === prop_result.prop);
+    if(existing >= 0) STATE.analysisCache[cacheKey].props[existing] = prop_result;
+    else STATE.analysisCache[cacheKey].props.unshift(prop_result);
+    STATE.analysisCache[cacheKey].propCount = STATE.analysisCache[cacheKey].props.length;
+    saveState();
+
+    resultArea.innerHTML = propCardHTML(prop_result);
+    showToast(`✓ ${athleteName} added to Props tab`, 'success');
+
+  } catch(e) {
+    resultArea.innerHTML = `<div class="error-card">Error: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = 'Generate Projection';
+  }
+}
+
 async function analyzePick() {
   if(isAnalyzing) return;
   const player = document.getElementById('c-player').value.trim();
@@ -11198,24 +10401,6 @@ function setStep(id, state) {
 // ═══════════════════════════════════════════════════════
 // TOAST
 // ═══════════════════════════════════════════════════════
-function markGolfFieldUpdated() {
-  STATE.golfFieldUpdatedAt = Date.now();
-  saveState();
-  renderGolfFieldAge();
-  showToast('⛳ Golf field marked as current', 'success');
-}
-
-function renderGolfFieldAge() {
-  const el = document.getElementById('golf-field-age-label');
-  if(!el) return;
-  const ms = STATE.golfFieldUpdatedAt || 0;
-  if(!ms) { el.textContent = '⛳ Golf field: never marked'; el.style.color = 'var(--red)'; return; }
-  const days = Math.floor((Date.now() - ms) / (1000 * 60 * 60 * 24));
-  if(days <= 2)      { el.textContent = `⛳ Golf field: current (${days}d ago)`; el.style.color = 'var(--accent)'; }
-  else if(days <= 7) { el.textContent = `⛳ Golf field: ${days} days old`; el.style.color = 'var(--amber)'; }
-  else               { el.textContent = `⛳ Golf field: STALE — ${days} days old`; el.style.color = 'var(--red)'; }
-}
-
 function toggleInjuryBoost() {
   STATE.showInjuryBoost = !STATE.showInjuryBoost;
   saveState();
@@ -11286,7 +10471,6 @@ function renderMetrics() {
   updateMetrics();
   renderApiStatus({});
   syncInjuryBoostBtn();
-  renderGolfFieldAge();
 }
 </script>
 </body>
