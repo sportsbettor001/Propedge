@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v17.95</title>
+<title>PropEdge v17.96</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -335,7 +335,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.95</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v17.96</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1289,23 +1289,38 @@ async function runESPNRosterDebug() {
       });
     });
 
-    // Fetch stats for first athlete found
+    // Fetch stats for first athlete found - try gamelog instead of deprecated statistics endpoint
     const allAthletes = groups.flatMap(g => g?.items || (g?.id ? [g] : []));
     const first = allAthletes[0];
     if(first?.id) {
-      lines.push(`\n── Stats response for first athlete: ${first.displayName||first.id} ──`);
-      const sUrl = `https://site.api.espn.com/apis/site/v2/sports/${sport}/athletes/${first.id}/statistics`;
-      lines.push(`URL: ${sUrl}`);
+      lines.push(`\n── Gamelog response for first athlete: ${first.displayName||first.id} ──`);
+      const now = new Date();
+      const seasonYear = (now.getMonth()+1) >= 10 ? now.getFullYear()+1 : now.getFullYear();
+      const [espnS, espnL] = sport.split('/');
+      const glUrl = `https://site.web.api.espn.com/apis/common/v3/sports/${espnS}/${espnL}/athletes/${first.id}/gamelog?limit=200&season=${seasonYear}&seasontype=2`;
+      lines.push(`URL: ${glUrl}`);
       try {
-        const sd = await fetchWithFallback(sUrl);
-        lines.push(`Top-level keys: [${Object.keys(sd||{}).join(', ')}]`);
-        lines.push(`athlete.team.abbreviation: ${sd?.athlete?.team?.abbreviation || '(none)'}`);
-        lines.push(`athlete.team.displayName: ${sd?.athlete?.team?.displayName || '(none)'}`);
-        lines.push(`team.abbreviation: ${sd?.team?.abbreviation || '(none)'}`);
-        const statTotal = (sd?.statistics||[]).find(s => s.type==='total'||s.type==='perGame'||s.displayName==='Per Game');
-        lines.push(`statistics[perGame].stats[2] (should be avgMins): ${statTotal?.stats?.[2] ?? '(none)'}`);
-        lines.push(`statistics[perGame].names[2]: ${statTotal?.names?.[2] ?? statTotal?.labels?.[2] ?? '(none)'}`);
-      } catch(e2) { lines.push(`Stats fetch error: ${e2.message}`); }
+        const gl = await fetchWithFallback(glUrl);
+        lines.push(`Top-level keys: [${Object.keys(gl||{}).join(', ')}]`);
+        // Show team info
+        lines.push(`athlete.team.abbreviation: ${gl?.athlete?.team?.abbreviation || '(none)'}`);
+        lines.push(`team.abbreviation: ${gl?.team?.abbreviation || '(none)'}`);
+        // Show categories to find minutes label
+        const cats = gl?.seasonTypes?.[0]?.categories || gl?.categories || [];
+        lines.push(`categories count: ${cats.length}`);
+        cats.slice(0,3).forEach((c,ci) => {
+          lines.push(`  cat[${ci}] "${c.name||c.displayName||''}" labels[0..4]: [${(c.labels||c.names||[]).slice(0,5).join(', ')}]`);
+          lines.push(`           values[0..4]: [${(c.totals||c.values||[]).slice(0,5).join(', ')}]`);
+        });
+        // Show first few events
+        const events = gl?.events || gl?.seasonTypes?.[0]?.events || [];
+        lines.push(`events count: ${events.length}`);
+        if(events[0]) {
+          const ev = events[0];
+          lines.push(`  event[0] keys: [${Object.keys(ev).join(', ')}]`);
+          lines.push(`  event[0].stats: [${(ev.stats||ev.statistics||[]).slice(0,8).join(', ')}]`);
+        }
+      } catch(e2) { lines.push(`Gamelog fetch error: ${e2.message}`); }
     }
 
     out.textContent = lines.join('\n');
@@ -6124,7 +6139,10 @@ async function runRosterTiersSync(sport) {
         const athletes = (rData?.athletes || []).flatMap(g => g?.items || (g?.id ? [g] : []));
         if(!athletes.length) { doneTeams++; continue; }
 
-        // Step 1: fetch minutes in batches
+        // Step 1: fetch minutes via gamelog in batches
+        // Uses the same gamelog endpoint the projection engine uses — reliable and current
+        const now2 = new Date();
+        const seasonYear2 = (now2.getMonth()+1) >= 10 ? now2.getFullYear()+1 : now2.getFullYear();
         const BATCH = 6;
         const playerData = [];
         for(let i = 0; i < athletes.length; i += BATCH) {
@@ -6134,63 +6152,63 @@ async function runRosterTiersSync(sport) {
             let avgMins = 0;
 
             try {
-              const sd = await fetchWithFallback(
-                'https://site.api.espn.com/apis/site/v2/sports/' + espnSport + '/' + espnLeague + '/athletes/' + a.id + '/statistics'
-              );
+              const glUrl = `https://site.web.api.espn.com/apis/common/v3/sports/${espnSport}/${espnLeague}/athletes/${a.id}/gamelog?limit=200&season=${seasonYear2}&seasontype=2`;
+              const gl = await fetchWithFallback(glUrl);
 
-              // Team validation from stats response.
-              // Only reject if stats explicitly return a DIFFERENT team — not if empty.
-              // Empty = new signing / traded player with no stats yet → keep them.
-              const respTeamAbbr = (
-                sd?.athlete?.team?.abbreviation ||
-                sd?.athlete?.team?.slug ||
-                sd?.team?.abbreviation ||
+              // Team validation from gamelog response — this endpoint reliably returns current team
+              const glTeamAbbr = (
+                gl?.athlete?.team?.abbreviation ||
+                gl?.team?.abbreviation ||
                 ''
               ).toUpperCase().replace(/\s/g,'');
-              if(respTeamAbbr && respTeamAbbr.length >= 2 && respTeamAbbr.length <= 4) {
+              if(glTeamAbbr && glTeamAbbr.length >= 2) {
                 const normMap = {'NY':'NYK','SA':'SAS','GS':'GSW','NO':'NOP','PHO':'PHX','UTAH':'UTA'};
-                const normalized = normMap[respTeamAbbr] || respTeamAbbr;
-                const expected = normMap[team.abbr.toUpperCase()] || team.abbr.toUpperCase();
-                if(normalized !== expected) {
-                  return null; // stats say different team — discard
-                }
+                const normalized = normMap[glTeamAbbr] || glTeamAbbr;
+                const expected   = normMap[team.abbr.toUpperCase()] || team.abbr.toUpperCase();
+                if(normalized !== expected) return null; // player is on a different team per gamelog
               }
 
-              // Parse minutes: statistics[type=total].stats[2] is avgMinutes for NBA/WNBA
-              // NHL: same index but value is MM:SS string for time on ice
-              const statTotal = (sd?.statistics || []).find(s =>
-                s.type === 'total' || s.type === 'perGame' || s.displayName === 'Per Game'
-              );
-              if(statTotal?.stats) {
-                const raw = statTotal.stats[2];
-                if(raw) {
+              // Parse minutes from season summary categories
+              const cats = gl?.seasonTypes?.[0]?.categories || gl?.categories || [];
+              for(const cat of cats) {
+                const labels = cat.labels || cat.names || [];
+                const values = cat.totals || cat.values || [];
+                const mIdx = labels.findIndex(l => l === 'MIN' || l === 'avgMinutes' || l === 'min');
+                if(mIdx >= 0 && values[mIdx]) {
+                  const raw = values[mIdx];
                   if(typeof raw === 'string' && raw.includes(':')) {
                     const [mm, ss] = raw.split(':').map(Number);
-                    avgMins = mm + (ss / 60);
+                    avgMins = mm + (ss/60);
                   } else {
                     avgMins = parseFloat(raw) || 0;
                   }
+                  if(avgMins > 0) break;
                 }
               }
-              // Fallback: splits.categories
+
+              // Fallback: average minutes from individual game events
               if(!avgMins) {
-                for(const cat of (sd?.splits?.categories || [])) {
-                  const names = cat.names || cat.labels || [];
-                  const vals  = cat.totals || cat.values || [];
-                  const mIdx  = names.findIndex(n => n === 'MIN' || n === 'avgMinutes' || n === 'timeOnIce');
-                  if(mIdx >= 0 && vals[mIdx]) { avgMins = parseFloat(vals[mIdx]) || 0; if(avgMins > 0) break; }
+                const events = gl?.events || gl?.seasonTypes?.[0]?.events || [];
+                if(events.length > 0) {
+                  // Find the min label index from the first event's category
+                  const firstCats = gl?.seasonTypes?.[0]?.categories || [];
+                  let minIdx = -1;
+                  for(const cat of firstCats) {
+                    const labels = cat.labels || cat.names || [];
+                    minIdx = labels.findIndex(l => l === 'MIN' || l === 'min');
+                    if(minIdx >= 0) break;
+                  }
+                  if(minIdx >= 0) {
+                    const minsArr = events.map(ev => parseFloat((ev.stats||ev.statistics||[])[minIdx]||0)).filter(m => m > 0);
+                    if(minsArr.length) avgMins = minsArr.reduce((a,b)=>a+b,0) / minsArr.length;
+                  }
                 }
-              }
-              if(!avgMins) {
-                const ds = sd?.statistics?.displayStats || sd?.displayStats || [];
-                const ms = ds.find(s => /^min/i.test(s.name||'') && !isNaN(parseFloat(s.displayValue)));
-                if(ms) avgMins = parseFloat(ms.displayValue) || 0;
               }
             } catch(e2) {}
             return { name: a.displayName||a.fullName||'', position: a.position?.abbreviation||'', avgMins };
           }));
           results.forEach(r => { if(r.status === 'fulfilled' && r.value?.name) playerData.push(r.value); });
-          await new Promise(r => setTimeout(r, 60));
+          await new Promise(r => setTimeout(r, 80));
         }
 
         const validPlayers = playerData.filter(p => p.name.length > 1);
