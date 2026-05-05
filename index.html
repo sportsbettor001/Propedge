@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.45</title>
+<title>PropEdge v18.48</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -367,7 +367,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.45</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.48</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1608,9 +1608,35 @@ async function runGamelogDebug() {
     }
     const topLabels2 = gl?.labels || gl?.names || [];
     const mIdx2 = topLabels2.findIndex(l => (l||'').toUpperCase() === 'MIN');
-    // Show top-level labels used for stat index lookup
-    lines.push(`\nTop-level labels: [${(gl?.labels||[]).join(', ')}]`);
-    lines.push(`Top-level names:  [${(gl?.names||[]).join(', ')}]`);
+    // Deep dive — find where individual game events actually live
+    lines.push(`\n── Event Structure Deep Dive ──`);
+    lines.push(`Top-level keys: [${Object.keys(gl||{}).join(', ')}]`);
+    // Check if events are at top level
+    const topEvRaw = gl?.events;
+    if(topEvRaw) {
+      const topEvArr = Array.isArray(topEvRaw) ? topEvRaw : Object.values(topEvRaw);
+      lines.push(`gl.events: ${Array.isArray(topEvRaw) ? 'array' : 'object'} with ${topEvArr.length} entries`);
+      if(topEvArr[0]) lines.push(`  events[0] keys: [${Object.keys(topEvArr[0]).join(', ')}]`);
+    }
+    // Check seasonTypes[1] (regular season after sort)
+    const regST = (gl?.seasonTypes||[]).find(s => s.displayName?.includes('Regular'));
+    if(regST) {
+      lines.push(`\nRegular Season seasonType keys: [${Object.keys(regST).join(', ')}]`);
+      const regCats = regST.categories || [];
+      lines.push(`Regular Season categories: ${regCats.length}`);
+      regCats.slice(0,2).forEach((cat,i) => {
+        const evRaw = cat?.events;
+        const evArr = evRaw ? (Array.isArray(evRaw) ? evRaw : Object.values(evRaw)) : [];
+        lines.push(`  cat[${i}] "${cat.displayName}" type="${cat.type}" events=${evArr.length}`);
+        if(evArr[0]) {
+          lines.push(`    event[0] keys: [${Object.keys(evArr[0]).join(', ')}]`);
+          lines.push(`    event[0].stats.length: ${(evArr[0].stats||[]).length}`);
+          lines.push(`    event[0].stats[0..5]: [${(evArr[0].stats||[]).slice(0,6).join(', ')}]`);
+        }
+      });
+      // Check summary
+      if(regST.summary) lines.push(`summary keys: [${Object.keys(regST.summary).join(', ')}]`);
+    }
 
     // Show first individual game event stats to verify index mapping
     const _firstST = (gl?.seasonTypes||[]).find(s => !s.displayName?.toLowerCase().includes('total') && !s.displayName?.toLowerCase().includes('postseason'));
@@ -6214,6 +6240,23 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
         .filter(v => v !== null && !isNaN(v) && v >= 0);
       return { allVals, vsOppVals };
     }
+
+    // Fallback: no per-game events found — try parsing from monthly category totals
+    // This handles players where ESPN only returns monthly summaries (e.g. injured players)
+    if(statIdx >= 0) {
+      const monthlyVals = [];
+      for(const st of sortedSeasonTypes) {
+        const stName = (st?.displayName || '').toLowerCase();
+        if(stName.includes('preseason') || stName.includes('all-star') || stName.includes('total')) continue;
+        for(const cat of (st?.categories || [])) {
+          const totals = cat?.totals || cat?.values || [];
+          if(!totals.length) continue;
+          const val = parseStatVal(totals[statIdx]);
+          if(!isNaN(val) && val >= 0) monthlyVals.push(val);
+        }
+      }
+      if(monthlyVals.length > 0) return { allVals: monthlyVals, vsOppVals: [], _monthlyFallback: true };
+    }
   }
 
   // Fallback: legacy format where stats are in root events directly
@@ -9782,23 +9825,54 @@ async function runGraphLookup() {
       // Resolve NHL player ID - check cache first, then search
       let nhlId = getNHLPlayerId(playerName);
       if(!nhlId) {
-        try {
-          const nhlSearch = await fetchWithFallback(`https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=5&q=${encodeURIComponent(playerName)}&active=true`);
-          const hit = Array.isArray(nhlSearch) ? nhlSearch[0] : nhlSearch?.players?.[0];
-          if(hit?.playerId) { nhlId = hit.playerId; resolvedName = `${hit.firstName?.default||hit.firstName||''} ${hit.lastName?.default||hit.lastName||''}`.trim(); }
-        } catch(e) {}
+        // Try multiple NHL search endpoints
+        const nhlSearchUrls = [
+          `https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=5&q=${encodeURIComponent(playerName)}&active=true`,
+          `https://api-web.nhle.com/v1/player/search?q=${encodeURIComponent(playerName)}`,
+          `https://suggest.svc.nhl.com/svc/suggest/v1/minplayers/${encodeURIComponent(playerName)}/99`,
+        ];
+        for(const url of nhlSearchUrls) {
+          try {
+            const resp = await fetchWithFallback(url);
+            // suggest.svc.nhl.com returns {suggestions: ["8478402|McDavid|Connor|EDM|..."]}
+            if(resp?.suggestions?.length) {
+              const parts = resp.suggestions[0].split('|');
+              if(parts[0] && !isNaN(parseInt(parts[0]))) {
+                nhlId = parts[0];
+                resolvedName = `${parts[2]||''} ${parts[1]||''}`.trim() || playerName;
+                break;
+              }
+            }
+            // search.d3.nhle.com and api-web return object arrays
+            const arr = Array.isArray(resp) ? resp : resp?.players || [];
+            const hit = arr[0];
+            if(hit?.playerId || hit?.id) {
+              nhlId = String(hit.playerId || hit.id);
+              const fn = hit.firstName?.default || hit.firstName || hit.firstNameWithAccentsEn || '';
+              const ln = hit.lastName?.default || hit.lastName || hit.lastNameWithAccentsEn || '';
+              resolvedName = `${fn} ${ln}`.trim() || playerName;
+              break;
+            }
+          } catch(e) {}
+        }
       }
-      // Try ESPN search as fallback for NHL ID
+      // Fallback: search team rosters directly
       if(!nhlId) {
         try {
-          const espnSearch = await searchESPNAthlete('hockey', 'nhl', playerName);
-          const hit = espnSearch?.athletes?.[0] || espnSearch?.items?.[0];
-          if(hit?.id) {
-            // ESPN ID won't work for NHL API — try to find NHL ID from landing page
-            const landing = await fetchWithFallback(`${NHL_BASE}/player/${hit.id}/landing`).catch(()=>null);
-            if(landing?.playerId) nhlId = landing.playerId;
-            else nhlId = hit.id; // last resort use ESPN ID
-            resolvedName = hit.displayName || playerName;
+          const norm2 = s => (s||'').toLowerCase().replace(/[^a-z ]/g,'').trim();
+          const target = norm2(playerName);
+          for(const abbrev of NHL_TEAM_ABBREVS) {
+            const data = await fetchWithFallback(`${NHL_BASE}/roster/${abbrev}/current`).catch(()=>null);
+            if(!data) continue;
+            const all = [...(data?.forwards||[]), ...(data?.defensemen||[]), ...(data?.goalies||[])];
+            const hit = all.find(p => norm2(`${p.firstName?.default||p.firstName||''} ${p.lastName?.default||p.lastName||''}`) === target);
+            if(hit?.id) {
+              nhlId = String(hit.id);
+              resolvedName = `${hit.firstName?.default||''} ${hit.lastName?.default||''}`.trim() || playerName;
+              // Cache for future use
+              const nc = loadNHLIdCache(); nc[norm2(resolvedName)] = nhlId; saveNHLIdCache();
+              break;
+            }
           }
         } catch(e) {}
       }
