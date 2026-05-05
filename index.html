@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.34</title>
+<title>PropEdge v18.35</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -367,7 +367,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.34</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.35</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -2558,7 +2558,6 @@ function setSortBy(val, el) {
   renderProps();
 }
 let expandedCards = new Set();
-let expandedByUser = new Set(); // cards explicitly opened by user tap (collapsed by default)
 let isGenerating = false;
 let isAnalyzing = false;
 let viewMode = 'analysis'; // 'betting' | 'analysis' — toggles card display without re-fetch
@@ -9784,14 +9783,15 @@ async function runGraphLookup() {
       // atVs: 'vs' = home, '@' or 'at' = away
       const atVs = (ev?.atVs || '').toLowerCase();
       const isHome = atVs === 'vs' || atVs === 'home';
-      // opponent abbreviation from opponent object
+      // opponent abbreviation
       const oppAbbr = (
         ev?.opponent?.abbreviation ||
         ev?.opponent?.shortDisplayName ||
         ev?.opponent?.displayName ||
         '?'
       ).toUpperCase().slice(0,3);
-      // gameDate: "2026-04-19T..." → slice to MM-DD
+      // gameDate from ESPN is UTC — slice string directly (no Date() parsing) to avoid timezone shift
+      // "2026-05-04T00:00Z" → slice(5,10) → "05-04"
       const rawDate = ev?.gameDate || ev?.date || '';
       const date = rawDate.length >= 10 ? rawDate.slice(5,10) : rawDate;
       evMetaMap[id] = { opp: oppAbbr, date, home: isHome };
@@ -10728,7 +10728,6 @@ function propCardHTML(p) {
 
   const inSlip = STATE.slip.some(s => s.id === p.id);
   const isExpanded = expandedCards.has(p.id);
-  const isCollapsed = !expandedByUser.has(p.id); // collapsed by default, tap to expand
   const dotSVG = Array.from({length:10}, (_,i) => {
     const filled = i < p.conf;
     return filled
@@ -10798,29 +10797,26 @@ function propCardHTML(p) {
     : `<div class="prop-num-block"><div class="prop-num-label">Edge</div><div class="prop-edge-val ${edgeClass}">${edgeStr}</div></div>`;
 
   return `<div class="prop-card ${decLow}" id="pcard-${p.id}">
-    <div class="prop-top" onclick="toggleCard(${p.id})" style="cursor:pointer;user-select:none">
+    <div class="prop-top">
       <div>
         <div class="prop-player">${p.player}${p.injuryBoostPct && STATE.showInjuryBoost ? `<span class="inj-boost-badge">🩹 +${p.injuryBoostPct}%</span>` : ''}</div>
         <div class="prop-meta">${p.team || ''} vs ${p.opp || '?'} · ${p.date === 'tomorrow' ? 'TOMORROW' : 'TODAY'}${p.varianceProfile?.volatilityClass ? ` · <span style="color:${p.varianceProfile.volatilityClass==='LOW'?'var(--accent)':p.varianceProfile.volatilityClass==='MED'?'var(--amber)':'var(--red)'}">${p.varianceProfile.volatilityClass} var</span>` : ''}</div>
         ${p.injuryStatus ? `<div class="injury-flag" role="status" aria-label="Injury: ${p.injuryStatus}">🤕 ${p.injuryStatus}</div>` : ''}
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-        ${isCollapsed ? `<div style="font-family:var(--mono);font-size:10px;color:${edgeClass==='over'?'var(--accent)':edgeClass==='under'?'var(--red)':'var(--muted)'}">
+        <div style="font-family:var(--mono);font-size:10px;color:${edgeClass==='over'?'var(--accent)':edgeClass==='under'?'var(--red)':'var(--muted)'}">
           ${p.prop} · <b>${projDisplay}</b>${p.hitRateSeason?.pct != null ? ` · <span style="color:var(--muted)">${p.hitRateSeason.pct}% hit</span>` : ''}
-        </div>` : ''}
+        </div>
         <div class="prop-sport-tag">${p.sport}</div>
-        <span style="font-size:10px;color:var(--muted);margin-left:2px">${isCollapsed ? '▸' : '▾'}</span>
       </div>
     </div>
-    ${isCollapsed ? '' : `
     <div class="prop-numbers">
       <div class="prop-num-block"><div class="prop-num-label">Prop</div><div class="prop-num-value" style="font-size:12px;margin-top:2px">${p.prop}</div></div>
       ${lineDisplay}
       <div class="prop-num-block"><div class="prop-num-label">Model μ</div><div class="prop-num-value ${edgeClass}">${projDisplay}</div></div>
       ${probEvBlock}
       ${completenessScore !== null ? `<div class="prop-num-block"><div class="prop-num-label">Data</div><div class="prop-num-value" style="font-size:13px;color:${completenessColor}">${completenessScore}%<span style="font-size:8px;color:var(--muted);display:block">min ${p.completenessThreshold ?? 60}%</span></div></div>` : ''}
-    </div>`}
-    ${isCollapsed ? '' : `
+    </div>
     ${hitRateHTML}
     ${recentGamesChartHTML(p)}
     ${analysisWarningHTML}
@@ -10842,25 +10838,15 @@ function propCardHTML(p) {
       <div class="data-source-line">📡 ${dataLabel}${p._priorSeasonLabel ? ` · ⏮ includes ${p._priorSeasonLabel} prior season (${p._priorSeasonGames} games)` : ''}${isAnalysis && !forceAnalysis ? ' · ANALYSIS MODE — no market data' : p.dataSource?.hasRealLine ? ' · ✓ Live sportsbook line' : ' · Estimated line — add Odds API key'} · completeness ${completenessScore !== null ? completenessScore + '%' : 'N/A'}</div>
     </div>
     ${(!forceAnalysis && p.decision !== 'PASS') ? `<button class="add-slip-btn ${inSlip ? 'added' : ''}" id="slip-btn-${p.id}" onclick="toggleSlip(${p.id})">${inSlip ? '✓ Added to slip' : '+ Add to slip'}</button>` : ''}
-    `}
   </div>`;
 }
 
 function toggleReasoning(id) {
   if(expandedCards.has(id)) expandedCards.delete(id); else expandedCards.add(id);
-  renderProps();
-}
-
-function toggleCard(id) {
-  if(expandedByUser.has(id)) {
-    expandedByUser.delete(id);
-  } else {
-    expandedByUser.add(id);
-  }
   // Re-render just this card in place — never call renderProps() which resets game groups
   const card = document.getElementById('pcard-' + id);
-  if(!card) return; // card not in DOM — do nothing
-  const p = getAllCachedProps().find(p => p.id === id);
+  if(!card) return;
+  const p = getAllCachedProps().find(pr => pr.id === id);
   if(!p) return;
   const newCard = document.createElement('div');
   newCard.innerHTML = propCardHTML(p);
