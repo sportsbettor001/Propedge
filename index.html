@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.60</title>
+<title>PropEdge v18.64</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -367,7 +367,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.60</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.64</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
 
@@ -511,7 +511,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px">
           <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">🩹 Injury boosts</span>
-          <button id="injury-boost-toggle" onclick="toggleInjuryBoost()" style="font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:6px;border:1px solid var(--accent);background:rgba(0,229,160,.1);color:var(--accent);cursor:pointer">ON</button>
+          <button id="injury-boost-toggle" onclick="toggleInjuryBoost()" style="font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:6px;border:1px solid var(--border2);background:rgba(107,122,141,.1);color:var(--muted);cursor:pointer">OFF</button>
         </div>
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
           <button class="gen-btn" id="gen-btn" onclick="generateProps()" style="flex:1;margin-bottom:0;padding:10px">
@@ -601,9 +601,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
             <button onclick="checkApiStatus('espn')" class="api-status-btn" id="apibtn-espn">ESPN</button>
             <button onclick="checkApiStatus('mlb')" class="api-status-btn" id="apibtn-mlb">MLB API</button>
-            <button onclick="checkApiStatus('nhl')" class="api-status-btn" id="apibtn-nhl">NHL API</button>
-            <button onclick="checkApiStatus('odds')" class="api-status-btn" id="apibtn-odds">Odds API</button>
-
+            <button onclick="checkApiStatus('odds')" class="api-status-btn" id="apibtn-odds" style="grid-column:1/-1">Odds API</button>
           </div>
           <div id="api-status-results"></div>
         </div>
@@ -646,8 +644,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
             <button onclick="runMLBIdSync()" id="btn-sync-mlb" style="grid-column:1/-1;font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.5);border-radius:8px;padding:9px;color:var(--amber);cursor:pointer;font-weight:700">⚾ MLB · MLB Stats API</button>
           </div>
           <div id="sync-ids-progress" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg2);border-radius:8px;padding:10px"></div>
-          <button onclick="runNHLSyncTrace()" style="margin-top:8px;width:100%;font-family:var(--mono);font-size:10px;background:rgba(77,184,255,.08);border:1px solid rgba(77,184,255,.3);border-radius:8px;padding:8px;color:var(--blue);cursor:pointer">🔍 NHL Sync Trace — test one team</button>
-          <div id="nhl-sync-trace-out" style="display:none;margin-top:8px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:var(--mono);font-size:9px;white-space:pre-wrap;max-height:300px;overflow-y:auto"></div>
+
         </div>
       </div>
 
@@ -1010,6 +1007,18 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         <div class="tracker-metric"><div class="t-val green" id="t-wr">—</div><div class="t-lab">Win rate</div></div>
         <div class="tracker-metric"><div class="t-val" id="t-roi">—</div><div class="t-lab">Net ROI</div></div>
       </div>
+      <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
+        <input id="tracker-search" type="text" placeholder="Search player, prop..." oninput="renderTracker()" style="flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:8px 12px;color:var(--text);font-family:var(--mono);font-size:11px;outline:none" autocorrect="off"/>
+        <button onclick="clearTrackerSearch()" style="font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--muted);cursor:pointer;flex-shrink:0">✕</button>
+      </div>
+      <div class="filter-row" id="tracker-sport-filter" style="margin-bottom:10px">
+        <div class="filter-chip active" data-sport="all" onclick="setTrackerSport('all',this)">All</div>
+        <div class="filter-chip" data-sport="NBA" onclick="setTrackerSport('NBA',this)">NBA</div>
+        <div class="filter-chip" data-sport="MLB" onclick="setTrackerSport('MLB',this)">MLB</div>
+        <div class="filter-chip" data-sport="NFL" onclick="setTrackerSport('NFL',this)">NFL</div>
+        <div class="filter-chip" data-sport="NHL" onclick="setTrackerSport('NHL',this)">NHL</div>
+        <div class="filter-chip" data-sport="WNBA" onclick="setTrackerSport('WNBA',this)">WNBA</div>
+      </div>
       <div class="section-title">CLV summary <span class="count" id="clv-count">—</span></div>
       <div id="clv-area"></div>
       <div class="section-title">Pick history <span class="count" id="history-count">—</span></div>
@@ -1115,7 +1124,15 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
             <label class="setting-label">Injury boosts</label>
             <div class="setting-hint">Show/hide injury-adjusted projections on prop cards</div>
           </div>
-          <button id="s-injury-boost-btn" onclick="toggleInjuryBoost()" style="font-family:var(--mono);font-size:10px;padding:4px 12px;border-radius:6px;border:1px solid var(--accent);background:rgba(0,229,160,.1);color:var(--accent);cursor:pointer;white-space:nowrap;flex-shrink:0">ON</button>
+          <button id="s-injury-boost-btn" onclick="toggleInjuryBoost()" style="font-family:var(--mono);font-size:10px;padding:4px 12px;border-radius:6px;border:1px solid var(--border2);background:rgba(107,122,141,.1);color:var(--muted);cursor:pointer;white-space:nowrap;flex-shrink:0">OFF</button>
+        </div>
+      </div>
+      <div class="setting-card" id="storage-card">
+        <div class="setting-card-title">💾 Local Storage</div>
+        <div id="storage-usage-display" style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:10px">Calculating...</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button onclick="clearSnapshots()" style="flex:1;font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.08);border:1px solid rgba(255,181,71,.3);border-radius:8px;padding:8px;color:var(--amber);cursor:pointer">🗑 Clear snapshots</button>
+          <button onclick="refreshStorageDisplay()" style="font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px;color:var(--muted);cursor:pointer">↻ Refresh</button>
         </div>
       </div>
       <div class="setting-card">
@@ -1389,7 +1406,7 @@ let STATE = loadState() || {
   },
   apiStatus: {},
   lastGenerated: null,
-  showInjuryBoost: true,
+  showInjuryBoost: false,
   lastGraph: null
 };
 
@@ -1398,7 +1415,7 @@ if(!Array.isArray(STATE.history))    STATE.history    = [];
 if(!Array.isArray(STATE.slip))       STATE.slip       = [];
 if(!Array.isArray(STATE.savedSlips)) STATE.savedSlips = [];
 if(!STATE.settings)                  STATE.settings   = {};
-if(STATE.showInjuryBoost === undefined) STATE.showInjuryBoost = true;
+STATE.showInjuryBoost = false; // always default off — user can toggle on per session
 
 // Legacy migration: if old state had STATE.props, migrate to sportCache
 if(STATE.props && Array.isArray(STATE.props) && STATE.props.length > 0 && !STATE.sportCache) {
@@ -1559,90 +1576,6 @@ async function runGraphDebug() {
   }
 }
 
-async function runNHLSyncTrace() {
-  const out = document.getElementById('nhl-sync-trace-out');
-  if(!out) return;
-  out.style.display = 'block';
-  out.textContent = 'Testing NHL ID sync with BOS (Boston Bruins)...';
-
-  const NHL_BASE_T = 'https://api-web.nhle.com/v1';
-  const now = new Date();
-  const seasonStart = (now.getMonth() + 1) >= 10 ? now.getFullYear() : now.getFullYear() - 1;
-  const seasonStr = `${seasonStart}${seasonStart + 1}`;
-  const lines = [];
-  lines.push(`Season string: ${seasonStr}`);
-  lines.push(`Test team: BOS`);
-  lines.push('');
-
-  // Test 1: season-specific endpoint
-  lines.push(`── Test 1: /roster/BOS/${seasonStr} ──`);
-  out.textContent = lines.join('\n');
-  try {
-    const d1 = await fetch(`${NHL_BASE_T}/roster/BOS/${seasonStr}`).then(r => r.json());
-    const all1 = [...(d1?.forwards||[]), ...(d1?.defensemen||[]), ...(d1?.goalies||[])];
-    lines.push(`Result: ${all1.length} players`);
-    if(all1[0]) {
-      const p = all1[0];
-      lines.push(`Sample: ${p.firstName?.default||p.firstName||''} ${p.lastName?.default||p.lastName||''} (id=${p.id})`);
-    }
-    if(!all1.length) lines.push(`Raw keys: [${Object.keys(d1||{}).join(', ')}]`);
-  } catch(e) {
-    lines.push(`ERROR: ${e.message}`);
-  }
-
-  // Test 2: /current endpoint
-  lines.push('');
-  lines.push('── Test 2: /roster/BOS/current ──');
-  out.textContent = lines.join('\n');
-  try {
-    const d2 = await fetch(`${NHL_BASE_T}/roster/BOS/current`).then(r => r.json());
-    const all2 = [...(d2?.forwards||[]), ...(d2?.defensemen||[]), ...(d2?.goalies||[])];
-    lines.push(`Result: ${all2.length} players`);
-    if(all2[0]) {
-      const p = all2[0];
-      lines.push(`Sample: ${p.firstName?.default||p.firstName||''} ${p.lastName?.default||p.lastName||''} (id=${p.id})`);
-    }
-    if(!all2.length) lines.push(`Raw keys: [${Object.keys(d2||{}).join(', ')}]`);
-  } catch(e) {
-    lines.push(`ERROR: ${e.message}`);
-  }
-
-  // Test 3: ESPN NHL roster
-  lines.push('');
-  lines.push('── Test 3: ESPN NHL roster (BOS = team id 1) ──');
-  out.textContent = lines.join('\n');
-  try {
-    const d3 = await fetch('https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams/1/roster').then(r => r.json());
-    const players3 = (d3?.athletes||[]).flatMap(g => g?.items||[]);
-    lines.push(`Result: ${players3.length} players`);
-    if(players3[0]) lines.push(`Sample: ${players3[0].fullName||players3[0].displayName||'?'} (id=${players3[0].id})`);
-    if(!players3.length) lines.push(`Raw keys: [${Object.keys(d3||{}).join(', ')}]`);
-  } catch(e) {
-    lines.push(`ERROR: ${e.message}`);
-  }
-
-  // Test 4: NHL player game log (Connor McDavid = 8478402, known good ID)
-  lines.push('');
-  lines.push(`── Test 4: NHL player game log (McDavid id=8478402, season=${seasonStr}) ──`);
-  out.textContent = lines.join('\n');
-  try {
-    const d4 = await fetch(`${NHL_BASE_T}/player/8478402/game-log/${seasonStr}/2`).then(r => r.json());
-    const gl = d4?.gameLog || [];
-    lines.push(`Game log entries: ${gl.length}`);
-    if(gl[0]) lines.push(`Sample game: date=${gl[0].gameDate} opp=${gl[0].opponentAbbrev} goals=${gl[0].goals}`);
-  } catch(e) {
-    lines.push(`ERROR: ${e.message}`);
-  }
-
-  lines.push('');
-  lines.push('── Summary ──');
-  lines.push('If Test 1 or 2 return players → NHL roster API works → sync should cache IDs');
-  lines.push('If Test 3 returns players → ESPN works → ESPN IDs cached (used for ESPN gamelog path)');
-  lines.push('If Test 4 returns games → NHL game log API works → graph will show data');
-  lines.push('If all return 0 → network/CORS issue blocking api-web.nhle.com from your browser');
-
-  out.textContent = lines.join('\n');
-}
 
 async function runGamelogDebug() {
   const out = document.getElementById('gl-debug-out');
@@ -1894,7 +1827,6 @@ async function checkApiStatus(which) {
   const tests = {
     espn:  { label:'ESPN', url:`https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${today.replace(/-/g,'')}`, check: d => (d?.events !== undefined), detail: d => `${d?.events?.length ?? 0} games today` },
     mlb:   { label:'MLB API', url:`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}`, check: d => (d?.dates !== undefined), detail: d => `${d?.dates?.[0]?.games?.length ?? 0} games today` },
-    nhl:   { label:'NHL API', url:`https://api-web.nhle.com/v1/schedule/${today}`, check: d => (d?.gameWeek !== undefined || d?.games !== undefined), detail: d => `${(d?.gameWeek?.[0]?.games || d?.games || []).length} games today` },
     odds:  { label:'Odds API', url: STATE.settings.oddsApiKey ? `https://api.the-odds-api.com/v4/sports?apiKey=${STATE.settings.oddsApiKey}` : null, check: d => Array.isArray(d), detail: d => `${d?.length ?? 0} sports available` },
   };
 
@@ -2714,6 +2646,7 @@ let fetchingSports = new Set(); // sports currently being fetched
 document.addEventListener('DOMContentLoaded', function() {
   setDateBar();
   loadSettingsIntoForm();
+  syncInjuryBoostBtn(); // sync button state with STATE.showInjuryBoost on load
   renderSlip();
   renderApiStatus({});
   updateSportChipStatus();
@@ -2985,6 +2918,7 @@ function showTab(id, el) {
 function openSettings() {
   loadSettingsIntoForm();
   document.getElementById('settings-modal').classList.add('open');
+  setTimeout(refreshStorageDisplay, 50); // slight delay so modal is visible first
 }
 function revertToDefaults() {
   if(!confirm('Clear all API keys and proxy settings? Your props history and slip will be kept.')) return;
@@ -3004,7 +2938,33 @@ function clearESPNIdCache() {
 }
 
 function clearAllData() {
-  if(!confirm('This will wipe keys, cached props, slip, and history. Player ID caches (NHL/MLB/ESPN) are preserved. Cannot be undone. Continue?')) return;
+  // Build a precise count of what will be deleted
+  const propCount   = Object.values(STATE.sportCache  || {}).reduce((n, c) => n + (c.props?.length || 0), 0)
+                    + Object.values(STATE.bettingCache || {}).reduce((n, c) => n + (c.props?.length || 0), 0)
+                    + Object.values(STATE.analysisCache|| {}).reduce((n, c) => n + (c.props?.length || 0), 0);
+  const histCount   = (STATE.history || []).length;
+  const slipCount   = (STATE.savedSlips || []).length;
+  const espnIdCount = Object.keys(loadESPNIdCache()).length;
+  const mlbIdCount  = Object.keys(loadMLBIdCache()).length;
+  const nhlIdCount  = Object.keys(loadNHLIdCache()).length;
+  let snapCount = 0;
+  try { for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&k.startsWith('pe_snap')) snapCount++; } } catch(e){}
+  const msg = [
+    'This will permanently delete:',
+    `  • ${propCount} cached props`,
+    `  • ${snapCount} player snapshots`,
+    `  • ${histCount} history entries`,
+    `  • ${slipCount} saved slips`,
+    '',
+    'These will be PRESERVED:',
+    `  • ESPN IDs (${espnIdCount.toLocaleString()} players)`,
+    `  • MLB IDs (${mlbIdCount.toLocaleString()} players)`,
+    `  • NHL IDs (${nhlIdCount.toLocaleString()} players)`,
+    `  • Team IDs & calibration data`,
+    '',
+    'Cannot be undone. Continue?'
+  ].join('\n');
+  if(!confirm(msg)) return;
   // Set flag so auto-save handlers don't re-write STATE during the reload delay
   window._clearingData = true;
   try {
@@ -5971,164 +5931,68 @@ async function runFetch(sportsToFetch) {
 // PLAYER DATABASE — ~235 players across all sports
 // ═══════════════════════════════════════════════════════
 const PLAYER_DB = {
-  NBA: [
-    {id:'3945274',nbaId:1628983,name:'Shai Gilgeous-Alexander',team:'OKC',prop:'Points',lineBase:32,usage:0.34,vol:'high'},
-    {id:'3136193',nbaId:1629029,name:'Luka Doncic',team:'LAL',prop:'Points',lineBase:33.5,usage:0.37,vol:'high'},
-    {id:'6450',nbaId:2544,name:'LeBron James',team:'LAL',prop:'Points',lineBase:22,usage:0.28,vol:'med'},
-    {id:'3059318',nbaId:1628369,name:'Jayson Tatum',team:'BOS',prop:'Points',lineBase:25.5,usage:0.31,vol:'high'},
-    {id:'3032977',nbaId:1627759,name:'Jaylen Brown',team:'BOS',prop:'Points',lineBase:21.5,usage:0.26,vol:'med'},
-    {id:'3064514',nbaId:203507,name:'Giannis Antetokounmpo',team:'MIL',prop:'Points',lineBase:30,usage:0.35,vol:'high'},
-    {id:'3112335',nbaId:203999,name:'Nikola Jokic',team:'DEN',prop:'Points',lineBase:26.5,usage:0.30,vol:'high'},
-    {id:'4432174',nbaId:1630162,name:'Anthony Edwards',team:'MIN',prop:'Points',lineBase:25.5,usage:0.32,vol:'high'},
-    {id:'3908809',nbaId:1628378,name:'Donovan Mitchell',team:'CLE',prop:'Points',lineBase:26,usage:0.31,vol:'high'},
-    {id:'4277851',nbaId:1631094,name:'Paolo Banchero',team:'ORL',prop:'Points',lineBase:24,usage:0.29,vol:'high'},
-    {id:'4066328',nbaId:1630178,name:'Tyrese Maxey',team:'PHI',prop:'Points',lineBase:25,usage:0.30,vol:'high'},
-    {id:'3934672',nbaId:1630169,name:'Tyrese Haliburton',team:'IND',prop:'Points',lineBase:20,usage:0.24,vol:'med'},
-    {id:'4066351',nbaId:1628384,name:'Trae Young',team:'ATL',prop:'Points',lineBase:24,usage:0.34,vol:'high'},
-    {id:'3975',nbaId:201939,name:'Stephen Curry',team:'GSW',prop:'Points',lineBase:26,usage:0.28,vol:'high',threePct:0.42},
-    {id:'3992',nbaId:1626164,name:'Devin Booker',team:'PHX',prop:'Points',lineBase:26,usage:0.30,vol:'high'},
-    {id:'4395628',nbaId:1630595,name:'Cade Cunningham',team:'DET',prop:'Points',lineBase:24,usage:0.29,vol:'high'},
-    {id:'4431671',nbaId:1630224,name:'Jalen Green',team:'HOU',prop:'Points',lineBase:23,usage:0.28,vol:'high'},
-    {id:'4431980',nbaId:1631167,name:'Alperen Sengun',team:'HOU',prop:'Points',lineBase:19,usage:0.24,vol:'med'},
-    {id:'4065684',nbaId:1628368,name:'De Aaron Fox',team:'SAC',prop:'Points',lineBase:23,usage:0.28,vol:'high'},
-    {id:'3468778',nbaId:203897,name:'Zach LaVine',team:'SAC',prop:'Points',lineBase:22,usage:0.27,vol:'med'},
-    {id:'3934718',nbaId:1628384,name:'Jalen Brunson',team:'NYK',prop:'Points',lineBase:27,usage:0.34,vol:'high'},
-    {id:'3934719',nbaId:1628384,name:'OG Anunoby',team:'NYK',prop:'Threes Made',lineBase:1.5,usage:0.18,vol:'med',threePct:0.37},
-    {id:'3102531',nbaId:1626157,name:'Karl-Anthony Towns',team:'NYK',prop:'Points',lineBase:24,usage:0.27,vol:'high'},
-    {id:'4397244',nbaId:1628969,name:'Mikal Bridges',team:'NYK',prop:'Points',lineBase:16.5,usage:0.20,vol:'med'},
-    {id:'3134907',nbaId:1628404,name:'Josh Hart',team:'NYK',prop:'Rebounds',lineBase:8.5,usage:0.13,vol:'low'},
-    {id:'6583',nbaId:203954,name:'Joel Embiid',team:'PHI',prop:'Points',lineBase:31,usage:0.36,vol:'high'},
-    {id:'3202',nbaId:201142,name:'Kevin Durant',team:'PHX',prop:'Points',lineBase:26,usage:0.28,vol:'high'},
-    {id:'3012',nbaId:203076,name:'Anthony Davis',team:'LAL',prop:'Points',lineBase:26,usage:0.27,vol:'high'},
-    {id:'4433245',nbaId:1641705,name:'Victor Wembanyama',team:'SAS',prop:'Points',lineBase:22,usage:0.27,vol:'high'},
-    {id:'3907387',nbaId:1628389,name:'Bam Adebayo',team:'MIA',prop:'Points',lineBase:19.5,usage:0.22,vol:'med'},
-    {id:'4395725',nbaId:1630596,name:'Evan Mobley',team:'CLE',prop:'Points',lineBase:18,usage:0.21,vol:'med'},
-    {id:'4432800',nbaId:1630567,name:'Scottie Barnes',team:'TOR',prop:'Points',lineBase:20,usage:0.23,vol:'med'},
-    {id:'3978',nbaId:202691,name:'Klay Thompson',team:'DAL',prop:'Threes Made',lineBase:2.5,usage:0.18,vol:'med',threePct:0.40},
-    {id:'4066623',nbaId:1630217,name:'Desmond Bane',team:'MEM',prop:'Points',lineBase:19,usage:0.22,vol:'med',threePct:0.39},
-    {id:'4278576',nbaId:1630214,name:'Jalen Williams',team:'OKC',prop:'Points',lineBase:21,usage:0.24,vol:'med'},
-    {id:'4433137',nbaId:1630533,name:'Chet Holmgren',team:'OKC',prop:'Points',lineBase:17.5,usage:0.19,vol:'med'},
-    {id:'3136196',nbaId:1627742,name:'Brandon Ingram',team:'NO',prop:'Points',lineBase:22,usage:0.26,vol:'high'},
-    {id:'4066621',nbaId:203081,name:'Damian Lillard',team:'MIL',prop:'Points',lineBase:25,usage:0.31,vol:'high'},
-    {id:'4432816',nbaId:1630163,name:'LaMelo Ball',team:'CHA',prop:'Points',lineBase:23,usage:0.30,vol:'high'},
-    {id:'4278176',nbaId:1630532,name:'Franz Wagner',team:'ORL',prop:'Points',lineBase:22,usage:0.25,vol:'med'},
-    {id:'3149673',nbaId:1627749,name:'Dejounte Murray',team:'ATL',prop:'Points',lineBase:19,usage:0.22,vol:'med'},
-  ],
+  // NBA/NFL/WNBA/NHL removed — player IDs now come from ESPN sync cache (getVerifiedESPNId).
+  // Running Player ID Sync in Trace tab populates all players from ESPN rosters.
+  // MLB kept: mlbId is sync-cached but batOrder/starter hints have no other source.
+  NBA: [], NFL: [], WNBA: [], NHL: [],
   MLB: [
-    {id:'33912',name:'Shohei Ohtani',team:'LAD',prop:'Total Bases',lineBase:1.5,batOrder:3,throwsL:false,mlbId:'660271'},
-    {id:'33972',name:'Mookie Betts',team:'LAD',prop:'Hits',lineBase:0.5,batOrder:2,throwsL:false,mlbId:'605141'},
-    {id:'33898',name:'Freddie Freeman',team:'LAD',prop:'Hits',lineBase:0.5,batOrder:4,throwsL:true,mlbId:'518692'},
-    {id:'33680',name:'Aaron Judge',team:'NYY',prop:'Total Bases',lineBase:1.5,batOrder:3,throwsL:false,mlbId:'592450'},
-    {id:'33843',name:'Juan Soto',team:'NYM',prop:'Total Bases',lineBase:1.5,batOrder:3,throwsL:true,mlbId:'665742'},
-    {id:'34014',name:'Ronald Acuna Jr.',team:'ATL',prop:'Hits',lineBase:0.5,batOrder:1,throwsL:false,mlbId:'660670'},
-    {id:'33879',name:'Fernando Tatis Jr.',team:'SD',prop:'Total Bases',lineBase:1.5,batOrder:3,throwsL:false,mlbId:'665487'},
-    {id:'33860',name:'Yordan Alvarez',team:'HOU',prop:'Total Bases',lineBase:1.5,batOrder:4,throwsL:true,mlbId:'670541'},
-    {id:'33873',name:'Jose Ramirez',team:'CLE',prop:'Hits',lineBase:0.5,batOrder:3,throwsL:true,mlbId:'608070'},
-    {id:'33833',name:'Bobby Witt Jr.',team:'KC',prop:'Hits',lineBase:0.5,batOrder:1,throwsL:false,mlbId:'677951'},
-    {id:'33890',name:'Julio Rodriguez',team:'SEA',prop:'Hits',lineBase:0.5,batOrder:2,throwsL:false,mlbId:'677594'},
-    {id:'33916',name:'Bryce Harper',team:'PHI',prop:'Total Bases',lineBase:1.5,batOrder:4,throwsL:true,mlbId:'547180'},
-    {id:'33929',name:'Corbin Carroll',team:'ARI',prop:'Hits',lineBase:0.5,batOrder:1,throwsL:true,mlbId:'682998'},
-    {id:'33844',name:'Gunnar Henderson',team:'BAL',prop:'Hits',lineBase:0.5,batOrder:2,throwsL:true,mlbId:'683002'},
-    {id:'33867',name:'Matt Olson',team:'ATL',prop:'Total Bases',lineBase:1.5,batOrder:4,throwsL:true,mlbId:'621566'},
-    {id:'33837',name:'Vladimir Guerrero Jr.',team:'TOR',prop:'Total Bases',lineBase:1.5,batOrder:3,throwsL:false,mlbId:'665489'},
-    {id:'33836',name:'Kyle Tucker',team:'CHC',prop:'Total Bases',lineBase:1.5,batOrder:4,throwsL:true,mlbId:'663656'},
-    {id:'33934',name:'Gerrit Cole',team:'NYY',prop:'Strikeouts',lineBase:7.5,starter:true,mlbId:'543037'},
-    {id:'33822',name:'Spencer Strider',team:'ATL',prop:'Strikeouts',lineBase:8.5,starter:true,mlbId:'675911'},
-    {id:'33948',name:'Zack Wheeler',team:'PHI',prop:'Strikeouts',lineBase:7.5,starter:true,mlbId:'554430'},
-    {id:'33931',name:'Framber Valdez',team:'HOU',prop:'Strikeouts',lineBase:6.5,starter:true,mlbId:'664285'},
-    {id:'33942',name:'Logan Webb',team:'SF',prop:'Strikeouts',lineBase:6.5,starter:true,mlbId:'657277'},
-    {id:'33887',name:'Dylan Cease',team:'SD',prop:'Strikeouts',lineBase:7.5,starter:true,mlbId:'656302'},
-    {id:'33871',name:'Corbin Burnes',team:'BAL',prop:'Strikeouts',lineBase:7.5,starter:true,mlbId:'669203'},
-    {id:'33874',name:'Tyler Glasnow',team:'LAD',prop:'Strikeouts',lineBase:8.5,starter:true,mlbId:'607192'},
-    {id:'33884',name:'Tarik Skubal',team:'DET',prop:'Strikeouts',lineBase:7.5,starter:true,mlbId:'669373'},
-    {id:'33876',name:'Yoshinobu Yamamoto',team:'LAD',prop:'Strikeouts',lineBase:7.5,starter:true,mlbId:'808967'},
+    {id:'33912',name:'Shohei Ohtani',      team:'LAD',mlbId:'660271',batOrder:3},
+    {id:'33972',name:'Mookie Betts',        team:'LAD',mlbId:'605141',batOrder:2},
+    {id:'33898',name:'Freddie Freeman',     team:'LAD',mlbId:'518692',batOrder:4},
+    {id:'33680',name:'Aaron Judge',         team:'NYY',mlbId:'592450',batOrder:3},
+    {id:'33843',name:'Juan Soto',           team:'NYM',mlbId:'665742',batOrder:3},
+    {id:'34014',name:'Ronald Acuna Jr.',    team:'ATL',mlbId:'660670',batOrder:1},
+    {id:'33879',name:'Fernando Tatis Jr.',  team:'SD', mlbId:'665487',batOrder:3},
+    {id:'33860',name:'Yordan Alvarez',      team:'HOU',mlbId:'670541',batOrder:4},
+    {id:'33873',name:'Jose Ramirez',        team:'CLE',mlbId:'608070',batOrder:3},
+    {id:'33833',name:'Bobby Witt Jr.',      team:'KC', mlbId:'677951',batOrder:1},
+    {id:'33890',name:'Julio Rodriguez',     team:'SEA',mlbId:'677594',batOrder:2},
+    {id:'33916',name:'Bryce Harper',        team:'PHI',mlbId:'547180',batOrder:4},
+    {id:'33929',name:'Corbin Carroll',      team:'ARI',mlbId:'682998',batOrder:1},
+    {id:'33844',name:'Gunnar Henderson',    team:'BAL',mlbId:'683002',batOrder:2},
+    {id:'33867',name:'Matt Olson',          team:'ATL',mlbId:'621566',batOrder:4},
+    {id:'33837',name:'Vladimir Guerrero Jr.',team:'TOR',mlbId:'665489',batOrder:3},
+    {id:'33836',name:'Kyle Tucker',         team:'CHC',mlbId:'663656',batOrder:4},
+    {id:'33934',name:'Gerrit Cole',         team:'NYY',mlbId:'543037',starter:true},
+    {id:'33822',name:'Spencer Strider',     team:'ATL',mlbId:'675911',starter:true},
+    {id:'33948',name:'Zack Wheeler',        team:'PHI',mlbId:'554430',starter:true},
+    {id:'33931',name:'Framber Valdez',      team:'HOU',mlbId:'664285',starter:true},
+    {id:'33942',name:'Logan Webb',          team:'SF', mlbId:'657277',starter:true},
+    {id:'33887',name:'Dylan Cease',         team:'SD', mlbId:'656302',starter:true},
+    {id:'33871',name:'Corbin Burnes',       team:'BAL',mlbId:'669203',starter:true},
+    {id:'33874',name:'Tyler Glasnow',       team:'LAD',mlbId:'607192',starter:true},
+    {id:'33884',name:'Tarik Skubal',        team:'DET',mlbId:'669373',starter:true},
+    {id:'33876',name:'Yoshinobu Yamamoto',  team:'LAD',mlbId:'808967',starter:true},
   ],
-  NHL: [
-    {id:'3114733',name:'Connor McDavid',team:'EDM',prop:'Points',lineBase:0.5,pp:true},
-    {id:'3899937',name:'Nathan MacKinnon',team:'COL',prop:'Points',lineBase:0.5,pp:true},
-    {id:'4024672',name:'David Pastrnak',team:'BOS',prop:'Points',lineBase:0.5,pp:true},
-    {id:'3942322',name:'Leon Draisaitl',team:'EDM',prop:'Points',lineBase:0.5,pp:true},
-    {id:'3899946',name:'Nikita Kucherov',team:'TBL',prop:'Points',lineBase:0.5,pp:true},
-    {id:'3096065',name:'Auston Matthews',team:'TOR',prop:'Points',lineBase:0.5,pp:true},
-    {id:'3042030',name:'Sidney Crosby',team:'PIT',prop:'Points',lineBase:0.5,pp:true},
-    {id:'3101205',name:'Alex Ovechkin',team:'WSH',prop:'Points',lineBase:0.5,pp:true},
-    {id:'3900161',name:'Brayden Point',team:'TBL',prop:'Points',lineBase:0.5,pp:true},
-    {id:'4024671',name:'Mitch Marner',team:'TOR',prop:'Points',lineBase:0.5,pp:true},
-    {id:'3899938',name:'Mikko Rantanen',team:'CAR',prop:'Points',lineBase:0.5,pp:true},
-    {id:'4587687',name:'Connor Bedard',team:'CHI',prop:'Points',lineBase:0.5,pp:false},
-    {id:'4587691',name:'Matvei Michkov',team:'PHI',prop:'Points',lineBase:0.5,pp:true},
-    {id:'3899943',name:'Quinn Hughes',team:'VAN',prop:'Points',lineBase:0.5,pp:true},
-    {id:'3899945',name:'Cale Makar',team:'COL',prop:'Points',lineBase:0.5,pp:true},
-    {id:'3114733',name:'Connor McDavid',team:'EDM',prop:'Shots on Goal',lineBase:3.5,pp:true},
-    {id:'3096065',name:'Auston Matthews',team:'TOR',prop:'Shots on Goal',lineBase:4.5,pp:true},
-    {id:'3101205',name:'Alex Ovechkin',team:'WSH',prop:'Shots on Goal',lineBase:4.5,pp:true},
-    {id:'4024672',name:'David Pastrnak',team:'BOS',prop:'Shots on Goal',lineBase:3.5,pp:true},
-    {id:'4587687',name:'Connor Bedard',team:'CHI',prop:'Shots on Goal',lineBase:3.5,pp:false},
-    {id:'4024673',name:'Tage Thompson',team:'BUF',prop:'Points',lineBase:0.5,pp:true},
-    {id:'4024669',name:'Matthew Tkachuk',team:'FLA',prop:'Points',lineBase:0.5,pp:true},
-    {id:'3899942',name:'Sam Reinhart',team:'FLA',prop:'Points',lineBase:0.5,pp:true},
-    {id:'3900163',name:'Jack Hughes',team:'NJD',prop:'Points',lineBase:0.5,pp:true},
-    {id:'3899940',name:'Jason Robertson',team:'DAL',prop:'Points',lineBase:0.5,pp:true},
-  ],
-  NFL: [
-    {id:'3139477',name:'Patrick Mahomes',team:'KC',prop:'Pass Yards',lineBase:285,snapPct:1.0},
-    {id:'4362887',name:'Josh Allen',team:'BUF',prop:'Pass Yards',lineBase:275,snapPct:1.0},
-    {id:'3915411',name:'Lamar Jackson',team:'BAL',prop:'Pass Yards',lineBase:225,snapPct:1.0},
-    {id:'4361741',name:'Joe Burrow',team:'CIN',prop:'Pass Yards',lineBase:275,snapPct:1.0},
-    {id:'4240703',name:'Justin Herbert',team:'LAC',prop:'Pass Yards',lineBase:265,snapPct:1.0},
-    {id:'4361259',name:'Jalen Hurts',team:'PHI',prop:'Pass Yards',lineBase:230,snapPct:1.0},
-    {id:'4430807',name:'CJ Stroud',team:'HOU',prop:'Pass Yards',lineBase:245,snapPct:1.0},
-    {id:'3054211',name:'Brock Purdy',team:'SF',prop:'Pass Yards',lineBase:250,snapPct:1.0},
-    {id:'4040715',name:'Justin Jefferson',team:'MIN',prop:'Receiving Yards',lineBase:82,snapPct:0.96},
-    {id:'4040618',name:'Tyreek Hill',team:'MIA',prop:'Receiving Yards',lineBase:78,snapPct:0.95},
-    {id:'4241478',name:"Ja'Marr Chase",team:'CIN',prop:'Receiving Yards',lineBase:80,snapPct:0.95},
-    {id:'4047365',name:'CeeDee Lamb',team:'DAL',prop:'Receiving Yards',lineBase:85,snapPct:0.96},
-    {id:'4259545',name:'Amon-Ra St. Brown',team:'DET',prop:'Receiving Yards',lineBase:75,snapPct:0.95},
-    {id:'4361741',name:'Saquon Barkley',team:'PHI',prop:'Rush Yards',lineBase:88,snapPct:0.75},
-    {id:'4429108',name:'Bijan Robinson',team:'ATL',prop:'Rush Yards',lineBase:72,snapPct:0.72},
-    {id:'4430174',name:'Jahmyr Gibbs',team:'DET',prop:'Rush Yards',lineBase:68,snapPct:0.65},
-    {id:'4040610',name:'Derrick Henry',team:'NO',prop:'Rush Yards',lineBase:75,snapPct:0.70},
-    {id:'3054190',name:'Travis Kelce',team:'KC',prop:'Receiving Yards',lineBase:62,snapPct:0.90},
-    {id:'4361261',name:'Trey McBride',team:'ARI',prop:'Receiving Yards',lineBase:55,snapPct:0.85},
-    {id:'4040619',name:'George Kittle',team:'SF',prop:'Receiving Yards',lineBase:58,snapPct:0.85},
-  ],
-  WNBA: [
-    {id:'4432783',name:"A'ja Wilson",team:'LV',prop:'Points',lineBase:22.5},
-    {id:'4432792',name:'Breanna Stewart',team:'NY',prop:'Points',lineBase:19.5},
-    {id:'4432784',name:'Caitlin Clark',team:'IND',prop:'Points',lineBase:19},
-    {id:'4432790',name:'Sabrina Ionescu',team:'NY',prop:'Points',lineBase:17},
-    {id:'4432786',name:'Kelsey Plum',team:'LV',prop:'Points',lineBase:16},
-    {id:'4432785',name:'Napheesa Collier',team:'MIN',prop:'Points',lineBase:18},
-    {id:'4432793',name:'Angel Reese',team:'CHI',prop:'Rebounds',lineBase:9.5},
-    {id:'4432794',name:'Paige Bueckers',team:'DAL',prop:'Points',lineBase:18},
-    {id:'4432795',name:'Cameron Brink',team:'LA',prop:'Points',lineBase:14},
-    {id:'4432788',name:'Alyssa Thomas',team:'CT',prop:'Points',lineBase:13},
-    {id:'4432801',name:'Jewell Loyd',team:'SEA',prop:'Points',lineBase:17},
-    {id:'4432803',name:'Rhyne Howard',team:'ATL',prop:'Points',lineBase:16},
-  ],
+  // GOLF: top-ranked players who appear in all four majors. sgTotal drives gate logic.
+  // Projection engine only runs Golf during active major weeks via Odds API detection.
   GOLF: [
-    // ESPN IDs from espn.com/golf/player/_/id/{ID}
-    // RBC Heritage 2026 field (Harbour Town, Hilton Head — week of Apr 17)
-    {id:'9478',  name:'Scottie Scheffler',  team:'PGA', prop:'Strokes',          lineBase:68.5, sgTotal:3.8},
-    {id:'4686889',name:'Ludvig Aberg',      team:'PGA', prop:'Strokes',          lineBase:68.5, sgTotal:3.1},
-    {id:'3215',  name:'Xander Schauffele',  team:'PGA', prop:'Birdies or Better',lineBase:4.5,  sgTotal:2.9},
-    {id:'4686885',name:'Rory McIlroy',      team:'PGA', prop:'Birdies or Better',lineBase:4.5,  sgTotal:3.2},
-    {id:'4686888',name:'Viktor Hovland',    team:'PGA', prop:'Strokes',          lineBase:68.5, sgTotal:2.6},
-    {id:'4686887',name:'Collin Morikawa',   team:'PGA', prop:'Strokes',          lineBase:69.0, sgTotal:2.7},
-    {id:'3467',  name:'Jordan Spieth',      team:'PGA', prop:'Birdies or Better',lineBase:3.5,  sgTotal:2.2},
-    {id:'4686894',name:'Tommy Fleetwood',   team:'PGA', prop:'Strokes',          lineBase:69.0, sgTotal:2.3},
-    {id:'4686896',name:'Patrick Cantlay',   team:'PGA', prop:'Birdies or Better',lineBase:3.5,  sgTotal:2.4},
-    {id:'3468',  name:'Matt Fitzpatrick',   team:'PGA', prop:'Strokes',          lineBase:69.0, sgTotal:2.3},
-    {id:'4686892',name:'Tony Finau',        team:'PGA', prop:'Birdies or Better',lineBase:3.5,  sgTotal:2.1},
-    {id:'4686899',name:'Min Woo Lee',       team:'PGA', prop:'Birdies or Better',lineBase:3.5,  sgTotal:2.0},
-    {id:'4686900',name:'Tom Kim',           team:'PGA', prop:'Birdies or Better',lineBase:3.5,  sgTotal:2.1},
-    {id:'3468179',name:'Sam Burns',         team:'PGA', prop:'Birdies or Better',lineBase:4.0,  sgTotal:2.2},
-    {id:'4686886',name:'Jon Rahm',          team:'LIV', prop:'Strokes',          lineBase:69.5, sgTotal:2.8},
+    {id:'9478',   name:'Scottie Scheffler', team:'PGA',prop:'Strokes',          lineBase:68.5,sgTotal:3.8},
+    {id:'4686885',name:'Rory McIlroy',      team:'PGA',prop:'Birdies or Better',lineBase:4.5, sgTotal:3.2},
+    {id:'4686889',name:'Ludvig Aberg',      team:'PGA',prop:'Strokes',          lineBase:68.5,sgTotal:3.1},
+    {id:'3215',   name:'Xander Schauffele', team:'PGA',prop:'Birdies or Better',lineBase:4.5, sgTotal:2.9},
+    {id:'4686886',name:'Jon Rahm',          team:'LIV',prop:'Strokes',          lineBase:69.5,sgTotal:2.8},
+    {id:'4686887',name:'Collin Morikawa',   team:'PGA',prop:'Strokes',          lineBase:69.0,sgTotal:2.7},
+    {id:'4686888',name:'Viktor Hovland',    team:'PGA',prop:'Strokes',          lineBase:68.5,sgTotal:2.6},
+    {id:'4686896',name:'Patrick Cantlay',   team:'PGA',prop:'Birdies or Better',lineBase:3.5, sgTotal:2.4},
+    {id:'4686894',name:'Tommy Fleetwood',   team:'PGA',prop:'Strokes',          lineBase:69.0,sgTotal:2.3},
+    {id:'3468',   name:'Matt Fitzpatrick',  team:'PGA',prop:'Strokes',          lineBase:69.0,sgTotal:2.3},
+    {id:'3468179',name:'Sam Burns',         team:'PGA',prop:'Birdies or Better',lineBase:4.0, sgTotal:2.2},
+    {id:'3467',   name:'Jordan Spieth',     team:'PGA',prop:'Birdies or Better',lineBase:3.5, sgTotal:2.2},
+    {id:'4686892',name:'Tony Finau',        team:'PGA',prop:'Birdies or Better',lineBase:3.5, sgTotal:2.1},
+    {id:'4686900',name:'Tom Kim',           team:'PGA',prop:'Birdies or Better',lineBase:3.5, sgTotal:2.1},
+    {id:'4686893',name:'Wyndham Clark',     team:'PGA',prop:'Strokes',          lineBase:69.5,sgTotal:2.1},
+    {id:'4686899',name:'Min Woo Lee',       team:'PGA',prop:'Birdies or Better',lineBase:3.5, sgTotal:2.0},
+    {id:'4686902',name:'Hideki Matsuyama',  team:'PGA',prop:'Strokes',          lineBase:70.0,sgTotal:2.0},
+    {id:'4686897',name:'Max Homa',          team:'PGA',prop:'Birdies or Better',lineBase:3.5, sgTotal:2.0},
+    {id:'4686895',name:'Russell Henley',    team:'PGA',prop:'Birdies or Better',lineBase:3.5, sgTotal:1.9},
+    {id:'4686901',name:'Shane Lowry',       team:'PGA',prop:'Strokes',          lineBase:70.0,sgTotal:1.9},
   ]
 };
 
 // ═══════════════════════════════════════════════════════
-// PLAYER_DB lookup — static list, used for ESPN ID resolution and prop hints
+// PLAYER_DB — MLB batting hints + Golf sgTotal baselines
+// ESPN ID resolution for all sports uses getVerifiedESPNId() (sync cache) first.
 // ═══════════════════════════════════════════════════════
 
 function mlbTeamAbbrev(teamName) {
@@ -10308,7 +10172,7 @@ async function _renderGraphResult(result, games, games2Input, resolvedName, spor
         </div>`;
       })() : '';
 
-      const venueTitle = g.home === true ? '🏠 Home' : g.home === false ? '✈ Away' : '';
+      const venueTitle = g.home === true ? '🏠 Home' : g.home === false ? '@ Away' : '';
       return `<div class="graph-bar-wrap" title="${venueTitle} ${g.opp} · ${g.date} · ${prop}: ${g.v}${g2?' · '+prop2+': '+g2.v:''}${isVs?' ★ vs '+normOpp(opp):''}">
         <div class="graph-bar-val" style="color:${hit?'var(--accent)':'var(--red)'};font-size:8px">${g.v}</div>
         <div style="position:relative;height:${chartH}px;display:flex;align-items:flex-end;width:${games2?'24':'18'}px">
@@ -10322,7 +10186,7 @@ async function _renderGraphResult(result, games, games2Input, resolvedName, spor
     }).join('');
 
     const labelsHTML = games.map(g => {
-      const venueIcon = g.home === true ? '🏠' : g.home === false ? '✈' : '';
+      const venueIcon = g.home === true ? '🏠' : g.home === false ? '@' : '';
       return `<div class="graph-label">${venueIcon}${g.opp||''}<br>${(g.date||'').slice(0,5)}</div>`;
     }).join('');
 
@@ -10343,7 +10207,7 @@ async function _renderGraphResult(result, games, games2Input, resolvedName, spor
       games2 ? `<span style="display:inline-flex;align-items:center;gap:3px"><span style="display:inline-block;width:6px;height:8px;border-radius:1px;background:rgba(77,184,255,0.7)"></span> ${prop2} over ${line2}</span>` : '',
       total > 5 ? `<span style="display:inline-flex;align-items:center;gap:3px"><span style="display:inline-block;width:10px;height:1.5px;background:rgba(255,181,71,0.9)"></span> 5-game avg</span>` : '',
       opp ? `<span style="display:inline-flex;align-items:center;gap:3px"><span style="display:inline-block;width:8px;height:8px;border:1.5px solid var(--amber);border-radius:1px"></span> vs ${normOpp(opp)}</span>` : '',
-      `<span style="display:inline-flex;align-items:center;gap:3px">🏠 = home</span>`,
+      `<span style="display:inline-flex;align-items:center;gap:3px">🏠 home &nbsp; @ away</span>`,
     ].filter(Boolean).join(' &nbsp; ');
 
     result.innerHTML = `
@@ -11448,6 +11312,43 @@ function saveSlip() {
 // ═══════════════════════════════════════════════════════
 // ROI TRACKER
 // ═══════════════════════════════════════════════════════
+let _trackerSport = 'all';
+
+function setTrackerSport(sport, el) {
+  _trackerSport = sport;
+  document.querySelectorAll('#tracker-sport-filter .filter-chip').forEach(c => c.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderTracker();
+}
+
+function clearTrackerSearch() {
+  const inp = document.getElementById('tracker-search');
+  if(inp) { inp.value = ''; renderTracker(); }
+}
+
+function getTrackerFilters() {
+  const q = (document.getElementById('tracker-search')?.value || '').toLowerCase().trim();
+  return { q, sport: _trackerSport };
+}
+
+function slipMatchesFilter(slip, q, sport) {
+  if(sport !== 'all' && !slip.legs?.some(l => l.sport === sport)) return false;
+  if(!q) return true;
+  return slip.legs?.some(l =>
+    (l.player||'').toLowerCase().includes(q) ||
+    (l.prop||'').toLowerCase().includes(q) ||
+    (l.sport||'').toLowerCase().includes(q)
+  );
+}
+
+function histMatchesFilter(h, q, sport) {
+  if(sport !== 'all' && h.sport !== sport) return false;
+  if(!q) return true;
+  return (h.player||'').toLowerCase().includes(q) ||
+         (h.prop||'').toLowerCase().includes(q) ||
+         (h.sport||'').toLowerCase().includes(q);
+}
+
 function renderTracker() {
   // ROI is based on SLIPS (parlays), not individual legs
   // A slip wins ONLY when ALL legs hit — otherwise it's a loss
@@ -11491,9 +11392,14 @@ function renderTracker() {
   }
 
   const histArea = document.getElementById('history-area');
-  const allSlipsForHistory = [...(STATE.savedSlips || [])].reverse();
-  if(allSlipsForHistory.length === 0 && STATE.history.length === 0) {
+  const { q: _fq, sport: _fs } = getTrackerFilters();
+  const allSlipsForHistory = [...(STATE.savedSlips || [])].reverse().filter(s => slipMatchesFilter(s, _fq, _fs));
+  const filteredHistory = [...STATE.history].reverse().filter(h => histMatchesFilter(h, _fq, _fs));
+  const hasAny = (STATE.savedSlips||[]).length > 0 || STATE.history.length > 0;
+  if(!hasAny) {
     histArea.innerHTML = `<div class="empty"><div class="empty-title">No history yet</div><div class="empty-sub">Build a slip and save it — all legs must hit to win.<br/>Use Check Pick to track individual props.</div></div>`;
+  } else if(allSlipsForHistory.length === 0 && filteredHistory.length === 0) {
+    histArea.innerHTML = `<div class="empty"><div class="empty-sub">No results match your filter.</div></div>`;
   } else {
     let html = '';
 
@@ -11538,9 +11444,9 @@ function renderTracker() {
     });
 
     // ── CHECK PICK history (individual, separate from slips) ──
-    if(STATE.history.length > 0) {
+    if(filteredHistory.length > 0) {
       html += `<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin:14px 0 8px;letter-spacing:.5px;text-transform:uppercase">Check Pick history</div>`;
-      const checkRows = [...STATE.history].reverse().slice(0, 15).map(h => {
+      const checkRows = filteredHistory.slice(0, 15).map(h => {
         const edge = h.proj - h.line;
         const edgeColor = edge >= 0 ? 'var(--accent)' : 'var(--red)';
         const decColor = h.decision === 'OVER' ? 'var(--accent)' : h.decision === 'UNDER' ? 'var(--red)' : 'var(--amber)';
@@ -11722,6 +11628,72 @@ function setStep(id, state) {
 // ═══════════════════════════════════════════════════════
 // TOAST
 // ═══════════════════════════════════════════════════════
+function getStorageBytes(key) {
+  try { const v = localStorage.getItem(key); return v ? (key.length + v.length) * 2 : 0; } catch(e) { return 0; }
+}
+
+function refreshStorageDisplay() {
+  const el = document.getElementById('storage-usage-display');
+  if(!el) return;
+  try {
+    // Estimate total used
+    let total = 0, snapBytes = 0, snapCount = 0, idBytes = 0, stateBytes = 0, otherBytes = 0;
+    for(let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if(!k) continue;
+      const bytes = getStorageBytes(k);
+      total += bytes;
+      if(k.startsWith('pe_snap') || k === 'pe_mins_cache') { snapBytes += bytes; snapCount++; }
+      else if(k === ESPN_ID_CACHE_KEY || k === NHL_ID_CACHE_KEY || k === MLB_ID_CACHE_KEY || k === TEAM_ID_STORAGE_KEY) idBytes += bytes;
+      else if(k === 'pe_state_v1' || k === 'pe_state') stateBytes += bytes;
+      else otherBytes += bytes;
+    }
+    const kb = n => (n / 1024).toFixed(1) + ' KB';
+    // Most browsers allow ~5MB localStorage
+    const limitBytes = 5 * 1024 * 1024;
+    const pct = Math.min(100, Math.round(total / limitBytes * 100));
+    const barColor = pct > 80 ? 'var(--red)' : pct > 55 ? 'var(--amber)' : 'var(--accent)';
+    const espnCount = Object.keys(loadESPNIdCache()).length;
+    const mlbCount  = Object.keys(loadMLBIdCache()).length;
+    const nhlCount  = Object.keys(loadNHLIdCache()).length;
+    el.innerHTML = `
+      <div style="margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+          <span>${kb(total)} used of ~5 MB</span>
+          <span style="color:${barColor}">${pct}%</span>
+        </div>
+        <div style="background:var(--bg3);border-radius:3px;height:5px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px;transition:width .3s"></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:9px">
+        <span style="color:var(--muted)">📦 Snapshots (${snapCount})</span><span style="color:var(--text)">${kb(snapBytes)}</span>
+        <span style="color:var(--muted)">🆔 Player IDs (ESPN:${espnCount} MLB:${mlbCount} NHL:${nhlCount})</span><span style="color:var(--text)">${kb(idBytes)}</span>
+        <span style="color:var(--muted)">💾 App state</span><span style="color:var(--text)">${kb(stateBytes)}</span>
+        <span style="color:var(--muted)">Other</span><span style="color:var(--text)">${kb(otherBytes)}</span>
+      </div>
+      ${pct > 70 ? '<div style="margin-top:6px;color:var(--amber);font-size:9px">⚠ Getting full — clear snapshots to free space</div>' : ''}
+      ${pct > 90 ? '<div style="color:var(--red);font-size:9px;margin-top:2px">🔴 Almost full — new data may fail to save</div>' : ''}
+    `;
+  } catch(e) {
+    if(el) el.textContent = 'Could not read storage info';
+  }
+}
+
+function clearSnapshots() {
+  let count = 0;
+  try {
+    const keys = [];
+    for(let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if(k && (k.startsWith('pe_snap') || k === 'pe_mins_cache')) keys.push(k);
+    }
+    keys.forEach(k => { localStorage.removeItem(k); count++; });
+  } catch(e) {}
+  showToast(`Cleared ${count} snapshots — player IDs preserved`, 'ok');
+  refreshStorageDisplay();
+}
+
 function toggleInjuryBoost() {
   STATE.showInjuryBoost = !STATE.showInjuryBoost;
   saveState();
