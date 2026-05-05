@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.50</title>
+<title>PropEdge v18.54</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -367,7 +367,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.50</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.54</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1580,10 +1580,9 @@ async function runGraphDebug() {
     let athleteId = dbMatch?.id || null;
     let resolvedName = dbMatch?.name || name;
 
-    if(!athleteId) {
-      const cached = getVerifiedESPNId(name, null);
-      if(cached) athleteId = String(cached);
-    }
+    // Verified sync cache takes priority over PLAYER_DB
+    const cachedIdDbg = getVerifiedESPNId(name, null);
+    if(cachedIdDbg) { athleteId = String(cachedIdDbg); }
     if(!athleteId) {
       const sd = await searchESPNAthlete(espnSport, espnLeague, name);
       const hit = sd?.athletes?.[0] || sd?.items?.[0];
@@ -1652,8 +1651,10 @@ async function runGamelogDebug() {
     let athleteId = null;
     const normN = s => (s||'').toLowerCase().replace(/[''.,-]/g,'').trim();
     const dbMatch = (PLAYER_DB[espnL.toUpperCase()]||PLAYER_DB['NBA']||[]).find(p => normN(p.name) === normN(name));
-    if(dbMatch?.id) athleteId = dbMatch.id;
-    if(!athleteId) { const c = getVerifiedESPNId(name, null); if(c) athleteId = String(c); }
+    // Sync cache takes priority over PLAYER_DB
+    const glDebugCached = getVerifiedESPNId(name, null);
+    if(glDebugCached) athleteId = String(glDebugCached);
+    if(!athleteId && dbMatch?.id) athleteId = dbMatch.id;
     if(!athleteId) {
       try {
         const sd = await searchESPNAthlete(espnS, espnL, name);
@@ -5689,7 +5690,15 @@ async function runFetch(sportsToFetch) {
         }
 
         // ── ID RESOLUTION: betting mode players come from Odds API with name only ──
-        // Step 1: Check PLAYER_DB for ESPN ID (works for all sports)
+        // Step 1: Verified ESPN ID sync cache — always freshest, overrides PLAYER_DB
+        if(!espnId && player.name) {
+          const cachedId = getVerifiedESPNId(player.name, null);
+          if(cachedId) {
+            espnId = cachedId;
+            traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN ID from sync cache → ${espnId}`, 'ok');
+          }
+        }
+        // Step 2: PLAYER_DB fallback (may have stale IDs — sync cache preferred)
         if(!espnId && player.name) {
           const norm = s => (s||'').toLowerCase().trim();
           const dbMatch = ((PLAYER_DB[player.sport]||[])).find(p => norm(p.name) === norm(player.name));
@@ -5698,14 +5707,9 @@ async function runFetch(sportsToFetch) {
             traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN ID from player database → ${espnId}`, 'ok');
           }
         }
-        // Step 2: ESPN name search fallback — only for NBA (MLB/NHL have own IDs)
-        // Check ESPN ID cache first — avoids repeat searches across generates
+        // Step 3: ESPN name search fallback — only for NBA (MLB/NHL have own IDs)
         if(!espnId && player.name && player.espnSport && player.espnLeague && player.sport === 'NBA') {
-          const cachedId = getVerifiedESPNId(player.name, null);
-          if(cachedId) {
-            espnId = cachedId;
-            traceLog('playerDiscovery', `${player.name} (${player.sport}): ESPN ID from cache → ${espnId}`, 'ok');
-          } else {
+          {
           try {
             const searchData = await searchESPNAthlete(player.espnSport, player.espnLeague, player.name);
             const athletes = searchData?.athletes || searchData?.items || [];
@@ -6041,7 +6045,7 @@ const PLAYER_DB = {
     {id:'3064514',nbaId:203507,name:'Giannis Antetokounmpo',team:'MIL',prop:'Points',lineBase:30,usage:0.35,vol:'high'},
     {id:'3112335',nbaId:203999,name:'Nikola Jokic',team:'DEN',prop:'Points',lineBase:26.5,usage:0.30,vol:'high'},
     {id:'4432174',nbaId:1630162,name:'Anthony Edwards',team:'MIN',prop:'Points',lineBase:25.5,usage:0.32,vol:'high'},
-    {id:'3155535',nbaId:1628378,name:'Donovan Mitchell',team:'CLE',prop:'Points',lineBase:26,usage:0.31,vol:'high'},
+    {id:'3908809',nbaId:1628378,name:'Donovan Mitchell',team:'CLE',prop:'Points',lineBase:26,usage:0.31,vol:'high'},
     {id:'4277851',nbaId:1631094,name:'Paolo Banchero',team:'ORL',prop:'Points',lineBase:24,usage:0.29,vol:'high'},
     {id:'4066328',nbaId:1630178,name:'Tyrese Maxey',team:'PHI',prop:'Points',lineBase:25,usage:0.30,vol:'high'},
     {id:'3934672',nbaId:1630169,name:'Tyrese Haliburton',team:'IND',prop:'Points',lineBase:20,usage:0.24,vol:'med'},
@@ -6362,9 +6366,33 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
       // Deduplicate WITHIN season type only — separate seenIds per season type
       // Sharing seenIds across season types causes regular season games to be
       // skipped if their eventIds are processed in a postseason category first
-      const seenIdsThisST = new Set();
-      const eventBest = {};
+      // IMPORTANT: traded/split players get per-category labels with DIFFERENT column counts.
+      // Must resolve statIdx per-category against that category's own labels.
+      const eventBest = {}; // evId → { stats, catIdx, opp }
       for(const cat of (st?.categories || [])) {
+        const rawCatLabels = cat?.labels || cat?.names || [];
+        let catStatIdx;
+        if(rawCatLabels.length > 0) {
+          const catLabels = rawCatLabels.map(l => (l||'').toString().toLowerCase());
+          catStatIdx = -1;
+          for(const alias of getAliases(statLabel)) {
+            const al = alias.toLowerCase();
+            const idx = catLabels.findIndex(l => l === al);
+            if(idx !== -1) { catStatIdx = idx; break; }
+          }
+          if(catStatIdx === -1) {
+            for(const alias of getAliases(statLabel)) {
+              const al = alias.toLowerCase();
+              if(al.length >= 3) {
+                const idx = catLabels.findIndex(l => l.includes(al));
+                if(idx !== -1) { catStatIdx = idx; break; }
+              }
+            }
+          }
+        } else {
+          catStatIdx = statIdx; // no per-category labels — use root index
+        }
+        if(catStatIdx === -1) continue; // stat not available in this category
         const eventsRaw = cat?.events || {};
         const events = Array.isArray(eventsRaw) ? eventsRaw : Object.values(eventsRaw);
         for(const ev of events) {
@@ -6372,26 +6400,34 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
           if(!stats.length) continue;
           const evId = String(ev?.eventId || ev?.id || '');
           if(!evId) continue;
-          const val = statIdx >= 0 ? parseStatVal(stats[statIdx]) : NaN;
-          if(!eventBest[evId] || (!isNaN(val) && isNaN(parseStatVal(eventBest[evId].stats[statIdx])))) {
-            eventBest[evId] = { stats, opp: oppByEventId[evId] || '' };
+          const val = parseStatVal(stats[catStatIdx]);
+          const existing = eventBest[evId];
+          const existingVal = existing ? parseStatVal(existing.stats[existing.catIdx]) : NaN;
+          if(!existing || (!isNaN(val) && isNaN(existingVal))) {
+            eventBest[evId] = { stats, catIdx: catStatIdx, opp: oppByEventId[evId] || '' };
           }
         }
       }
       for(const [evId, entry] of Object.entries(eventBest)) {
         if(seenIds.has(evId)) continue; // skip across ALL season types (handles true duplicates)
         seenIds.add(evId);
-        allGames.push(entry);
+        allGames.push({ stats: entry.stats, catIdx: entry.catIdx, opp: entry.opp });
       }
     }
     if(allGames.length > 0) {
       const oppNorm = opp?.toUpperCase() || '';
       const allVals = allGames
-        .map(g => statIdx >= 0 ? parseStatVal(g.stats[statIdx]) : null)
+        .map(g => {
+          const idx = g.catIdx !== undefined ? g.catIdx : statIdx;
+          return idx >= 0 ? parseStatVal(g.stats[idx]) : null;
+        })
         .filter(v => v !== null && !isNaN(v) && v >= 0);
       const vsOppVals = allGames
         .filter(g => oppNorm && g.opp && (g.opp.includes(oppNorm.slice(0,3)) || oppNorm.includes(g.opp.slice(0,3))))
-        .map(g => statIdx >= 0 ? parseStatVal(g.stats[statIdx]) : null)
+        .map(g => {
+          const idx = g.catIdx !== undefined ? g.catIdx : statIdx;
+          return idx >= 0 ? parseStatVal(g.stats[idx]) : null;
+        })
         .filter(v => v !== null && !isNaN(v) && v >= 0);
       return { allVals, vsOppVals };
     }
@@ -6717,26 +6753,55 @@ function _extractESPNRawGamesSingle(gameLogData, statLabel, opp) {
       if(seasonType === 'preseason') continue; // always skip
 
       // Each category has a different stat array for the same game.
-      // We must only keep the category whose topLabels match — i.e. the one
-      // that has the primary stat (statIdx) at the correct column position.
-      // Strategy: collect all categories per event, pick the one where stats[statIdx] is valid.
-      // Build eventId → best stats array map first, then emit one result per event.
-      const eventBestStats = {}; // eventId → { stats, meta }
+      // IMPORTANT: traded/split players (e.g. mid-season trade) get separate categories
+      // with their OWN shorter label arrays. We must resolve statIdx per-category against
+      // that category's labels — not always the root topLabels — or we read the wrong column.
+      // Build eventId → best stats map first, then emit one result per event.
+      const eventBestStats = {}; // eventId → { stats, catIdx, catMinsIdx, meta, seasonType }
       for(const cat of st.categories || []) {
-        const catLabels = (cat?.labels || cat?.names || topLabels).map(l => (l||'').toLowerCase());
-        const catStatIdx = statIdx; // use the index from topLabels (same category structure assumed)
+        const rawCatLabels = cat?.labels || cat?.names || [];
+        // If the category has its own labels, resolve stat index against those.
+        // Otherwise fall back to root topLabels index (standard case).
+        let catStatIdx, catMinsIdx;
+        if(rawCatLabels.length > 0) {
+          const catLabels = rawCatLabels.map(l => (l||'').toString().toLowerCase());
+          // Re-run findIdx against the category-specific labels
+          catStatIdx = -1;
+          for(const alias of getAliases(statLabel)) {
+            const al = alias.toLowerCase();
+            const idx = catLabels.findIndex(l => l === al);
+            if(idx !== -1) { catStatIdx = idx; break; }
+          }
+          if(catStatIdx === -1) {
+            for(const alias of getAliases(statLabel)) {
+              const al = alias.toLowerCase();
+              if(al.length >= 3) {
+                const idx = catLabels.findIndex(l => l.includes(al));
+                if(idx !== -1) { catStatIdx = idx; break; }
+              }
+            }
+          }
+          catMinsIdx = catLabels.findIndex(l => l === 'min' || l === 'minutes' || l.includes('min'));
+        } else {
+          // No per-category labels — use root-level index (most common case)
+          catStatIdx = statIdx;
+          catMinsIdx = minsIdx;
+        }
+        if(catStatIdx === -1) continue; // stat not in this category at all — skip
         const eventsRaw = cat?.events || {};
         const events = Array.isArray(eventsRaw) ? eventsRaw : Object.values(eventsRaw);
         for(const ev of events) {
           const stats = ev?.stats || [];
           if(!stats.length) continue;
           const evId = String(ev?.eventId || ev?.id || '');
-          const mins = minsIdx >= 0 ? parseFloat(stats[minsIdx]) : NaN;
+          const mins = catMinsIdx >= 0 ? parseFloat(stats[catMinsIdx]) : NaN;
           const val  = catStatIdx >= 0 ? parseStatVal(stats[catStatIdx]) : NaN;
           const meta = eventMeta[evId] || {};
-          // Keep this entry if it has a valid primary stat value, or if we haven't seen this event yet
-          if(!eventBestStats[evId] || (!isNaN(val) && isNaN(parseStatVal(eventBestStats[evId].stats[catStatIdx])))) {
-            eventBestStats[evId] = { stats, mins, meta, seasonType };
+          // Keep entry if it has a valid stat value and we haven't stored a better one yet
+          const existing = eventBestStats[evId];
+          const existingVal = existing ? parseStatVal(existing.stats[existing.catIdx]) : NaN;
+          if(!existing || (!isNaN(val) && isNaN(existingVal))) {
+            eventBestStats[evId] = { stats, catIdx: catStatIdx, catMinsIdx, mins, meta, seasonType };
           }
         }
       }
@@ -6744,8 +6809,8 @@ function _extractESPNRawGamesSingle(gameLogData, statLabel, opp) {
       for(const [evId, entry] of Object.entries(eventBestStats)) {
         if(seenEventIds.has(evId)) continue;
         seenEventIds.add(evId);
-        const { stats, mins, meta, seasonType: st2 } = entry;
-        const val = statIdx >= 0 ? parseStatVal(stats[statIdx]) : NaN;
+        const { stats, catIdx, catMinsIdx: cmi, mins, meta, seasonType: st2 } = entry;
+        const val = catIdx >= 0 ? parseStatVal(stats[catIdx]) : NaN;
         if(!isNaN(val) || stats.length > 0) {
           results.push({
             value:    val,
@@ -8112,7 +8177,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
         traceLog('projectionEngine', `${playerName} (NHL): using cached snapshot (${snapNHL.sampleSize} games)`, 'ok');
       } else {
         // NHL player ID: playerMeta.mlbId (set during discovery), then persistent cache, then null
-        const nhlPlayerId = playerMeta?.mlbId || getNHLPlayerId(playerName) || null;
+        const nhlPlayerId = getNHLPlayerId(playerName) || playerMeta?.mlbId || null;
         const season = (() => { const y = new Date().getFullYear(); const m = new Date().getMonth()+1; return m >= 10 ? `${y}${y+1}` : `${y-1}${y}`; })();
         traceLog('projectionEngine', `${playerName} (NHL): espnId=${playerId} nhlId=${nhlPlayerId} season=${season}`, 'ok');
 
@@ -10077,8 +10142,8 @@ async function runGraphLookup() {
 
     // ── MLB: use MLB Stats API for full season data ──
     if(sport === 'MLB') {
-      // Resolve MLB player ID via name search
-      let mlbId = dbMatch?.mlbId || null;
+      // Resolve MLB player ID — sync cache first (freshest), then PLAYER_DB, then live search
+      let mlbId = getMLBPlayerId(playerName) || dbMatch?.mlbId || null;
       if(!mlbId) {
         try {
           const srch = await fetchWithFallback(`${MLB_BASE}/people/search?names=${encodeURIComponent(playerName)}&sportId=1`);
@@ -10124,12 +10189,11 @@ async function runGraphLookup() {
     }
 
     // Resolve ESPN ID for non-MLB sports
+    // Priority: verified sync cache (freshest) > PLAYER_DB (may have stale IDs) > live search
     let athleteId = null;
-    if(dbMatch?.id) { athleteId = dbMatch.id; resolvedName = dbMatch.name; }
-    if(!athleteId) {
-      const cached = getVerifiedESPNId(playerName, null);
-      if(cached) athleteId = String(cached);
-    }
+    const cachedId = getVerifiedESPNId(playerName, null);
+    if(cachedId) { athleteId = String(cachedId); if(dbMatch?.name) resolvedName = dbMatch.name; }
+    if(!athleteId && dbMatch?.id) { athleteId = dbMatch.id; resolvedName = dbMatch.name; }
     if(!athleteId) {
       try {
         const sd = await searchESPNAthlete(espnSport, espnLeague, playerName);
@@ -10440,19 +10504,20 @@ async function runManualLookup() {
     // Step 1: resolve ESPN ID
     let athleteId = null, athleteName = player, athleteTeam = null;
 
-    // Check PLAYER_DB first
+    // Sync cache takes priority — always freshest ESPN IDs
     const norm = s => (s||'').toLowerCase().replace(/[''.,-]/g,'').trim();
     const dbMatch = (PLAYER_DB[sport]||[]).find(p => norm(p.name) === norm(player));
-    if(dbMatch?.id) {
+    const cachedCheckId = getVerifiedESPNId(player, null);
+    if(cachedCheckId) {
+      athleteId = String(cachedCheckId);
+      athleteName = dbMatch?.name || player;
+      athleteTeam = dbMatch?.team || null;
+    }
+    // PLAYER_DB fallback if cache has nothing
+    if(!athleteId && dbMatch?.id) {
       athleteId = dbMatch.id;
       athleteName = dbMatch.name;
       athleteTeam = dbMatch.team || null;
-    }
-
-    // Check verified ESPN ID cache
-    if(!athleteId) {
-      const cached = getVerifiedESPNId(player, null);
-      if(cached) athleteId = String(cached);
     }
 
     // ESPN name search fallback
