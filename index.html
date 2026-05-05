@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.57</title>
+<title>PropEdge v18.58</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -367,10 +367,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.57</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.58</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
-        <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
+
         <button class="settings-btn" onclick="openSettings()" aria-label="Open settings">⚙</button>
       </div>
     </div>
@@ -603,7 +603,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
             <button onclick="checkApiStatus('mlb')" class="api-status-btn" id="apibtn-mlb">MLB API</button>
             <button onclick="checkApiStatus('nhl')" class="api-status-btn" id="apibtn-nhl">NHL API</button>
             <button onclick="checkApiStatus('odds')" class="api-status-btn" id="apibtn-odds">Odds API</button>
-            <button onclick="checkApiStatus('nba_proxy')" class="api-status-btn api-status-btn-accent" id="apibtn-nba_proxy" style="grid-column:1/-1">🏀 NBA Proxy (stats.nba.com)</button>
+
           </div>
           <div id="api-status-results"></div>
         </div>
@@ -646,6 +646,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
             <button onclick="runMLBIdSync()" id="btn-sync-mlb" style="grid-column:1/-1;font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.5);border-radius:8px;padding:9px;color:var(--amber);cursor:pointer;font-weight:700">⚾ MLB · MLB Stats API</button>
           </div>
           <div id="sync-ids-progress" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg2);border-radius:8px;padding:10px"></div>
+          <button onclick="runNHLSyncTrace()" style="margin-top:8px;width:100%;font-family:var(--mono);font-size:10px;background:rgba(77,184,255,.08);border:1px solid rgba(77,184,255,.3);border-radius:8px;padding:8px;color:var(--blue);cursor:pointer">🔍 NHL Sync Trace — test one team</button>
+          <div id="nhl-sync-trace-out" style="display:none;margin-top:8px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:var(--mono);font-size:9px;white-space:pre-wrap;max-height:300px;overflow-y:auto"></div>
         </div>
       </div>
 
@@ -1040,19 +1042,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           <div class="setting-hint">Free tier: 500 req/month · <a href="https://the-odds-api.com" onclick="openLink('https://the-odds-api.com')">the-odds-api.com</a> — 60 seconds, no credit card</div>
         </div>
       </div>
-      <div class="setting-card">
-        <div class="setting-card-title">🔀 Cloudflare Proxy — NBA Full Season Data</div>
-        <div class="setting-group">
-          <label class="setting-label">Worker URL</label>
-          <input class="setting-input" id="s-cors-proxy" placeholder="https://your-worker.your-name.workers.dev" autocorrect="off" autocapitalize="none"/>
-          <div class="setting-hint">Enables full NBA season logs via stats.nba.com. Free to set up.</div>
-        </div>
-        <div class="setting-group">
-          <label class="setting-label">Secret Token</label>
-          <input class="setting-input" id="s-proxy-token" placeholder="Your ALLOWED_TOKEN value" autocorrect="off" autocapitalize="none"/>
-          <div class="setting-hint">The token in your Worker code — keeps your proxy private.</div>
-        </div>
-      </div>
+
       <div class="setting-card">
         <div class="setting-card-title">✓ Free Data Sources (no key needed)</div>
         <div style="font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.8">
@@ -1387,8 +1377,6 @@ let STATE = loadState() || {
   savedSlips: [],
   settings: {
     oddsApiKey: '',
-        corsProxy: '',
-    proxyToken: '',
     minEdge: 5,
     minConf: 4,
     bettingMinEdge: 5,
@@ -1429,7 +1417,7 @@ if(STATE.props && Array.isArray(STATE.props) && STATE.props.length > 0 && !STATE
 }
 
 // Ensure settings object has all keys
-STATE.settings = Object.assign({ oddsApiKey:'', corsProxy:'', proxyToken:'', minEdge:5, minConf:4, bettingMinEdge:5, bettingMinConf:4, analysisMinConf:1, gamesPerSport:2, playersPerGame:3, analysisGamesPerSport:12, analysisPlayersPerGame:15 }, STATE.settings || {});
+STATE.settings = Object.assign({ oddsApiKey:'', minEdge:5, minConf:4, bettingMinEdge:5, bettingMinConf:4, analysisMinConf:1, gamesPerSport:2, playersPerGame:3, analysisGamesPerSport:12, analysisPlayersPerGame:15 }, STATE.settings || {});
 if(!STATE.sportCache) STATE.sportCache = {};
 if(!STATE.bettingCache) STATE.bettingCache = {};
 if(!STATE.analysisCache) STATE.analysisCache = {};
@@ -1569,6 +1557,91 @@ async function runGraphDebug() {
   } catch(e) {
     out.textContent = `Error: ${e.message}`;
   }
+}
+
+async function runNHLSyncTrace() {
+  const out = document.getElementById('nhl-sync-trace-out');
+  if(!out) return;
+  out.style.display = 'block';
+  out.textContent = 'Testing NHL ID sync with BOS (Boston Bruins)...';
+
+  const NHL_BASE_T = 'https://api-web.nhle.com/v1';
+  const now = new Date();
+  const seasonStart = (now.getMonth() + 1) >= 10 ? now.getFullYear() : now.getFullYear() - 1;
+  const seasonStr = `${seasonStart}${seasonStart + 1}`;
+  const lines = [];
+  lines.push(`Season string: ${seasonStr}`);
+  lines.push(`Test team: BOS`);
+  lines.push('');
+
+  // Test 1: season-specific endpoint
+  lines.push(`── Test 1: /roster/BOS/${seasonStr} ──`);
+  out.textContent = lines.join('\n');
+  try {
+    const d1 = await fetch(`${NHL_BASE_T}/roster/BOS/${seasonStr}`).then(r => r.json());
+    const all1 = [...(d1?.forwards||[]), ...(d1?.defensemen||[]), ...(d1?.goalies||[])];
+    lines.push(`Result: ${all1.length} players`);
+    if(all1[0]) {
+      const p = all1[0];
+      lines.push(`Sample: ${p.firstName?.default||p.firstName||''} ${p.lastName?.default||p.lastName||''} (id=${p.id})`);
+    }
+    if(!all1.length) lines.push(`Raw keys: [${Object.keys(d1||{}).join(', ')}]`);
+  } catch(e) {
+    lines.push(`ERROR: ${e.message}`);
+  }
+
+  // Test 2: /current endpoint
+  lines.push('');
+  lines.push('── Test 2: /roster/BOS/current ──');
+  out.textContent = lines.join('\n');
+  try {
+    const d2 = await fetch(`${NHL_BASE_T}/roster/BOS/current`).then(r => r.json());
+    const all2 = [...(d2?.forwards||[]), ...(d2?.defensemen||[]), ...(d2?.goalies||[])];
+    lines.push(`Result: ${all2.length} players`);
+    if(all2[0]) {
+      const p = all2[0];
+      lines.push(`Sample: ${p.firstName?.default||p.firstName||''} ${p.lastName?.default||p.lastName||''} (id=${p.id})`);
+    }
+    if(!all2.length) lines.push(`Raw keys: [${Object.keys(d2||{}).join(', ')}]`);
+  } catch(e) {
+    lines.push(`ERROR: ${e.message}`);
+  }
+
+  // Test 3: ESPN NHL roster
+  lines.push('');
+  lines.push('── Test 3: ESPN NHL roster (BOS = team id 1) ──');
+  out.textContent = lines.join('\n');
+  try {
+    const d3 = await fetch('https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams/1/roster').then(r => r.json());
+    const players3 = (d3?.athletes||[]).flatMap(g => g?.items||[]);
+    lines.push(`Result: ${players3.length} players`);
+    if(players3[0]) lines.push(`Sample: ${players3[0].fullName||players3[0].displayName||'?'} (id=${players3[0].id})`);
+    if(!players3.length) lines.push(`Raw keys: [${Object.keys(d3||{}).join(', ')}]`);
+  } catch(e) {
+    lines.push(`ERROR: ${e.message}`);
+  }
+
+  // Test 4: NHL player game log (Connor McDavid = 8478402, known good ID)
+  lines.push('');
+  lines.push(`── Test 4: NHL player game log (McDavid id=8478402, season=${seasonStr}) ──`);
+  out.textContent = lines.join('\n');
+  try {
+    const d4 = await fetch(`${NHL_BASE_T}/player/8478402/game-log/${seasonStr}/2`).then(r => r.json());
+    const gl = d4?.gameLog || [];
+    lines.push(`Game log entries: ${gl.length}`);
+    if(gl[0]) lines.push(`Sample game: date=${gl[0].gameDate} opp=${gl[0].opponentAbbrev} goals=${gl[0].goals}`);
+  } catch(e) {
+    lines.push(`ERROR: ${e.message}`);
+  }
+
+  lines.push('');
+  lines.push('── Summary ──');
+  lines.push('If Test 1 or 2 return players → NHL roster API works → sync should cache IDs');
+  lines.push('If Test 3 returns players → ESPN works → ESPN IDs cached (used for ESPN gamelog path)');
+  lines.push('If Test 4 returns games → NHL game log API works → graph will show data');
+  lines.push('If all return 0 → network/CORS issue blocking api-web.nhle.com from your browser');
+
+  out.textContent = lines.join('\n');
 }
 
 async function runGamelogDebug() {
@@ -1825,29 +1898,7 @@ async function checkApiStatus(which) {
     odds:  { label:'Odds API', url: STATE.settings.oddsApiKey ? `https://api.the-odds-api.com/v4/sports?apiKey=${STATE.settings.oddsApiKey}` : null, check: d => Array.isArray(d), detail: d => `${d?.length ?? 0} sports available` },
   };
 
-  if(which === 'nba_proxy') {
-    if(!STATE.settings.corsProxy) {
-      if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' fail'; btn.textContent = '🏀 NBA Proxy — No URL set'; }
-      if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:rgba(255,77,106,.06);border:1px solid var(--red);border-radius:8px">No Cloudflare proxy URL in ⚙ Settings</div>`;
-      return;
-    }
-    if(btn) btn.textContent = '⟳ Testing proxy...';
-    try {
-      const nbaUrl = `https://stats.nba.com/stats/playergamelogs?PlayerID=1630163&Season=${getNBASeason()}&SeasonType=Regular+Season&LeagueID=00`;
-      const data = await fetchWithFallback(nbaUrl);
-      const rows = data?.resultSets?.[0]?.rowSet || [];
-      if(rows.length > 0) {
-        if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' ok'; btn.textContent = `🏀 NBA Proxy ✓ — ${rows.length} games`; }
-        if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--accent);padding:8px;background:rgba(0,229,160,.06);border:1px solid var(--accent);border-radius:8px">✓ NBA proxy working · ${rows.length} game logs returned</div>`;
-      } else {
-        if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' fail'; btn.textContent = '🏀 NBA Proxy ✗ — empty'; }
-      }
-    } catch(e) {
-      if(btn) { btn.className = btn.className.replace(/\b(ok|fail|checking)\b/g,'').trim() + ' fail'; btn.textContent = '🏀 NBA Proxy ✗'; }
-      if(resultsEl) resultsEl.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--red);padding:8px;background:rgba(255,77,106,.06);border:1px solid var(--red);border-radius:8px">✗ ${e.message}</div>`;
-    }
-    return;
-  }
+
 
   const test = tests[which];
   if(!test) return;
@@ -2523,16 +2574,7 @@ function getAppMode() {
   return hasRealLines ? 'betting' : 'analysis';
 }
 
-function updateProxyBadge() {
-  const badge = document.getElementById('proxy-badge');
-  if(!badge) return;
-  if(STATE.settings.corsProxy && STATE.settings.proxyToken) {
-    badge.style.display = 'block';
-    badge.title = 'NBA Stats proxy active: ' + STATE.settings.corsProxy;
-  } else {
-    badge.style.display = 'none';
-  }
-}
+
 
 function updateModeBanner() {
   const el = document.getElementById('mode-banner');
@@ -2675,8 +2717,7 @@ document.addEventListener('DOMContentLoaded', function() {
   renderSlip();
   renderApiStatus({});
   updateSportChipStatus();
-  updateProxyBadge();
-  setViewMode(viewMode); // initialize mode selector button state
+    setViewMode(viewMode); // initialize mode selector button state
   renderQuotaCard(); // show current quota state immediately
 
   // Prune expired snapshots from localStorage to prevent storage bloat
@@ -2756,8 +2797,7 @@ document.addEventListener('DOMContentLoaded', function() {
     updateMetrics();
     updateCacheStatusBar();
     updateModeBanner();
-    updateProxyBadge();
-    const age = STATE.lastGenerated ? Math.round((Date.now() - new Date(STATE.lastGenerated).getTime()) / 60000) : null;
+        const age = STATE.lastGenerated ? Math.round((Date.now() - new Date(STATE.lastGenerated).getTime()) / 60000) : null;
     const ageStr = age !== null ? ` (${age < 60 ? age + 'm' : Math.round(age/60) + 'h'} ago)` : '';
     showToast(`✓ Cached props restored${ageStr} — tap Generate to refresh`, 'success');
   } else {
@@ -2765,8 +2805,7 @@ document.addEventListener('DOMContentLoaded', function() {
     renderProps();
     updateMetrics();
     updateModeBanner();
-    updateProxyBadge();
-  }
+      }
 });
 
 function showCacheRestorePrompt() {
@@ -2822,8 +2861,7 @@ function restoreCachedData() {
   updateMetrics();
   updateCacheStatusBar();
   updateModeBanner();
-  updateProxyBadge();
-  const modeMsg = (hasBetting && hasAnalysis) ? 'Both betting & analysis caches restored' : viewMode === 'betting' ? 'Betting cache restored' : 'Analysis cache restored';
+    const modeMsg = (hasBetting && hasAnalysis) ? 'Both betting & analysis caches restored' : viewMode === 'betting' ? 'Betting cache restored' : 'Analysis cache restored';
   showToast(`✓ ${modeMsg}`, 'success');
 }
 
@@ -2887,8 +2925,7 @@ function discardCachedData() {
   updateMetrics();
   updateCacheStatusBar(); // hides refetch button since no props
   updateModeBanner();
-  updateProxyBadge();
-  showToast('Cache cleared — tap Generate to fetch fresh data');
+    showToast('Cache cleared — tap Generate to fetch fresh data');
 }
 
 function setDateBar() {
@@ -2952,8 +2989,7 @@ function openSettings() {
 function revertToDefaults() {
   if(!confirm('Clear all API keys and proxy settings? Your props history and slip will be kept.')) return;
   STATE.settings.oddsApiKey   = '';
-  STATE.settings.corsProxy    = '';
-  STATE.settings.proxyToken   = '';
+
   saveState();
   loadSettingsIntoForm();
   showToast('Keys cleared — defaults restored', 'success');
@@ -3009,8 +3045,7 @@ function handleModalClick(e) {
 function loadSettingsIntoForm() {
   const s = STATE.settings;
   document.getElementById('s-odds-key').value = s.oddsApiKey || '';
-  document.getElementById('s-cors-proxy').value = s.corsProxy || '';
-  document.getElementById('s-proxy-token').value = s.proxyToken || '';
+
   document.getElementById('s-betting-min-edge').value = s.bettingMinEdge ?? s.minEdge ?? 5;
   document.getElementById('s-betting-min-conf').value = s.bettingMinConf ?? s.minConf ?? 4;
   document.getElementById('s-analysis-min-conf').value = s.analysisMinConf ?? 1;
@@ -3031,8 +3066,7 @@ function saveSettings() {
   const prevAnalysisPlayers = STATE.settings.analysisPlayersPerGame;
 
   STATE.settings.oddsApiKey = document.getElementById('s-odds-key').value.trim();
-  STATE.settings.corsProxy   = document.getElementById('s-cors-proxy').value.trim();
-  STATE.settings.proxyToken  = document.getElementById('s-proxy-token').value.trim();
+
   STATE.settings.bettingMinEdge = parseFloat(document.getElementById('s-betting-min-edge').value) || 3;
   STATE.settings.bettingMinConf = parseInt(document.getElementById('s-betting-min-conf').value) || 4;
   STATE.settings.analysisMinConf = parseInt(document.getElementById('s-analysis-min-conf').value) || 1;
@@ -3058,16 +3092,13 @@ function saveSettings() {
     renderProps();
     updateMetrics();
     updateModeBanner();
-  updateProxyBadge();
-    showToast('⚡ Filters updated instantly', 'success');
+      showToast('⚡ Filters updated instantly', 'success');
   } else if(fetchSettingsChanged) {
     updateModeBanner();
-  updateProxyBadge();
-    showToast('Settings saved — re-fetch to apply', 'success');
+      showToast('Settings saved — re-fetch to apply', 'success');
   } else {
     updateModeBanner();
-  updateProxyBadge();
-    showToast('Settings saved', 'success');
+      showToast('Settings saved', 'success');
   }
 }
 function openLink(url) {
@@ -3211,13 +3242,6 @@ async function fetchWithFallback(url) {
     }
   };
   try { return await attemptDirect(); } catch(e) {
-    const proxy = STATE.settings.corsProxy;
-    if(proxy && proxy.trim()) {
-      const token = STATE.settings.proxyToken || '';
-      const proxyUrl = `${proxy}?url=${encodeURIComponent(url)}`;
-      const headers = token ? { 'x-proxy-auth': token } : {};
-      try { return await fetchJSON(proxyUrl, { headers }); } catch(e2) {}
-    }
     throw new Error('Fetch failed: ' + e.message);
   }
 }
@@ -4573,8 +4597,7 @@ async function generateProps() {
     updateSportChipStatus();
     updateCacheStatusBar();
     updateModeBanner();
-    updateProxyBadge();
-    return;
+        return;
   }
 
   await runFetch(sportsToFetch);
@@ -5948,8 +5971,7 @@ async function runFetch(sportsToFetch) {
     updateMetrics();
     updateDataSourceBar(apiStatusMap);
     updateModeBanner();
-  updateProxyBadge();
-    renderSlateLog();
+      renderSlateLog();
 
     const mode = getAppMode();
     showToast(
@@ -11740,9 +11762,8 @@ function markLegOutcome(slipId, legId, result) {
 // ═══════════════════════════════════════════════════════
 function renderApiStatus(statusMap) {
   const area = document.getElementById('api-status');
-  const hasProxy = !!(STATE.settings.corsProxy && STATE.settings.proxyToken);
   const items = [
-    { key: 'NBA', label: hasProxy ? 'NBA+' : 'NBA' },
+    { key: 'NBA', label: 'NBA' },
     { key: 'MLB', label: 'MLB' },
     { key: 'NHL', label: 'NHL' },
     { key: 'ESPN', label: 'ESPN' },
@@ -11752,7 +11773,7 @@ function renderApiStatus(statusMap) {
   area.innerHTML = items.map(item => {
     const status = statusMap[item.key];
     const cls = !status ? 'warn' : status === 'ok' ? 'ok' : status === 'err' ? 'err' : 'warn';
-    return `<span class="api-badge ${cls}" title="${item.key === 'NBA' ? (hasProxy ? 'NBA: Cloudflare proxy active (stats.nba.com)' : 'NBA: ESPN only (~20 game cap)') : ''}">${item.label}</span>`;
+    return `<span class="api-badge ${cls}" title="">${item.label}</span>`;
   }).join('');
 }
 
