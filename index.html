@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.58</title>
+<title>PropEdge v18.60</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -367,7 +367,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.58</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.60</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
 
@@ -642,7 +642,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
             <button onclick="runNBAIdSync()" id="btn-sync-nba" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏀 NBA<br><span style="font-size:8px;font-weight:400;opacity:.7">ESPN · 30 teams</span></button>
             <button onclick="runWNBAIdSync()" id="btn-sync-wnba" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏀 WNBA<br><span style="font-size:8px;font-weight:400;opacity:.7">ESPN · 12 teams</span></button>
             <button onclick="runNFLIdSync()" id="btn-sync-nfl" style="font-family:var(--mono);font-size:10px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.5);border-radius:8px;padding:9px;color:var(--accent);cursor:pointer;font-weight:700">🏈 NFL<br><span style="font-size:8px;font-weight:400;opacity:.7">ESPN · 32 teams</span></button>
-            <button onclick="runNHLIdSync()" id="btn-sync-nhl" style="font-family:var(--mono);font-size:10px;background:rgba(77,184,255,.15);border:1px solid rgba(77,184,255,.5);border-radius:8px;padding:9px;color:var(--blue);cursor:pointer;font-weight:700">🏒 NHL<br><span style="font-size:8px;font-weight:400;opacity:.7">NHL API + ESPN</span></button>
+            <button onclick="runNHLIdSync()" id="btn-sync-nhl" style="font-family:var(--mono);font-size:10px;background:rgba(77,184,255,.15);border:1px solid rgba(77,184,255,.5);border-radius:8px;padding:9px;color:var(--blue);cursor:pointer;font-weight:700">🏒 NHL<br><span style="font-size:8px;font-weight:400;opacity:.7">ESPN rosters</span></button>
             <button onclick="runMLBIdSync()" id="btn-sync-mlb" style="grid-column:1/-1;font-family:var(--mono);font-size:10px;background:rgba(255,181,71,.15);border:1px solid rgba(255,181,71,.5);border-radius:8px;padding:9px;color:var(--amber);cursor:pointer;font-weight:700">⚾ MLB · MLB Stats API</button>
           </div>
           <div id="sync-ids-progress" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg2);border-radius:8px;padding:10px"></div>
@@ -4034,10 +4034,9 @@ async function syncAllNFLIds(onProgress) {
 }
 
 // ── NHL ID SYNC ──
-// Step 1 — NHL roster API (api-web.nhle.com/v1/roster/{abbrev}/current)
-//           Returns playerId (NHL ID) + name directly. No search needed.
-//           Always overwrites — handles trades and callups correctly on re-sync.
-// Step 2 — ESPN rosters → ESPN IDs (fallback only).
+// ESPN rosters only — api-web.nhle.com is CORS-blocked in browsers.
+// Caches ESPN IDs (used by the graph tab via hockey/nhl ESPN gamelog endpoint).
+// The projection engine resolves NHL API IDs at runtime per-player — not from this sync.
 
 const NHL_TEAM_ABBREVS = [
   'ANA','BOS','BUF','CAR','CBJ','CGY','CHI','COL',
@@ -4056,57 +4055,23 @@ const NHL_ESPN_TEAM_IDS = [
   {id:'32',name:'VAN'},{id:'31',name:'VGK'},{id:'33',name:'WPG'},{id:'15',name:'WSH'},
 ];
 async function syncAllNHLIds(onProgress) {
+  // api-web.nhle.com is CORS-blocked in browsers — ESPN is the only reachable source.
+  // ESPN IDs are used for the game log path (hockey/nhl) which works fine.
   const espnCache = loadESPNIdCache();
-  const nhlCache  = loadNHLIdCache();
   const normKey   = s => (s||'').toLowerCase().replace(/[^a-z ]/g,'').trim();
-  let nhlCount = 0, espnCount = 0;
+  let espnCount = 0;
 
-  // STEP 1: NHL roster API -> NHL player IDs
-  // { forwards:[{id, firstName:{default:'J'}, lastName:{default:'D'}}], defensemen:[...], goalies:[...] }
-  const totalNHL = NHL_TEAM_ABBREVS.length;
-  onProgress({ done:0, total:totalNHL, current:'Fetching NHL rosters (official API)...', finished:false });
-  let done = 0;
-  // Compute current NHL season string dynamically (e.g. 20252026)
-  const _nhlNow = new Date();
-  const _nhlSeasonStart = (_nhlNow.getMonth() + 1) >= 10 ? _nhlNow.getFullYear() : _nhlNow.getFullYear() - 1;
-  const _nhlSeasonStr = `${_nhlSeasonStart}${_nhlSeasonStart + 1}`;
-
-  for(const abbrev of NHL_TEAM_ABBREVS) {
-    onProgress({ done, total:totalNHL, current:`NHL API: ${abbrev}...`, finished:false });
-    try {
-      // Use season-specific endpoint directly — /current returns empty during playoffs/offseason
-      // Try current season first, then fall back to /current as last resort
-      let data = await fetchWithFallback(`${NHL_BASE}/roster/${abbrev}/${_nhlSeasonStr}`).catch(() => null);
-      let all = [...(data?.forwards||[]), ...(data?.defensemen||[]), ...(data?.goalies||[])];
-      if(!all.length) {
-        data = await fetchWithFallback(`${NHL_BASE}/roster/${abbrev}/current`).catch(() => null);
-        all = [...(data?.forwards||[]), ...(data?.defensemen||[]), ...(data?.goalies||[])];
-      }
-      for(const p of all) {
-        const first = p.firstName?.default || p.firstName || '';
-        const last  = p.lastName?.default  || p.lastName  || '';
-        const key = normKey(`${first} ${last}`);
-        if(key && p.id) { nhlCache[key] = String(p.id); nhlCount++; }
-      }
-      if(done % 4 === 0) saveNHLIdCache();
-    } catch(e) {}
-    done++;
-    await new Promise(r => setTimeout(r, 120));
-  }
-  saveNHLIdCache();
-
-  // STEP 2: ESPN rosters -> ESPN IDs (fallback path only)
   const totalESPN = NHL_ESPN_TEAM_IDS.length;
-  onProgress({ done:0, total:totalESPN, current:'Fetching ESPN rosters for fallback IDs...', finished:false });
-  done = 0;
+  onProgress({ done:0, total:totalESPN, current:'Fetching ESPN NHL rosters...', finished:false });
+  let done = 0;
   for(const team of NHL_ESPN_TEAM_IDS) {
-    onProgress({ done, total:totalESPN, current:`ESPN: ${team.name}...`, finished:false });
+    onProgress({ done, total:totalESPN, current:`ESPN NHL: ${team.name}...`, finished:false });
     try {
       const data = await fetchWithFallback(`https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams/${team.id}/roster`);
       const players = (data?.athletes||[]).flatMap(g => g?.items||[]);
       for(const p of players) {
         const key = normKey(p.fullName||p.displayName||'');
-        if(key && p.id) { espnCache[key] = String(p.id); espnCount++; } // always overwrite
+        if(key && p.id) { espnCache[key] = String(p.id); espnCount++; }
       }
       if(done % 4 === 0) saveESPNIdCache();
     } catch(e) {}
@@ -4115,7 +4080,7 @@ async function syncAllNHLIds(onProgress) {
   }
   saveESPNIdCache();
 
-  onProgress({ finished:true, totalPlayers:nhlCount + espnCount, nhlCount, espnCount, corrections:[] });
+  onProgress({ finished:true, totalPlayers:espnCount, espnCount, corrections:[] });
 }
 
 async function syncAllMLBIds(onProgress) {
@@ -10084,107 +10049,8 @@ async function runGraphLookup() {
     const dbMatch = (PLAYER_DB[sport]||[]).find(p => norm(p.name) === norm(playerName));
     let resolvedName = dbMatch?.name || playerName;
 
-    // ── NHL: use NHL API for full season data ──
-    if(sport === 'NHL') {
-      // Resolve NHL player ID - check cache first, then search
-      let nhlId = getNHLPlayerId(playerName);
-      if(!nhlId) {
-        // Try multiple NHL search endpoints
-        const nhlSearchUrls = [
-          `https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=5&q=${encodeURIComponent(playerName)}&active=true`,
-          `https://api-web.nhle.com/v1/player/search?q=${encodeURIComponent(playerName)}`,
-          `https://suggest.svc.nhl.com/svc/suggest/v1/minplayers/${encodeURIComponent(playerName)}/99`,
-        ];
-        for(const url of nhlSearchUrls) {
-          try {
-            const resp = await fetchWithFallback(url);
-            // suggest.svc.nhl.com returns {suggestions: ["8478402|McDavid|Connor|EDM|..."]}
-            if(resp?.suggestions?.length) {
-              const parts = resp.suggestions[0].split('|');
-              if(parts[0] && !isNaN(parseInt(parts[0]))) {
-                nhlId = parts[0];
-                resolvedName = `${parts[2]||''} ${parts[1]||''}`.trim() || playerName;
-                break;
-              }
-            }
-            // search.d3.nhle.com and api-web return object arrays
-            const arr = Array.isArray(resp) ? resp : resp?.players || [];
-            const hit = arr[0];
-            if(hit?.playerId || hit?.id) {
-              nhlId = String(hit.playerId || hit.id);
-              const fn = hit.firstName?.default || hit.firstName || hit.firstNameWithAccentsEn || '';
-              const ln = hit.lastName?.default || hit.lastName || hit.lastNameWithAccentsEn || '';
-              resolvedName = `${fn} ${ln}`.trim() || playerName;
-              break;
-            }
-          } catch(e) {}
-        }
-      }
-      // Fallback: search team rosters directly
-      if(!nhlId) {
-        try {
-          const norm2 = s => (s||'').toLowerCase().replace(/[^a-z ]/g,'').trim();
-          const target = norm2(playerName);
-          for(const abbrev of NHL_TEAM_ABBREVS) {
-            const data = await fetchWithFallback(`${NHL_BASE}/roster/${abbrev}/current`).catch(()=>null);
-            if(!data) continue;
-            const all = [...(data?.forwards||[]), ...(data?.defensemen||[]), ...(data?.goalies||[])];
-            const hit = all.find(p => norm2(`${p.firstName?.default||p.firstName||''} ${p.lastName?.default||p.lastName||''}`) === target);
-            if(hit?.id) {
-              nhlId = String(hit.id);
-              resolvedName = `${hit.firstName?.default||''} ${hit.lastName?.default||''}`.trim() || playerName;
-              // Cache for future use
-              const nc = loadNHLIdCache(); nc[norm2(resolvedName)] = nhlId; saveNHLIdCache();
-              break;
-            }
-          }
-        } catch(e) {}
-      }
-      if(!nhlId) {
-        result.innerHTML = `<div class="error-card">Could not find <b>${playerName}</b> in NHL. Try running Player ID Sync in the Trace tab first, or check the spelling.</div>`;
-        btn.disabled = false; btnText.textContent = 'Generate Graph';
-        return;
-      }
-
-      const nhlSeason = (() => { const y = new Date().getFullYear(); const m = new Date().getMonth()+1; return m >= 10 ? `${y}${y+1}` : `${y-1}${y}`; })();
-      const [nhlRegData, nhlPlayData] = await Promise.allSettled([
-        fetchNHLPlayerGameLog(nhlId, nhlSeason),
-        fetchWithFallback(`${NHL_BASE}/player/${nhlId}/game-log/${nhlSeason}/3`)
-      ]);
-      const gameLog    = nhlRegData.status === 'fulfilled' ? (nhlRegData.value?.gameLog || []) : [];
-      const playoffLog = nhlPlayData.status === 'fulfilled' ? (nhlPlayData.value?.gameLog || []) : [];
-      const allNHLGames = [...gameLog, ...playoffLog];
-
-      const nhlStatMap = {
-        'Points':            g => (g.goals||0) + (g.assists||0),
-        'Goals':             g => g.goals || 0,
-        'Assists':           g => g.assists || 0,
-        'Shots on Goal':     g => g.shots || 0,
-        'Power Play Points': g => (g.ppGoals||0) + (g.ppAssists||0),
-        'Blocks':            g => g.blockedShots || 0,
-        'Saves':             g => g.saves || 0,
-        'Goals Against':     g => g.goalsAgainst || 0,
-      };
-      const extract = nhlStatMap[prop] || (g => (g.goals||0) + (g.assists||0));
-
-      if(!allNHLGames.length) {
-        result.innerHTML = `<div class="error-card">No game data found for <b>${resolvedName}</b> this NHL season.<br><br><span style="font-size:10px;color:var(--muted)">If the season hasn't started yet there won't be any data. You can also try running Player ID Sync in the Trace tab.</span></div>`;
-        btn.disabled = false; btnText.textContent = 'Generate Graph';
-        return;
-      }
-
-      const games = [...allNHLGames].sort((a, b) =>
-        new Date(b.gameDate||0) - new Date(a.gameDate||0)
-      ).map(g => ({
-        v:    extract(g),
-        opp:  (g.opponentAbbrev || '?').toUpperCase(),
-        date: (g.gameDate || '').slice(5,10),
-        home: g.homeRoadIndicator === 'H'
-      })); // sorted newest-first so most recent game is on the left
-
-      await _renderGraphResult(result, games, null, resolvedName, sport, prop, line, prop2, line2, opp, btn, btnText);
-      return;
-    }
+    // ── NHL uses ESPN gamelog (api-web.nhle.com is CORS-blocked in browsers) ──
+    // Falls through to the ESPN path below — espnMap maps NHL → hockey/nhl
 
     // ── MLB: use MLB Stats API for full season data ──
     if(sport === 'MLB') {
