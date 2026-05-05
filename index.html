@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.55</title>
+<title>PropEdge v18.56</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -367,7 +367,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.55</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.56</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -4050,11 +4050,12 @@ async function syncAllNHLIds(onProgress) {
   for(const abbrev of NHL_TEAM_ABBREVS) {
     onProgress({ done, total:totalNHL, current:`NHL API: ${abbrev}...`, finished:false });
     try {
-      // Try /current first; if it returns empty (end-of-season) fall back to season-specific endpoint
-      let data = await fetchWithFallback(`${NHL_BASE}/roster/${abbrev}/current`).catch(() => null);
+      // Use season-specific endpoint directly — /current returns empty during playoffs/offseason
+      // Try current season first, then fall back to /current as last resort
+      let data = await fetchWithFallback(`${NHL_BASE}/roster/${abbrev}/${_nhlSeasonStr}`).catch(() => null);
       let all = [...(data?.forwards||[]), ...(data?.defensemen||[]), ...(data?.goalies||[])];
       if(!all.length) {
-        data = await fetchWithFallback(`${NHL_BASE}/roster/${abbrev}/${_nhlSeasonStr}`).catch(() => null);
+        data = await fetchWithFallback(`${NHL_BASE}/roster/${abbrev}/current`).catch(() => null);
         all = [...(data?.forwards||[]), ...(data?.defensemen||[]), ...(data?.goalies||[])];
       }
       for(const p of all) {
@@ -10155,7 +10156,7 @@ async function runGraphLookup() {
         opp:  (g.opponentAbbrev || '?').toUpperCase(),
         date: (g.gameDate || '').slice(5,10),
         home: g.homeRoadIndicator === 'H'
-      })).reverse();
+      })); // NHL API returns newest-first — no reverse, so most recent is on left
 
       await _renderGraphResult(result, games, null, resolvedName, sport, prop, line, prop2, line2, opp, btn, btnText);
       return;
@@ -10202,7 +10203,7 @@ async function runGraphLookup() {
         opp:  (s.opponent?.abbreviation || s.opponent?.name || '?').toUpperCase().slice(0,3),
         date: (s.date || '').slice(5,10),
         home: s.isHome === true || s.homeAway === 'home'
-      })); // MLB API returns newest-first, so no reverse needed — oldest left, newest right
+      })).reverse(); // MLB API returns oldest-first — reverse so most recent is on left
 
       // Render directly using shared rendering code below
       await _renderGraphResult(result, games, null, resolvedName, sport, prop, line, prop2, line2, opp, btn, btnText);
@@ -10279,7 +10280,7 @@ async function runGraphLookup() {
       opp:  (g.opponent || '?').toUpperCase().slice(0,3),
       date: espnDateToDisplay(g.date),
       home: (g.atVs || '').toLowerCase() === 'vs' || (g.atVs || '').toLowerCase() === 'home'
-    })).reverse();
+    })); // extractESPNRawGames returns newest-first — no reverse, so most recent is on left
 
     // Second prop for ESPN sports — reuse same rawGames approach for alignment
     let espnGames2 = null;
@@ -10292,7 +10293,7 @@ async function runGraphLookup() {
             opp:  (g.opponent || '?').toUpperCase().slice(0,3),
             date: espnDateToDisplay(g.date),
             home: (g.atVs || '').toLowerCase() === 'vs' || (g.atVs || '').toLowerCase() === 'home'
-          })).reverse();
+          }));
         }
       } catch(e) {}
     }
