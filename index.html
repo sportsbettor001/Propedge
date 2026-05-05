@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.36</title>
+<title>PropEdge v18.38</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -367,7 +367,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.36</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.38</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1546,17 +1546,23 @@ async function runGamelogDebug() {
     const now = new Date();
     const seasonYear = (now.getMonth()+1) >= 10 ? now.getFullYear()+1 : now.getFullYear();
     // Try both endpoint styles — some players work with one, not the other
-    const url = `https://site.web.api.espn.com/apis/common/v3/sports/${espnS}/${espnL}/athletes/${athleteId}/gamelog?season=${seasonYear}`;
-    const url2 = `https://site.web.api.espn.com/apis/common/v3/sports/${espnS}/${espnL}/athletes/${athleteId}/gamelog?season=${seasonYear}&seasontype=2`;
-    let gl = null;
-    try { gl = await fetchWithFallback(url); } catch(e) {}
-    if(!gl?.seasonTypes?.length) {
-      try { gl = await fetchWithFallback(url2); } catch(e) {}
+    const urls = [
+      `${`https://site.web.api.espn.com/apis/common/v3/sports/${espnS}/${espnL}/athletes/${athleteId}/gamelog`}?limit=200&season=${seasonYear}`,
+      `${`https://site.web.api.espn.com/apis/common/v3/sports/${espnS}/${espnL}/athletes/${athleteId}/gamelog`}?limit=200&season=${seasonYear}&seasontype=2`,
+      `${`https://site.web.api.espn.com/apis/common/v3/sports/${espnS}/${espnL}/athletes/${athleteId}/gamelog`}?limit=200`,
+      `${`https://site.web.api.espn.com/apis/common/v3/sports/${espnS}/${espnL}/athletes/${athleteId}/gamelog`}?limit=200&season=${seasonYear-1}`,
+    ];
+    let gl = null, usedUrl = '';
+    for(const url of urls) {
+      try {
+        const resp = await fetchWithFallback(url);
+        if(resp?.seasonTypes?.length) { gl = resp; usedUrl = url; break; }
+      } catch(e) {}
     }
     const lines = [];
     lines.push(`Player: ${name} (ID: ${athleteId})`);
     lines.push(`Computed seasonYear: ${seasonYear}`);
-    lines.push(`URL: ${gl ? url : url2}`);
+    lines.push(`Working URL: ${usedUrl || '(none worked)'}`);
     lines.push(`Season types found: ${(gl?.seasonTypes||[]).map(s=>s.displayName).join(', ') || '(none)'}`);
     // Show seasonTypes[0] structure
     const st = gl?.seasonTypes?.[0];
@@ -3192,15 +3198,19 @@ async function fetchESPNGameLogAllSeasonTypes(sport, league, athleteId) {
   const now = new Date();
   const seasonYear = (now.getMonth() + 1) >= 10 ? now.getFullYear() + 1 : now.getFullYear();
   const base = `https://site.web.api.espn.com/apis/common/v3/sports/${sport}/${league}/athletes/${athleteId}/gamelog`;
-  // Try 1: with season param (returns all season types for that year)
+  // Try 1: season param only (all season types)
   let current = await fetchWithFallback(`${base}?limit=200&season=${seasonYear}`).catch(() => null);
   // Try 2: explicit regular season
   if(!current?.seasonTypes?.length) {
     current = await fetchWithFallback(`${base}?limit=200&season=${seasonYear}&seasontype=2`).catch(() => null);
   }
-  // Try 3: no params at all (some players only work this way)
+  // Try 3: no params (some players only work this way)
   if(!current?.seasonTypes?.length) {
     current = await fetchWithFallback(`${base}?limit=200`).catch(() => null);
+  }
+  // Try 4: prior year (in case ESPN indexes this player's season differently)
+  if(!current?.seasonTypes?.length) {
+    current = await fetchWithFallback(`${base}?limit=200&season=${seasonYear-1}`).catch(() => null);
   }
   return { _regular: current, _playoffs: null, _merged: true };
 }
@@ -9755,13 +9765,13 @@ async function runGraphLookup() {
     const glData = await fetchESPNGameLogAllSeasonTypes(espnSport, espnLeague, athleteId);
     let parsed = parseESPNGameLog(glData, prop, null);
 
-    // Fallback: if allVals empty, try projection engine's direct gamelog fetch
+    // Fallback: if allVals empty, use same call as projection engine (no seasontype param)
     if(!parsed || parsed.allVals.length === 0) {
       try {
-        const glFallback = await fetchESPNGameLog(espnSport, espnLeague, athleteId, 2);
+        const glFallback = await fetchESPNGameLog(espnSport, espnLeague, athleteId); // no seasontype — same as projection engine
         const parsedFallback = _parseESPNGameLogSingle(glFallback, prop, null, null);
         if(parsedFallback?.allVals?.length > 0) {
-          parsed = { allVals: parsedFallback.allVals, vsOppVals: parsedFallback.vsOppVals, _meta:{ fallback:true } };
+          parsed = { allVals: parsedFallback.allVals, vsOppVals: parsedFallback.vsOppVals, _meta:{ fallback:true }, _regular: glFallback };
         }
       } catch(e2) {}
     }
@@ -9770,8 +9780,8 @@ async function runGraphLookup() {
       return;
     }
 
-    // Extract game metadata (opp/date/home) from root events in raw gamelog
-    const rawGL = glData._regular || glData;
+    // Extract game metadata (opp/date/home) from root events
+    const rawGL = parsed?._meta?.fallback ? (parsed._regular || glData._regular || glData) : (glData._regular || glData);
     const rootEvObj = rawGL?.events || {};
     const rootEvArr = Array.isArray(rootEvObj) ? rootEvObj : Object.values(rootEvObj);
 
@@ -9790,11 +9800,15 @@ async function runGraphLookup() {
         ev?.opponent?.displayName ||
         '?'
       ).toUpperCase().slice(0,3);
-      // gameDate from ESPN may include time in UTC which can shift the date
-      // Always take just the YYYY-MM-DD part before any T, then slice MM-DD
       const rawDate = ev?.gameDate || ev?.date || '';
-      const dateOnly = rawDate.split('T')[0]; // "2026-05-04T00:00Z" → "2026-05-04"
-      const date = dateOnly.length >= 10 ? dateOnly.slice(5,10) : dateOnly;
+      const dateOnly = rawDate.split('T')[0];
+      // ESPN dates run 1 day ahead — subtract 1
+      let date = '';
+      if(dateOnly.length >= 10) {
+        const d = new Date(dateOnly + 'T12:00:00'); // noon avoids any DST edge
+        d.setDate(d.getDate() - 1);
+        date = `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      }
       evMetaMap[id] = { opp: oppAbbr, date, home: isHome };
     }
 
