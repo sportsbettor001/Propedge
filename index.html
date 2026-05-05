@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.64</title>
+<title>PropEdge v18.65</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -367,7 +367,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.64</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.65</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
 
@@ -11636,26 +11636,40 @@ function refreshStorageDisplay() {
   const el = document.getElementById('storage-usage-display');
   if(!el) return;
   try {
-    // Estimate total used
-    let total = 0, snapBytes = 0, snapCount = 0, idBytes = 0, stateBytes = 0, otherBytes = 0;
+    let total = 0, snapBytes = 0, snapCount = 0, idBytes = 0, stateBytes = 0, quotaBytes = 0, otherBytes = 0;
+    const otherKeys = [];
+    // All known key prefixes/names used by this app
+    const knownIdKeys = new Set([ESPN_ID_CACHE_KEY, NHL_ID_CACHE_KEY, MLB_ID_CACHE_KEY, TEAM_ID_STORAGE_KEY]);
+    const knownStateKeys = new Set([STORAGE_KEY, 'pe_state_v1', 'pe_state', 'pe_calibration']);
+    const knownQuotaKeys = new Set([QUOTA_KEY]);
     for(let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if(!k) continue;
       const bytes = getStorageBytes(k);
       total += bytes;
-      if(k.startsWith('pe_snap') || k === 'pe_mins_cache') { snapBytes += bytes; snapCount++; }
-      else if(k === ESPN_ID_CACHE_KEY || k === NHL_ID_CACHE_KEY || k === MLB_ID_CACHE_KEY || k === TEAM_ID_STORAGE_KEY) idBytes += bytes;
-      else if(k === 'pe_state_v1' || k === 'pe_state') stateBytes += bytes;
-      else otherBytes += bytes;
+      if(k.startsWith('pe_snap') || k === 'pe_mins_cache') {
+        snapBytes += bytes; snapCount++;
+      } else if(knownIdKeys.has(k)) {
+        idBytes += bytes;
+      } else if(knownStateKeys.has(k)) {
+        stateBytes += bytes;
+      } else if(knownQuotaKeys.has(k)) {
+        quotaBytes += bytes;
+      } else {
+        otherBytes += bytes;
+        otherKeys.push(k);
+      }
     }
     const kb = n => (n / 1024).toFixed(1) + ' KB';
-    // Most browsers allow ~5MB localStorage
     const limitBytes = 5 * 1024 * 1024;
     const pct = Math.min(100, Math.round(total / limitBytes * 100));
     const barColor = pct > 80 ? 'var(--red)' : pct > 55 ? 'var(--amber)' : 'var(--accent)';
     const espnCount = Object.keys(loadESPNIdCache()).length;
     const mlbCount  = Object.keys(loadMLBIdCache()).length;
     const nhlCount  = Object.keys(loadNHLIdCache()).length;
+    const otherDetail = otherKeys.length > 0
+      ? `<div style="margin-top:3px;font-size:8px;color:var(--muted);word-break:break-all">${otherKeys.slice(0,5).join(', ')}${otherKeys.length > 5 ? ` +${otherKeys.length-5} more` : ''}</div>`
+      : '';
     el.innerHTML = `
       <div style="margin-bottom:6px">
         <div style="display:flex;justify-content:space-between;margin-bottom:3px">
@@ -11669,9 +11683,11 @@ function refreshStorageDisplay() {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:9px">
         <span style="color:var(--muted)">📦 Snapshots (${snapCount})</span><span style="color:var(--text)">${kb(snapBytes)}</span>
         <span style="color:var(--muted)">🆔 Player IDs (ESPN:${espnCount} MLB:${mlbCount} NHL:${nhlCount})</span><span style="color:var(--text)">${kb(idBytes)}</span>
-        <span style="color:var(--muted)">💾 App state</span><span style="color:var(--text)">${kb(stateBytes)}</span>
-        <span style="color:var(--muted)">Other</span><span style="color:var(--text)">${kb(otherBytes)}</span>
+        <span style="color:var(--muted)">💾 App state + calibration</span><span style="color:var(--text)">${kb(stateBytes)}</span>
+        <span style="color:var(--muted)">📊 Odds quota</span><span style="color:var(--text)">${kb(quotaBytes)}</span>
+        ${otherBytes > 0 ? `<span style="color:var(--muted)">❓ Unknown (${otherKeys.length} keys)</span><span style="color:var(--amber)">${kb(otherBytes)}</span>` : ''}
       </div>
+      ${otherBytes > 0 ? otherDetail : ''}
       ${pct > 70 ? '<div style="margin-top:6px;color:var(--amber);font-size:9px">⚠ Getting full — clear snapshots to free space</div>' : ''}
       ${pct > 90 ? '<div style="color:var(--red);font-size:9px;margin-top:2px">🔴 Almost full — new data may fail to save</div>' : ''}
     `;
