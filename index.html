@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.44</title>
+<title>PropEdge v18.45</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -367,7 +367,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.44</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.45</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1608,6 +1608,24 @@ async function runGamelogDebug() {
     }
     const topLabels2 = gl?.labels || gl?.names || [];
     const mIdx2 = topLabels2.findIndex(l => (l||'').toUpperCase() === 'MIN');
+    // Show top-level labels used for stat index lookup
+    lines.push(`\nTop-level labels: [${(gl?.labels||[]).join(', ')}]`);
+    lines.push(`Top-level names:  [${(gl?.names||[]).join(', ')}]`);
+
+    // Show first individual game event stats to verify index mapping
+    const _firstST = (gl?.seasonTypes||[]).find(s => !s.displayName?.toLowerCase().includes('total') && !s.displayName?.toLowerCase().includes('postseason'));
+    const _firstCat = (_firstST?.categories||[]).find(c => c.type === 'event' || !c.type?.includes('total'));
+    const _firstEvRaw = _firstCat?.events;
+    const _firstEvArr = _firstEvRaw ? (Array.isArray(_firstEvRaw) ? _firstEvRaw : Object.values(_firstEvRaw)) : [];
+    const _fe = _firstEvArr[0];
+    if(_fe) {
+      lines.push(`\nFirst game event stats[0..14]: [${(_fe.stats||[]).slice(0,15).join(', ')}]`);
+      lines.push(`  Expected mapping via top-level labels:`);
+      (gl?.labels||[]).slice(0,15).forEach((lbl, i) => {
+        lines.push(`    [${i}] ${lbl} = ${(_fe.stats||[])[i]}`);
+      });
+    }
+
     lines.push(`\n── Minutes Resolution ──`);
     lines.push(`Top-level MIN label index: ${mIdx2}`);
     if(mIdx2 >= 0) {
@@ -6125,8 +6143,20 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
   const allGames = [];
   const seenIds = new Set();
 
-  if(topLabels.length > 0 && gameLogData?.seasonTypes?.length > 0) {
-    for(const st of (gameLogData.seasonTypes || [])) {
+  // Sort season types: process regular season first, then postseason
+  // This ensures regular season games (more numerous) take priority in deduplication
+  const sortedSeasonTypes = [...(gameLogData.seasonTypes || [])].sort((a, b) => {
+    const an = (a?.displayName || '').toLowerCase();
+    const bn = (b?.displayName || '').toLowerCase();
+    const aIsPost = an.includes('playoff') || an.includes('post') || an.includes('play-in');
+    const bIsPost = bn.includes('playoff') || bn.includes('post') || bn.includes('play-in');
+    if(aIsPost && !bIsPost) return 1;  // postseason after regular
+    if(!aIsPost && bIsPost) return -1; // regular before postseason
+    return 0;
+  });
+
+  if(topLabels.length > 0 && sortedSeasonTypes.length > 0) {
+    for(const st of sortedSeasonTypes) {
       const stName = (st?.displayName || '').toLowerCase();
       const stId = st?.id || st?.type || '';
       const stEvents = (st?.categories || []).reduce((sum, c) => {
