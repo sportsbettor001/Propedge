@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.32</title>
+<title>PropEdge v18.34</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -367,7 +367,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.32</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.34</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -3193,11 +3193,15 @@ async function fetchESPNGameLogAllSeasonTypes(sport, league, athleteId) {
   const now = new Date();
   const seasonYear = (now.getMonth() + 1) >= 10 ? now.getFullYear() + 1 : now.getFullYear();
   const base = `https://site.web.api.espn.com/apis/common/v3/sports/${sport}/${league}/athletes/${athleteId}/gamelog`;
-  // Try with season param first (returns all season types for that year)
+  // Try 1: with season param (returns all season types for that year)
   let current = await fetchWithFallback(`${base}?limit=200&season=${seasonYear}`).catch(() => null);
-  // If that returns no useful data, try explicit regular season (seasontype=2)
-  if(!current || !(current?.seasonTypes?.length)) {
+  // Try 2: explicit regular season
+  if(!current?.seasonTypes?.length) {
     current = await fetchWithFallback(`${base}?limit=200&season=${seasonYear}&seasontype=2`).catch(() => null);
+  }
+  // Try 3: no params at all (some players only work this way)
+  if(!current?.seasonTypes?.length) {
+    current = await fetchWithFallback(`${base}?limit=200`).catch(() => null);
   }
   return { _regular: current, _playoffs: null, _merged: true };
 }
@@ -9750,9 +9754,20 @@ async function runGraphLookup() {
 
     // Fetch full season gamelog using the same function as the projection engine
     const glData = await fetchESPNGameLogAllSeasonTypes(espnSport, espnLeague, athleteId);
-    const parsed = parseESPNGameLog(glData, prop, null);
+    let parsed = parseESPNGameLog(glData, prop, null);
+
+    // Fallback: if allVals empty, try projection engine's direct gamelog fetch
     if(!parsed || parsed.allVals.length === 0) {
-      result.innerHTML = `<div class="error-card">No game data found for <b>${resolvedName}</b> this season.</div>`;
+      try {
+        const glFallback = await fetchESPNGameLog(espnSport, espnLeague, athleteId, 2);
+        const parsedFallback = _parseESPNGameLogSingle(glFallback, prop, null, null);
+        if(parsedFallback?.allVals?.length > 0) {
+          parsed = { allVals: parsedFallback.allVals, vsOppVals: parsedFallback.vsOppVals, _meta:{ fallback:true } };
+        }
+      } catch(e2) {}
+    }
+    if(!parsed || parsed.allVals.length === 0) {
+      result.innerHTML = `<div class="error-card">No game data found for <b>${resolvedName}</b> this season for <b>${prop}</b>.<br><br>Try the 🔬 Gamelog Structure Debug in the Trace tab with ID <code>${athleteId}</code> to see what ESPN returns.</div>`;
       return;
     }
 
@@ -10837,8 +10852,20 @@ function toggleReasoning(id) {
 }
 
 function toggleCard(id) {
-  if(expandedByUser.has(id)) expandedByUser.delete(id); else expandedByUser.add(id);
-  renderProps();
+  if(expandedByUser.has(id)) {
+    expandedByUser.delete(id);
+  } else {
+    expandedByUser.add(id);
+  }
+  // Re-render just this card in place — never call renderProps() which resets game groups
+  const card = document.getElementById('pcard-' + id);
+  if(!card) return; // card not in DOM — do nothing
+  const p = getAllCachedProps().find(p => p.id === id);
+  if(!p) return;
+  const newCard = document.createElement('div');
+  newCard.innerHTML = propCardHTML(p);
+  const newEl = newCard.firstElementChild;
+  if(newEl) card.replaceWith(newEl);
 }
 
 function toggleGameGroup(el) {
