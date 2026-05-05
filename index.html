@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.43</title>
+<title>PropEdge v18.44</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -367,7 +367,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.43</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.44</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -6148,8 +6148,10 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
       } else if(allowedSeasonType === 'playoff') {
         if(!stName.includes('playoff') && !stName.includes('post') && !stName.includes('play-in')) continue;
       }
-      // Deduplicate by eventId — multiple categories per season type each repeat the same games
-      // but with different stat arrays. Only keep one entry per game (first valid one).
+      // Deduplicate WITHIN season type only — separate seenIds per season type
+      // Sharing seenIds across season types causes regular season games to be
+      // skipped if their eventIds are processed in a postseason category first
+      const seenIdsThisST = new Set();
       const eventBest = {};
       for(const cat of (st?.categories || [])) {
         const eventsRaw = cat?.events || {};
@@ -6158,6 +6160,7 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
           const stats = ev?.stats || ev?.statistics || [];
           if(!stats.length) continue;
           const evId = String(ev?.eventId || ev?.id || '');
+          if(!evId) continue;
           const val = statIdx >= 0 ? parseStatVal(stats[statIdx]) : NaN;
           if(!eventBest[evId] || (!isNaN(val) && isNaN(parseStatVal(eventBest[evId].stats[statIdx])))) {
             eventBest[evId] = { stats, opp: oppByEventId[evId] || '' };
@@ -6165,7 +6168,7 @@ function _parseESPNGameLogSingle(gameLogData, statLabel, opp, allowedSeasonType)
         }
       }
       for(const [evId, entry] of Object.entries(eventBest)) {
-        if(seenIds.has(evId)) continue;
+        if(seenIds.has(evId)) continue; // skip across ALL season types (handles true duplicates)
         seenIds.add(evId);
         allGames.push(entry);
       }
@@ -9746,32 +9749,42 @@ async function runGraphLookup() {
 
     // ── NHL: use NHL API for full season data ──
     if(sport === 'NHL') {
-      // Resolve NHL player ID
+      // Resolve NHL player ID - check cache first, then search
       let nhlId = getNHLPlayerId(playerName);
       if(!nhlId) {
         try {
           const nhlSearch = await fetchWithFallback(`https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=5&q=${encodeURIComponent(playerName)}&active=true`);
-          const hit = nhlSearch?.[0];
-          if(hit?.playerId) { nhlId = hit.playerId; resolvedName = `${hit.firstName} ${hit.lastName}`; }
+          const hit = Array.isArray(nhlSearch) ? nhlSearch[0] : nhlSearch?.players?.[0];
+          if(hit?.playerId) { nhlId = hit.playerId; resolvedName = `${hit.firstName?.default||hit.firstName||''} ${hit.lastName?.default||hit.lastName||''}`.trim(); }
+        } catch(e) {}
+      }
+      // Try ESPN search as fallback for NHL ID
+      if(!nhlId) {
+        try {
+          const espnSearch = await searchESPNAthlete('hockey', 'nhl', playerName);
+          const hit = espnSearch?.athletes?.[0] || espnSearch?.items?.[0];
+          if(hit?.id) {
+            // ESPN ID won't work for NHL API — try to find NHL ID from landing page
+            const landing = await fetchWithFallback(`${NHL_BASE}/player/${hit.id}/landing`).catch(()=>null);
+            if(landing?.playerId) nhlId = landing.playerId;
+            else nhlId = hit.id; // last resort use ESPN ID
+            resolvedName = hit.displayName || playerName;
+          }
         } catch(e) {}
       }
       if(!nhlId) {
-        result.innerHTML = `<div class="error-card">Could not find <b>${playerName}</b> in NHL API. Check spelling or try their full name.</div>`;
+        result.innerHTML = `<div class="error-card">Could not find <b>${playerName}</b> in NHL. Try running Player ID Sync in the Trace tab first, or check the spelling.</div>`;
         btn.disabled = false; btnText.textContent = 'Generate Graph';
         return;
       }
 
       const nhlSeason = (() => { const y = new Date().getFullYear(); const m = new Date().getMonth()+1; return m >= 10 ? `${y}${y+1}` : `${y-1}${y}`; })();
-      const nhlData = await fetchNHLPlayerGameLog(nhlId, nhlSeason);
-      const gameLog = nhlData?.gameLog || [];
-
-      // Also get playoff games
-      let playoffLog = [];
-      try {
-        const pd = await fetchWithFallback(`${NHL_BASE}/player/${nhlId}/game-log/${nhlSeason}/3`);
-        playoffLog = pd?.gameLog || [];
-      } catch(e) {}
-
+      const [nhlRegData, nhlPlayData] = await Promise.allSettled([
+        fetchNHLPlayerGameLog(nhlId, nhlSeason),
+        fetchWithFallback(`${NHL_BASE}/player/${nhlId}/game-log/${nhlSeason}/3`)
+      ]);
+      const gameLog    = nhlRegData.status === 'fulfilled' ? (nhlRegData.value?.gameLog || []) : [];
+      const playoffLog = nhlPlayData.status === 'fulfilled' ? (nhlPlayData.value?.gameLog || []) : [];
       const allNHLGames = [...gameLog, ...playoffLog];
 
       const nhlStatMap = {
@@ -9787,7 +9800,7 @@ async function runGraphLookup() {
       const extract = nhlStatMap[prop] || (g => (g.goals||0) + (g.assists||0));
 
       if(!allNHLGames.length) {
-        result.innerHTML = `<div class="error-card">No game data found for <b>${resolvedName}</b> this season.<br><br><span style="font-size:10px;color:var(--muted)">If the season hasn't started yet, there won't be any data to show.</span></div>`;
+        result.innerHTML = `<div class="error-card">No game data found for <b>${resolvedName}</b> this NHL season.<br><br><span style="font-size:10px;color:var(--muted)">If the season hasn't started yet there won't be any data. You can also try running Player ID Sync in the Trace tab.</span></div>`;
         btn.disabled = false; btnText.textContent = 'Generate Graph';
         return;
       }
@@ -9878,12 +9891,23 @@ async function runGraphLookup() {
     // Fallback: if allVals empty, use same call as projection engine (no seasontype param)
     if(!parsed || parsed.allVals.length === 0) {
       try {
-        const glFallback = await fetchESPNGameLog(espnSport, espnLeague, athleteId); // no seasontype — same as projection engine
+        const glFallback = await fetchESPNGameLog(espnSport, espnLeague, athleteId);
         const parsedFallback = _parseESPNGameLogSingle(glFallback, prop, null, null);
         if(parsedFallback?.allVals?.length > 0) {
           parsed = { allVals: parsedFallback.allVals, vsOppVals: parsedFallback.vsOppVals, _meta:{ fallback:true }, _regular: glFallback };
         }
       } catch(e2) {}
+    }
+    // Second fallback: try without season param at all
+    if(!parsed || parsed.allVals.length === 0) {
+      try {
+        const base2 = `https://site.web.api.espn.com/apis/common/v3/sports/${espnSport}/${espnLeague}/athletes/${athleteId}/gamelog?limit=200`;
+        const glFallback2 = await fetchWithFallback(base2);
+        const parsedFallback2 = _parseESPNGameLogSingle(glFallback2, prop, null, null);
+        if(parsedFallback2?.allVals?.length > 0) {
+          parsed = { allVals: parsedFallback2.allVals, vsOppVals: parsedFallback2.vsOppVals, _meta:{ fallback:true }, _regular: glFallback2 };
+        }
+      } catch(e3) {}
     }
     if(!parsed || parsed.allVals.length === 0) {
       const isOffSeason = ['WNBA'].includes(sport);
