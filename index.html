@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.54</title>
+<title>PropEdge v18.55</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -367,7 +367,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.54</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.55</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -545,7 +545,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         <div class="form-row" style="margin-bottom:8px">
           <div class="form-group">
             <label class="form-label">Sport</label>
-            <select class="form-input form-select" id="graph-sport">
+            <select class="form-input form-select" id="graph-sport" onchange="updateGraphProps()">
               <option value="NBA">NBA</option>
               <option value="WNBA">WNBA</option>
               <option value="MLB">MLB</option>
@@ -561,43 +561,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
         <div class="form-group" style="margin-bottom:8px">
           <label class="form-label">Prop type</label>
-          <select class="form-input form-select" id="graph-prop">
-            <optgroup label="── NBA/WNBA ──">
-              <option value="Points">Points</option>
-              <option value="Rebounds">Rebounds</option>
-              <option value="Assists">Assists</option>
-              <option value="Points + Rebounds + Assists">PRA</option>
-              <option value="Points + Rebounds">Points + Rebounds</option>
-              <option value="Points + Assists">Points + Assists</option>
-              <option value="Assists + Rebounds">Assists + Rebounds</option>
-              <option value="Threes Made">Threes Made</option>
-              <option value="Steals">Steals</option>
-              <option value="Blocks">Blocks</option>
-              <option value="Turnovers">Turnovers</option>
-            </optgroup>
-            <optgroup label="── MLB Batters ──">
-              <option value="Hits">Hits</option>
-              <option value="Total Bases">Total Bases</option>
-              <option value="Home Runs">Home Runs</option>
-              <option value="Runs">Runs</option>
-              <option value="RBIs">RBIs</option>
-              <option value="Strikeouts">Strikeouts</option>
-            </optgroup>
-            <optgroup label="── NFL ──">
-              <option value="Pass Yards">Pass Yards</option>
-              <option value="Rush Yards">Rush Yards</option>
-              <option value="Receiving Yards">Receiving Yards</option>
-              <option value="Receptions">Receptions</option>
-              <option value="Passing Touchdowns">Passing TDs</option>
-            </optgroup>
-            <optgroup label="── NHL ──">
-              <option value="Points">Points</option>
-              <option value="Goals">Goals</option>
-              <option value="Assists">Assists</option>
-              <option value="Shots on Goal">Shots on Goal</option>
-              <option value="Saves">Saves</option>
-            </optgroup>
-          </select>
+          <select class="form-input form-select" id="graph-prop"></select>
         </div>
 
         <div class="form-group" style="margin-bottom:8px">
@@ -607,39 +571,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
         <div class="form-group" style="margin-bottom:8px">
           <label class="form-label">Second prop <span style="color:var(--muted);font-weight:400">(optional — overlays on same chart)</span></label>
-          <select class="form-input form-select" id="graph-prop2">
-            <option value="">— None —</option>
-            <optgroup label="── NBA/WNBA ──">
-              <option value="Points">Points</option>
-              <option value="Rebounds">Rebounds</option>
-              <option value="Assists">Assists</option>
-              <option value="Points + Rebounds + Assists">PRA</option>
-              <option value="Points + Rebounds">Points + Rebounds</option>
-              <option value="Points + Assists">Points + Assists</option>
-              <option value="Assists + Rebounds">Assists + Rebounds</option>
-              <option value="Threes Made">Threes Made</option>
-              <option value="Steals">Steals</option>
-              <option value="Blocks">Blocks</option>
-            </optgroup>
-            <optgroup label="── MLB ──">
-              <option value="Hits">Hits</option>
-              <option value="Total Bases">Total Bases</option>
-              <option value="Strikeouts">Strikeouts</option>
-              <option value="RBIs">RBIs</option>
-            </optgroup>
-            <optgroup label="── NFL ──">
-              <option value="Pass Yards">Pass Yards</option>
-              <option value="Rush Yards">Rush Yards</option>
-              <option value="Receiving Yards">Receiving Yards</option>
-              <option value="Receptions">Receptions</option>
-            </optgroup>
-            <optgroup label="── NHL ──">
-              <option value="Points">Points</option>
-              <option value="Goals">Goals</option>
-              <option value="Assists">Assists</option>
-              <option value="Shots on Goal">Shots on Goal</option>
-            </optgroup>
-          </select>
+          <select class="form-input form-select" id="graph-prop2"></select>
         </div>
 
         <div class="form-group" style="margin-bottom:14px">
@@ -2992,15 +2924,20 @@ function showTab(id, el) {
     const r = document.getElementById('graph-result');
     if(r && STATE.lastGraph?.html && !r.innerHTML.trim()) {
       r.innerHTML = STATE.lastGraph.html;
-      // Restore form fields
+      // Restore form fields — update props first so the saved sport's options are populated
+      if(STATE.lastGraph.sport) {
+        document.getElementById('graph-sport').value = STATE.lastGraph.sport;
+        updateGraphProps();
+      }
       if(STATE.lastGraph.player) document.getElementById('graph-player').value = STATE.lastGraph.player;
-      if(STATE.lastGraph.sport)  document.getElementById('graph-sport').value  = STATE.lastGraph.sport;
       if(STATE.lastGraph.prop)   document.getElementById('graph-prop').value   = STATE.lastGraph.prop;
       if(STATE.lastGraph.line)   document.getElementById('graph-line').value   = STATE.lastGraph.line;
       if(STATE.lastGraph.opp)    document.getElementById('graph-opp').value    = STATE.lastGraph.opp;
       if(STATE.lastGraph.prop2 && document.getElementById('graph-prop2'))  document.getElementById('graph-prop2').value  = STATE.lastGraph.prop2;
       if(STATE.lastGraph.line2 && document.getElementById('graph-line2'))  document.getElementById('graph-line2').value  = STATE.lastGraph.line2;
       collapseGraphForm(); // keep form collapsed when restoring a saved graph
+    } else {
+      updateGraphProps(); // ensure dropdowns are populated even with no saved graph
     }
   }
 }
@@ -4105,16 +4042,26 @@ async function syncAllNHLIds(onProgress) {
   const totalNHL = NHL_TEAM_ABBREVS.length;
   onProgress({ done:0, total:totalNHL, current:'Fetching NHL rosters (official API)...', finished:false });
   let done = 0;
+  // Compute current NHL season string dynamically (e.g. 20252026)
+  const _nhlNow = new Date();
+  const _nhlSeasonStart = (_nhlNow.getMonth() + 1) >= 10 ? _nhlNow.getFullYear() : _nhlNow.getFullYear() - 1;
+  const _nhlSeasonStr = `${_nhlSeasonStart}${_nhlSeasonStart + 1}`;
+
   for(const abbrev of NHL_TEAM_ABBREVS) {
     onProgress({ done, total:totalNHL, current:`NHL API: ${abbrev}...`, finished:false });
     try {
-      const data = await fetchWithFallback(`${NHL_BASE}/roster/${abbrev}/current`);
-      const all = [...(data?.forwards||[]), ...(data?.defensemen||[]), ...(data?.goalies||[])];
+      // Try /current first; if it returns empty (end-of-season) fall back to season-specific endpoint
+      let data = await fetchWithFallback(`${NHL_BASE}/roster/${abbrev}/current`).catch(() => null);
+      let all = [...(data?.forwards||[]), ...(data?.defensemen||[]), ...(data?.goalies||[])];
+      if(!all.length) {
+        data = await fetchWithFallback(`${NHL_BASE}/roster/${abbrev}/${_nhlSeasonStr}`).catch(() => null);
+        all = [...(data?.forwards||[]), ...(data?.defensemen||[]), ...(data?.goalies||[])];
+      }
       for(const p of all) {
         const first = p.firstName?.default || p.firstName || '';
         const last  = p.lastName?.default  || p.lastName  || '';
         const key = normKey(`${first} ${last}`);
-        if(key && p.id) { nhlCache[key] = String(p.id); nhlCount++; } // always overwrite
+        if(key && p.id) { nhlCache[key] = String(p.id); nhlCount++; }
       }
       if(done % 4 === 0) saveNHLIdCache();
     } catch(e) {}
@@ -9994,6 +9941,80 @@ function buildNarrative(name, sport, prop, line, projMean, decision,
 // ═══════════════════════════════════════════════════════
 // ANALYZE SINGLE PICK (CHECK MY PICK)
 // ═══════════════════════════════════════════════════════
+// ── Graph prop options per sport ──
+const GRAPH_PROPS = {
+  NBA:  [
+    ['Points','Points'],['Rebounds','Rebounds'],['Assists','Assists'],
+    ['Points + Rebounds + Assists','PRA'],['Points + Rebounds','Pts+Reb'],
+    ['Points + Assists','Pts+Ast'],['Assists + Rebounds','Ast+Reb'],
+    ['Threes Made','3PM'],['Steals','Steals'],['Blocks','Blocks'],
+    ['Turnovers','Turnovers'],['Steals + Blocks','Stl+Blk'],
+    ['Double Double','Dbl Dbl'],['Triple Double','Trpl Dbl'],
+  ],
+  WNBA: [
+    ['Points','Points'],['Rebounds','Rebounds'],['Assists','Assists'],
+    ['Points + Rebounds + Assists','PRA'],['Threes Made','3PM'],
+    ['Steals','Steals'],['Blocks','Blocks'],['Turnovers','Turnovers'],
+  ],
+  MLB:  [
+    ['Hits','Hits'],['Total Bases','Total Bases'],['Home Runs','HR'],
+    ['Runs','Runs'],['RBIs','RBIs'],['Hits + Runs + RBIs','H+R+RBI'],
+    ['Singles','Singles'],['Doubles','Doubles'],['Stolen Bases','SB'],
+    ['Walks','Walks'],['Strikeouts','Strikeouts'],['Total Outs','Total Outs'],
+    ['Hits Allowed','Hits Allowed'],['Earned Runs','Earned Runs'],
+  ],
+  NFL:  [
+    ['Pass Yards','Pass Yards'],['Rush Yards','Rush Yards'],
+    ['Receiving Yards','Rec Yards'],['Receptions','Receptions'],
+    ['Passing Touchdowns','Pass TDs'],['Receiving Touchdown','Rec TD'],
+    ['Rush + Receiving Touchdowns','Rush+Rec TDs'],['Anytime Touchdown','Anytime TD'],
+    ['Targets','Targets'],['Pass Attempts','Pass Att'],['Rushing Attempts','Rush Att'],
+    ['Interceptions Thrown','INTs'],['Sacks','Sacks'],['Total Tackles','Tackles'],
+    ['FG Made','FG Made'],['Kicking Points','Kicking Pts'],
+  ],
+  NHL:  [
+    ['Points','Points'],['Goals','Goals'],['Assists','Assists'],
+    ['Shots on Goal','SOG'],['Power Play Points','PP Pts'],
+    ['Blocks','Blocks'],['Saves','Saves'],['Goals Against','Goals Against'],
+  ],
+};
+
+function updateGraphProps() {
+  const sport = document.getElementById('graph-sport')?.value || 'NBA';
+  const props = GRAPH_PROPS[sport] || GRAPH_PROPS.NBA;
+
+  const buildOptions = (includeNone) => {
+    let html = includeNone ? '<option value="">— None —</option>' : '';
+    props.forEach(([val, label]) => {
+      html += `<option value="${val}">${label}</option>`;
+    });
+    return html;
+  };
+
+  const prop1 = document.getElementById('graph-prop');
+  const prop2 = document.getElementById('graph-prop2');
+  const prev1 = prop1?.value;
+  const prev2 = prop2?.value;
+
+  if(prop1) {
+    prop1.innerHTML = buildOptions(false);
+    // Restore previous selection if it still exists in new sport's options
+    if(prev1 && props.some(([v]) => v === prev1)) prop1.value = prev1;
+  }
+  if(prop2) {
+    prop2.innerHTML = buildOptions(true);
+    if(prev2 && props.some(([v]) => v === prev2)) prop2.value = prev2;
+    else prop2.value = '';
+  }
+}
+
+// Init prop dropdowns on page load
+if(document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', updateGraphProps);
+} else {
+  updateGraphProps();
+}
+
 function toggleGraphForm() {
   const body  = document.getElementById('graph-form-body');
   const arrow = document.getElementById('graph-form-arrow');
