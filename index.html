@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.31</title>
+<title>PropEdge v18.32</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -74,10 +74,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .return-top-btn:active{transform:scale(.94)}
 
 /* GAME GROUP HEADERS */
-.game-group-header{display:flex;justify-content:space-between;align-items:center;padding:10px 4px 6px;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border);margin-bottom:8px;margin-top:12px;user-select:none}
+.game-group-header{display:flex;justify-content:space-between;align-items:center;padding:10px 4px 6px;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border);margin-bottom:0;margin-top:12px;user-select:none;background:var(--bg);transition:background .15s}
 .game-group-header:first-child{margin-top:0}
+.game-group-header.open{position:sticky;top:0;z-index:9;background:var(--bg);border-bottom:1px solid var(--border2);box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.game-group-header.open .game-group-arrow{color:var(--accent)}
 .game-group-arrow{font-size:12px;color:var(--muted);transition:transform .15s}
-.game-group-body{margin-bottom:4px}
+.game-group-body{margin-bottom:4px;padding-top:8px}
 
 /* SETTINGS TABS */
 .settings-tabs{display:flex;gap:0;border:1px solid var(--border2);border-radius:10px;overflow:hidden;margin-bottom:16px}
@@ -365,7 +367,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.31</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.32</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -3188,18 +3190,16 @@ async function fetchESPNGameLog(sport, league, athleteId, seasontype) {
 }
 
 async function fetchESPNGameLogAllSeasonTypes(sport, league, athleteId) {
-  // Fetch without specifying seasontype — ESPN returns ALL season types for current season
-  // in a single response (regular season + play-in + playoffs).
   const now = new Date();
   const seasonYear = (now.getMonth() + 1) >= 10 ? now.getFullYear() + 1 : now.getFullYear();
   const base = `https://site.web.api.espn.com/apis/common/v3/sports/${sport}/${league}/athletes/${athleteId}/gamelog`;
-  const current = await fetchWithFallback(`${base}?limit=200&season=${seasonYear}`).catch(() => null);
-
-  return {
-    _regular: current,
-    _playoffs: null,
-    _merged: true
-  };
+  // Try with season param first (returns all season types for that year)
+  let current = await fetchWithFallback(`${base}?limit=200&season=${seasonYear}`).catch(() => null);
+  // If that returns no useful data, try explicit regular season (seasontype=2)
+  if(!current || !(current?.seasonTypes?.length)) {
+    current = await fetchWithFallback(`${base}?limit=200&season=${seasonYear}&seasontype=2`).catch(() => null);
+  }
+  return { _regular: current, _playoffs: null, _merged: true };
 }
 async function fetchESPNInjuries(sport, league) {
   const key = `inj_${sport}_${league}`;
@@ -10601,10 +10601,10 @@ function renderProps() {
       <span>${emoji} ${label}</span>
       <span style="display:flex;align-items:center;gap:8px">
         <span style="font-family:var(--mono);font-size:9px;color:var(--muted)">${props.length} prop${props.length!==1?'s':''}</span>
-        <span class="game-group-arrow">▾</span>
+        <span class="game-group-arrow">▸</span>
       </span>
     </div>
-    <div class="game-group-body">
+    <div class="game-group-body" style="display:none">
       ${props.map(p => propCardHTML(p)).join('')}
     </div>`;
   });
@@ -10842,11 +10842,22 @@ function toggleCard(id) {
 }
 
 function toggleGameGroup(el) {
-  const body = el.nextElementSibling;
+  const body  = el.nextElementSibling;
   const arrow = el.querySelector('.game-group-arrow');
-  const collapsed = body.style.display === 'none';
-  body.style.display = collapsed ? '' : 'none';
-  if(arrow) arrow.textContent = collapsed ? '▾' : '▸';
+  const isOpen = body.style.display !== 'none';
+  if(isOpen) {
+    // Close — remove sticky, hide body
+    body.style.display = 'none';
+    el.classList.remove('open');
+    if(arrow) arrow.textContent = '▸';
+  } else {
+    // Open — show body, make header sticky
+    body.style.display = '';
+    el.classList.add('open');
+    if(arrow) arrow.textContent = '▾';
+    // Scroll header into view smoothly
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 }
 
 // ═══════════════════════════════════════════════════════
