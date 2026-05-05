@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.35</title>
+<title>PropEdge v18.36</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -367,7 +367,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.35</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.36</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1545,19 +1545,19 @@ async function runGamelogDebug() {
     out.textContent = `Found ID: ${athleteId}. Fetching gamelog...`;
     const now = new Date();
     const seasonYear = (now.getMonth()+1) >= 10 ? now.getFullYear()+1 : now.getFullYear();
-    const url = `https://site.web.api.espn.com/apis/common/v3/sports/${espnS}/${espnL}/athletes/${athleteId}/gamelog?season=${seasonYear}&seasontype=2`;
-    const gl = await fetchWithFallback(url);
-    const now2 = new Date();
-    const seasonYear2 = (now2.getMonth()+1) >= 10 ? now2.getFullYear()+1 : now2.getFullYear();
-    lines.push(`Computed seasonYear: ${seasonYear2} (current month: ${now2.getMonth()+1})`);
-    lines.push(`URL used season=${seasonYear2}`);
-    lines.push(`Season types found: ${(gl?.seasonTypes||[]).map(s=>s.displayName).join(', ')}`);
-    lines.push(`displayTeam: ${gl?.seasonTypes?.[0]?.displayTeam?.abbreviation || '(none)'} ${gl?.seasonTypes?.[0]?.displayTeam?.displayName || ''}`);
-    lines.push(``);
-    lines.push(`URL: ${url}`);
-    lines.push(`Top-level keys: [${Object.keys(gl||{}).join(', ')}]`);
-    lines.push(`seasonTypes count: ${gl?.seasonTypes?.length ?? '(none)'}`);
-
+    // Try both endpoint styles — some players work with one, not the other
+    const url = `https://site.web.api.espn.com/apis/common/v3/sports/${espnS}/${espnL}/athletes/${athleteId}/gamelog?season=${seasonYear}`;
+    const url2 = `https://site.web.api.espn.com/apis/common/v3/sports/${espnS}/${espnL}/athletes/${athleteId}/gamelog?season=${seasonYear}&seasontype=2`;
+    let gl = null;
+    try { gl = await fetchWithFallback(url); } catch(e) {}
+    if(!gl?.seasonTypes?.length) {
+      try { gl = await fetchWithFallback(url2); } catch(e) {}
+    }
+    const lines = [];
+    lines.push(`Player: ${name} (ID: ${athleteId})`);
+    lines.push(`Computed seasonYear: ${seasonYear}`);
+    lines.push(`URL: ${gl ? url : url2}`);
+    lines.push(`Season types found: ${(gl?.seasonTypes||[]).map(s=>s.displayName).join(', ') || '(none)'}`);
     // Show seasonTypes[0] structure
     const st = gl?.seasonTypes?.[0];
     if(st) {
@@ -9790,10 +9790,11 @@ async function runGraphLookup() {
         ev?.opponent?.displayName ||
         '?'
       ).toUpperCase().slice(0,3);
-      // gameDate from ESPN is UTC — slice string directly (no Date() parsing) to avoid timezone shift
-      // "2026-05-04T00:00Z" → slice(5,10) → "05-04"
+      // gameDate from ESPN may include time in UTC which can shift the date
+      // Always take just the YYYY-MM-DD part before any T, then slice MM-DD
       const rawDate = ev?.gameDate || ev?.date || '';
-      const date = rawDate.length >= 10 ? rawDate.slice(5,10) : rawDate;
+      const dateOnly = rawDate.split('T')[0]; // "2026-05-04T00:00Z" → "2026-05-04"
+      const date = dateOnly.length >= 10 ? dateOnly.slice(5,10) : dateOnly;
       evMetaMap[id] = { opp: oppAbbr, date, home: isHome };
     }
 
