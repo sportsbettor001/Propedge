@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.38</title>
+<title>PropEdge v18.40</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -367,7 +367,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.38</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.40</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -9740,11 +9740,120 @@ async function runGraphLookup() {
     };
     const [espnSport, espnLeague] = espnMap[sport] || ['basketball','nba'];
 
-    // Resolve ESPN ID
-    let athleteId = null, resolvedName = playerName;
     const norm = s => (s||'').toLowerCase().replace(/[''.,-]/g,'').trim();
     const dbMatch = (PLAYER_DB[sport]||[]).find(p => norm(p.name) === norm(playerName));
-    if(dbMatch?.id) { athleteId = dbMatch.id; resolvedName = dbMatch.name; }
+    let resolvedName = dbMatch?.name || playerName;
+
+    // ── NHL: use NHL API for full season data ──
+    if(sport === 'NHL') {
+      // Resolve NHL player ID
+      let nhlId = getNHLPlayerId(playerName);
+      if(!nhlId) {
+        try {
+          const nhlSearch = await fetchWithFallback(`https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=5&q=${encodeURIComponent(playerName)}&active=true`);
+          const hit = nhlSearch?.[0];
+          if(hit?.playerId) { nhlId = hit.playerId; resolvedName = `${hit.firstName} ${hit.lastName}`; }
+        } catch(e) {}
+      }
+      if(!nhlId) {
+        result.innerHTML = `<div class="error-card">Could not find <b>${playerName}</b> in NHL API. Check spelling or try their full name.</div>`;
+        btn.disabled = false; btnText.textContent = 'Generate Graph';
+        return;
+      }
+
+      const nhlSeason = (() => { const y = new Date().getFullYear(); const m = new Date().getMonth()+1; return m >= 10 ? `${y}${y+1}` : `${y-1}${y}`; })();
+      const nhlData = await fetchNHLPlayerGameLog(nhlId, nhlSeason);
+      const gameLog = nhlData?.gameLog || [];
+
+      // Also get playoff games
+      let playoffLog = [];
+      try {
+        const pd = await fetchWithFallback(`${NHL_BASE}/player/${nhlId}/game-log/${nhlSeason}/3`);
+        playoffLog = pd?.gameLog || [];
+      } catch(e) {}
+
+      const allNHLGames = [...gameLog, ...playoffLog];
+
+      const nhlStatMap = {
+        'Points':            g => (g.goals||0) + (g.assists||0),
+        'Goals':             g => g.goals || 0,
+        'Assists':           g => g.assists || 0,
+        'Shots on Goal':     g => g.shots || 0,
+        'Power Play Points': g => (g.ppGoals||0) + (g.ppAssists||0),
+        'Blocks':            g => g.blockedShots || 0,
+        'Saves':             g => g.saves || 0,
+        'Goals Against':     g => g.goalsAgainst || 0,
+      };
+      const extract = nhlStatMap[prop] || (g => (g.goals||0) + (g.assists||0));
+
+      if(!allNHLGames.length) {
+        result.innerHTML = `<div class="error-card">No game data found for <b>${resolvedName}</b> this season.<br><br><span style="font-size:10px;color:var(--muted)">If the season hasn't started yet, there won't be any data to show.</span></div>`;
+        btn.disabled = false; btnText.textContent = 'Generate Graph';
+        return;
+      }
+
+      const games = allNHLGames.map(g => ({
+        v:    extract(g),
+        opp:  (g.opponentAbbrev || '?').toUpperCase(),
+        date: (g.gameDate || '').slice(5,10),
+        home: g.homeRoadIndicator === 'H'
+      })).reverse();
+
+      await _renderGraphResult(result, games, null, resolvedName, sport, prop, line, prop2, line2, opp, btn, btnText);
+      return;
+    }
+
+    // ── MLB: use MLB Stats API for full season data ──
+    if(sport === 'MLB') {
+      // Resolve MLB player ID via name search
+      let mlbId = dbMatch?.mlbId || null;
+      if(!mlbId) {
+        try {
+          const srch = await fetchWithFallback(`${MLB_BASE}/people/search?names=${encodeURIComponent(playerName)}&sportId=1`);
+          const hit = srch?.people?.[0];
+          if(hit?.id) { mlbId = hit.id; resolvedName = hit.fullName || playerName; }
+        } catch(e) {}
+      }
+      if(!mlbId) {
+        result.innerHTML = `<div class="error-card">Could not find <b>${playerName}</b> in MLB Stats API. Check spelling.</div>`;
+        btn.disabled = false; btnText.textContent = 'Generate Graph';
+        return;
+      }
+
+      // Fetch full season game log from MLB Stats API
+      const mlbStats = await fetchMLBGameLog(mlbId, new Date().getFullYear());
+      const splits = (mlbStats[0]?.splits || mlbStats[1]?.splits || []);
+
+      // Map prop to MLB stat field
+      const MLB_STAT_MAP = {
+        'Hits':'hits', 'Total Bases':'totalBases', 'Home Runs':'homeRuns',
+        'Runs':'runs', 'RBIs':'rbi', 'Strikeouts':'strikeOuts',
+        'Singles':'singles','Doubles':'doubles','Stolen Bases':'stolenBases','Walks':'baseOnBalls',
+        'Hits Allowed':'hits','Earned Runs':'earnedRuns','Total Outs':'outs'
+      };
+      const statField = MLB_STAT_MAP[prop] || 'hits';
+
+      if(!splits.length) {
+        result.innerHTML = `<div class="error-card">No game data found for <b>${resolvedName}</b> this season.</div>`;
+        btn.disabled = false; btnText.textContent = 'Generate Graph';
+        return;
+      }
+
+      const games = splits.map(s => ({
+        v:    parseFloat(s.stat?.[statField] ?? 0) || 0,
+        opp:  (s.opponent?.abbreviation || s.opponent?.name || '?').toUpperCase().slice(0,3),
+        date: (s.date || '').slice(5,10),
+        home: s.isHome === true || s.homeAway === 'home'
+      })).reverse();
+
+      // Render directly using shared rendering code below
+      await _renderGraphResult(result, games, null, resolvedName, sport, prop, line, prop2, line2, opp, btn, btnText);
+      return;
+    }
+
+    // Resolve ESPN ID for non-MLB sports
+    let athleteId = null;
+    if(dbMatch2?.id) { athleteId = dbMatch2.id; resolvedName = dbMatch2.name; }
     if(!athleteId) {
       const cached = getVerifiedESPNId(playerName, null);
       if(cached) athleteId = String(cached);
@@ -9758,6 +9867,7 @@ async function runGraphLookup() {
     }
     if(!athleteId) {
       result.innerHTML = `<div class="error-card">Could not find <b>${playerName}</b> in ESPN. Check spelling.</div>`;
+      btn.disabled = false; btnText.textContent = 'Generate Graph';
       return;
     }
 
@@ -9776,7 +9886,11 @@ async function runGraphLookup() {
       } catch(e2) {}
     }
     if(!parsed || parsed.allVals.length === 0) {
-      result.innerHTML = `<div class="error-card">No game data found for <b>${resolvedName}</b> this season for <b>${prop}</b>.<br><br>Try the 🔬 Gamelog Structure Debug in the Trace tab with ID <code>${athleteId}</code> to see what ESPN returns.</div>`;
+      const isOffSeason = ['WNBA'].includes(sport);
+      result.innerHTML = `<div class="error-card">No game data found for <b>${resolvedName}</b> this season for <b>${prop}</b>.<br><br>
+        <span style="font-size:10px;color:var(--muted)">${isOffSeason ? 'The WNBA season may not have started yet — check back once games have been played.' : 'The season may not have started, or this player may not have game log data available yet.'}</span>
+      </div>`;
+      btn.disabled = false; btnText.textContent = 'Generate Graph';
       return;
     }
 
@@ -9837,7 +9951,32 @@ async function runGraphLookup() {
       opp:  metaList[i]?.opp  || '?',
       date: metaList[i]?.date || '',
       home: metaList[i]?.home || false
-    })).reverse(); // reverse so newest games are on the right
+    })).reverse();
+
+    // Second prop for ESPN sports
+    let espnGames2 = null;
+    if(prop2 && line2 && prop2 !== prop) {
+      try {
+        const parsed2 = parseESPNGameLog(glData, prop2, null);
+        if(parsed2?.allVals?.length >= 1) {
+          espnGames2 = parsed2.allVals.map((v, i) => ({
+            v, opp: metaList[i]?.opp||'?', date: metaList[i]?.date||'', home: metaList[i]?.home||false
+          })).reverse();
+        }
+      } catch(e) {}
+    }
+
+    await _renderGraphResult(result, games, espnGames2, resolvedName, sport, prop, line, prop2, line2, opp, btn, btnText);
+
+  } catch(e) {
+    result.innerHTML = `<div class="error-card">Error: ${e.message}</div>`;
+    btn.disabled = false;
+    btnText.textContent = 'Generate Graph';
+  }
+}
+
+async function _renderGraphResult(result, games, games2Input, resolvedName, sport, prop, line, prop2, line2, opp, btn, btnText) {
+  try {
     const total = games.length;
     const hits  = games.filter(g => g.v >= line).length;
 
@@ -9883,21 +10022,9 @@ async function runGraphLookup() {
       : opp ? `<div class="graph-stat"><div class="graph-stat-label">vs ${normOpp(opp)}</div><div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px">No games</div></div>` : '';
 
     // Second prop data
-    let games2 = null;
-    if(prop2 && line2 && prop2 !== prop) {
-      try {
-        const parsed2 = parseESPNGameLog(glData, prop2, null);
-        if(parsed2?.allVals?.length >= 3) {
-          // Reuse same metadata from primary prop fetch
-          games2 = parsed2.allVals.map((v, i) => ({
-            v,
-            opp:  metaList[i]?.opp  || '?',
-            date: metaList[i]?.date || '',
-            home: metaList[i]?.home || false
-          }));
-        }
-      } catch(e) {}
-    }
+    let games2 = games2Input || null;
+    // Second prop only supported for ESPN-based sports (glData available in ESPN path)
+    // MLB path passes null — skip silently
     const prop2Stats = games2 ? (() => {
       const h2 = games2.filter(g => g.v >= line2).length;
       return { h: h2, n: games2.length, pct: Math.round(h2/games2.length*100) };
@@ -10031,7 +10158,7 @@ async function runGraphLookup() {
     // Persist graph result so it survives tab switches
     STATE.lastGraph = { html: result.innerHTML, player: resolvedName, sport, prop, line, opp: opp||null, prop2: prop2||null, line2: line2||null };
     saveState();
-    collapseGraphForm(); // auto-collapse form so chart is visible
+    collapseGraphForm();
 
   } catch(e) {
     result.innerHTML = `<div class="error-card">Error: ${e.message}</div>`;
