@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.48</title>
+<title>PropEdge v18.49</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -759,6 +759,44 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
             <button onclick="runGamelogDebug()" style="font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid rgba(0,229,160,.3);border-radius:8px;padding:6px 14px;color:var(--accent);cursor:pointer;white-space:nowrap">▶ Run</button>
           </div>
           <div id="gl-debug-out" style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:var(--mono);font-size:9px;color:var(--fg);white-space:pre-wrap;max-height:400px;overflow-y:auto;min-height:40px">Enter a player name and tap Run.</div>
+        </div>
+      </div>
+
+      <!-- ── Graph Raw Response Debug ── -->
+      <div class="tool-section">
+        <div class="tool-section-header" onclick="toggleToolSection(this)">
+          <span>📈 Graph Raw Response</span>
+          <span class="tool-section-arrow">▶</span>
+        </div>
+        <div class="tool-section-body">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.6">Dumps the raw extractESPNRawGames output for a player so you can verify game count, opp, date, and value alignment. Use this when the Graph tab shows missing or mismatched games.</div>
+          <div style="display:flex;gap:6px;margin-bottom:6px">
+            <input id="graph-debug-name" class="setting-input" placeholder="e.g. Donovan Mitchell" style="flex:1;font-size:11px" autocorrect="off" autocapitalize="words"/>
+            <select id="graph-debug-sport" style="font-family:var(--mono);font-size:11px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:5px 8px;cursor:pointer">
+              <option value="NBA">NBA</option>
+              <option value="WNBA">WNBA</option>
+              <option value="NFL">NFL</option>
+              <option value="NHL">NHL</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:6px;margin-bottom:8px">
+            <select id="graph-debug-prop" style="flex:1;font-family:var(--mono);font-size:11px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:5px 8px;cursor:pointer">
+              <option value="Points">Points</option>
+              <option value="Rebounds">Rebounds</option>
+              <option value="Assists">Assists</option>
+              <option value="Threes Made">Threes Made</option>
+              <option value="Steals">Steals</option>
+              <option value="Blocks">Blocks</option>
+              <option value="Pass Yards">Pass Yards</option>
+              <option value="Rush Yards">Rush Yards</option>
+              <option value="Receiving Yards">Receiving Yards</option>
+              <option value="Receptions">Receptions</option>
+              <option value="Goals">Goals</option>
+              <option value="Shots on Goal">Shots on Goal</option>
+            </select>
+            <button onclick="runGraphDebug()" style="font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid rgba(0,229,160,.3);border-radius:8px;padding:6px 14px;color:var(--accent);cursor:pointer;white-space:nowrap">▶ Run</button>
+          </div>
+          <div id="graph-debug-out" style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:var(--mono);font-size:9px;color:var(--fg);white-space:pre-wrap;max-height:400px;overflow-y:auto;min-height:40px">Enter a player name and tap Run.</div>
         </div>
       </div>
 
@@ -1518,6 +1556,77 @@ async function runNBAIdSync() {
         '<div style="background:var(--bg3);border-radius:4px;margin-top:6px;height:4px"><div style="background:var(--accent);height:4px;border-radius:4px;width:' + pct + '%;transition:width .3s"></div></div>';
     }
   });
+}
+
+async function runGraphDebug() {
+  const out  = document.getElementById('graph-debug-out');
+  const name = document.getElementById('graph-debug-name').value.trim();
+  const sport = document.getElementById('graph-debug-sport').value;
+  const prop  = document.getElementById('graph-debug-prop').value;
+  if(!name) { out.textContent = 'Enter a player name.'; return; }
+
+  const espnMap = {
+    NBA:['basketball','nba'], WNBA:['basketball','wnba'],
+    NFL:['football','nfl'],   NHL:['hockey','nhl']
+  };
+  const [espnSport, espnLeague] = espnMap[sport] || ['basketball','nba'];
+
+  out.textContent = `Fetching gamelog for "${name}" (${sport} · ${prop})…`;
+
+  try {
+    // Resolve athlete ID
+    const norm = s => (s||'').toLowerCase().replace(/[''.,-]/g,'').trim();
+    const dbMatch = (PLAYER_DB[sport]||[]).find(p => norm(p.name) === norm(name));
+    let athleteId = dbMatch?.id || null;
+    let resolvedName = dbMatch?.name || name;
+
+    if(!athleteId) {
+      const cached = getVerifiedESPNId(name, null);
+      if(cached) athleteId = String(cached);
+    }
+    if(!athleteId) {
+      const sd = await searchESPNAthlete(espnSport, espnLeague, name);
+      const hit = sd?.athletes?.[0] || sd?.items?.[0];
+      if(hit?.id) { athleteId = String(hit.id); resolvedName = hit.displayName || name; }
+    }
+    if(!athleteId) {
+      out.textContent = `Could not find "${name}" in ESPN. Check spelling.`;
+      return;
+    }
+
+    out.textContent = `Found "${resolvedName}" (id=${athleteId}). Fetching gamelog…`;
+
+    const glData = await fetchESPNGameLogAllSeasonTypes(espnSport, espnLeague, athleteId);
+    const rawGames = extractESPNRawGames(glData, prop, null);
+
+    const lines = [];
+    lines.push(`Player: ${resolvedName} (ESPN id=${athleteId})`);
+    lines.push(`Sport: ${sport}  Prop: ${prop}`);
+    lines.push(`Total games returned by extractESPNRawGames: ${rawGames.length}`);
+    lines.push(`Season types in response: ${(glData._regular?.seasonTypes||[]).map(s=>s.displayName).join(', ') || '(none)'}`);
+    lines.push('');
+    lines.push('── Per-game dump (oldest → newest) ──');
+    // rawGames comes newest-first from extractESPNRawGames, so reverse for display
+    const displayGames = [...rawGames].reverse();
+    displayGames.forEach((g, i) => {
+      const home = (g.atVs||'').toLowerCase() === 'vs' ? 'HOME' : 'AWAY';
+      lines.push(`  [${String(i+1).padStart(3,'0')}] ${g.date||'????-??-??'} ${home} vs ${(g.opponent||'?').padEnd(3)} | ${prop}: ${isNaN(g.value)?'N/A':g.value} | type:${g.seasonType||'?'}`);
+    });
+
+    if(!rawGames.length) {
+      lines.push('');
+      lines.push('⚠ 0 games found. Possible causes:');
+      lines.push('  • Season not started / off-season');
+      lines.push('  • Prop label not matched to ESPN labels');
+      lines.push('  • ESPN returned empty seasonTypes');
+      const labels = glData._regular?.labels || [];
+      lines.push(`  ESPN top-level labels: [${labels.join(', ')}]`);
+    }
+
+    out.textContent = lines.join('\n');
+  } catch(e) {
+    out.textContent = `Error: ${e.message}`;
+  }
 }
 
 async function runGamelogDebug() {
@@ -9990,30 +10099,31 @@ async function runGraphLookup() {
 
     // Fetch full season gamelog using the same function as the projection engine
     const glData = await fetchESPNGameLogAllSeasonTypes(espnSport, espnLeague, athleteId);
-    let parsed = parseESPNGameLog(glData, prop, null);
 
-    // Fallback: if allVals empty, use same call as projection engine (no seasontype param)
-    if(!parsed || parsed.allVals.length === 0) {
+    // Use extractESPNRawGames — same path as the props/projection engine — because it
+    // keeps opp/date/home attached to each game object, avoiding the index-misalignment
+    // bug that happens when allVals and a separate metaList are zipped together.
+    // The old approach broke for players with postseason data or when ESPN's category
+    // ordering differed from the season-type order used by the parser.
+    let rawGames = extractESPNRawGames(glData, prop, null);
+
+    // Fallback 1: explicit regular season + season param
+    if(!rawGames.length) {
       try {
         const glFallback = await fetchESPNGameLog(espnSport, espnLeague, athleteId);
-        const parsedFallback = _parseESPNGameLogSingle(glFallback, prop, null, null);
-        if(parsedFallback?.allVals?.length > 0) {
-          parsed = { allVals: parsedFallback.allVals, vsOppVals: parsedFallback.vsOppVals, _meta:{ fallback:true }, _regular: glFallback };
-        }
+        rawGames = extractESPNRawGames({ _regular: glFallback, _merged: true }, prop, null);
       } catch(e2) {}
     }
-    // Second fallback: try without season param at all
-    if(!parsed || parsed.allVals.length === 0) {
+    // Fallback 2: no season param at all
+    if(!rawGames.length) {
       try {
         const base2 = `https://site.web.api.espn.com/apis/common/v3/sports/${espnSport}/${espnLeague}/athletes/${athleteId}/gamelog?limit=200`;
         const glFallback2 = await fetchWithFallback(base2);
-        const parsedFallback2 = _parseESPNGameLogSingle(glFallback2, prop, null, null);
-        if(parsedFallback2?.allVals?.length > 0) {
-          parsed = { allVals: parsedFallback2.allVals, vsOppVals: parsedFallback2.vsOppVals, _meta:{ fallback:true }, _regular: glFallback2 };
-        }
+        rawGames = _extractESPNRawGamesSingle(glFallback2, prop, null);
       } catch(e3) {}
     }
-    if(!parsed || parsed.allVals.length === 0) {
+
+    if(!rawGames.length) {
       const isOffSeason = ['WNBA'].includes(sport);
       result.innerHTML = `<div class="error-card">No game data found for <b>${resolvedName}</b> this season for <b>${prop}</b>.<br><br>
         <span style="font-size:10px;color:var(--muted)">${isOffSeason ? 'The WNBA season may not have started yet — check back once games have been played.' : 'The season may not have started, or this player may not have game log data available yet.'}</span>
@@ -10022,70 +10132,35 @@ async function runGraphLookup() {
       return;
     }
 
-    // Extract game metadata (opp/date/home) from root events
-    const rawGL = parsed?._meta?.fallback ? (parsed._regular || glData._regular || glData) : (glData._regular || glData);
-    const rootEvObj = rawGL?.events || {};
-    const rootEvArr = Array.isArray(rootEvObj) ? rootEvObj : Object.values(rootEvObj);
+    // Build games array from rawGames — each entry already has value + opp + date + atVs
+    // Convert ESPN date strings (YYYY-MM-DDTHH:MM) to MM-DD display format,
+    // subtracting 1 day since ESPN stores dates 1 day ahead.
+    const espnDateToDisplay = (raw) => {
+      const dateOnly = (raw || '').split('T')[0];
+      if(dateOnly.length < 10) return '';
+      const d = new Date(dateOnly + 'T12:00:00');
+      d.setDate(d.getDate() - 1);
+      return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    };
 
-    // Build eventId → metadata map using confirmed ESPN field names from debug
-    const evMetaMap = {};
-    for(const ev of rootEvArr) {
-      const id = String(ev?.id || ev?.eventId || '');
-      if(!id) continue;
-      // atVs: 'vs' = home, '@' or 'at' = away
-      const atVs = (ev?.atVs || '').toLowerCase();
-      const isHome = atVs === 'vs' || atVs === 'home';
-      // opponent abbreviation
-      const oppAbbr = (
-        ev?.opponent?.abbreviation ||
-        ev?.opponent?.shortDisplayName ||
-        ev?.opponent?.displayName ||
-        '?'
-      ).toUpperCase().slice(0,3);
-      const rawDate = ev?.gameDate || ev?.date || '';
-      const dateOnly = rawDate.split('T')[0];
-      // ESPN dates run 1 day ahead — subtract 1
-      let date = '';
-      if(dateOnly.length >= 10) {
-        const d = new Date(dateOnly + 'T12:00:00'); // noon avoids any DST edge
-        d.setDate(d.getDate() - 1);
-        date = `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-      }
-      evMetaMap[id] = { opp: oppAbbr, date, home: isHome };
-    }
-
-    // Build metadata list ordered same as allVals by walking seasonTypes events
-    const metaList = [];
-    for(const st of (rawGL?.seasonTypes || [])) {
-      const stName = (st?.displayName || '').toLowerCase();
-      if(stName.includes('preseason')) continue;
-      const seenEv = new Set();
-      for(const cat of (st?.categories || [])) {
-        const evs = Array.isArray(cat?.events) ? cat.events : Object.values(cat?.events || {});
-        for(const ev of evs) {
-          const evId = String(ev?.eventId || ev?.id || '');
-          if(seenEv.has(evId) || !(ev?.stats || ev?.statistics || []).length) continue;
-          seenEv.add(evId);
-          metaList.push(evMetaMap[evId] || { opp: '?', date: '', home: false });
-        }
-      }
-    }
-
-    const games = parsed.allVals.map((v, i) => ({
-      v,
-      opp:  metaList[i]?.opp  || '?',
-      date: metaList[i]?.date || '',
-      home: metaList[i]?.home || false
+    const games = rawGames.map(g => ({
+      v:    isNaN(g.value) ? 0 : g.value,
+      opp:  (g.opponent || '?').toUpperCase().slice(0,3),
+      date: espnDateToDisplay(g.date),
+      home: (g.atVs || '').toLowerCase() === 'vs' || (g.atVs || '').toLowerCase() === 'home'
     })).reverse();
 
-    // Second prop for ESPN sports
+    // Second prop for ESPN sports — reuse same rawGames approach for alignment
     let espnGames2 = null;
     if(prop2 && line2 && prop2 !== prop) {
       try {
-        const parsed2 = parseESPNGameLog(glData, prop2, null);
-        if(parsed2?.allVals?.length >= 1) {
-          espnGames2 = parsed2.allVals.map((v, i) => ({
-            v, opp: metaList[i]?.opp||'?', date: metaList[i]?.date||'', home: metaList[i]?.home||false
+        const rawGames2 = extractESPNRawGames(glData, prop2, null);
+        if(rawGames2.length >= 1) {
+          espnGames2 = rawGames2.map(g => ({
+            v:    isNaN(g.value) ? 0 : g.value,
+            opp:  (g.opponent || '?').toUpperCase().slice(0,3),
+            date: espnDateToDisplay(g.date),
+            home: (g.atVs || '').toLowerCase() === 'vs' || (g.atVs || '').toLowerCase() === 'home'
           })).reverse();
         }
       } catch(e) {}
