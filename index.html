@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.56</title>
+<title>PropEdge v18.57</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -367,7 +367,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.56</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.57</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -4091,7 +4091,7 @@ async function syncAllNHLIds(onProgress) {
   }
   saveESPNIdCache();
 
-  onProgress({ finished:true, totalPlayers:nhlCount, nhlCount, espnCount, corrections:[] });
+  onProgress({ finished:true, totalPlayers:nhlCount + espnCount, nhlCount, espnCount, corrections:[] });
 }
 
 async function syncAllMLBIds(onProgress) {
@@ -10151,12 +10151,14 @@ async function runGraphLookup() {
         return;
       }
 
-      const games = allNHLGames.map(g => ({
+      const games = [...allNHLGames].sort((a, b) =>
+        new Date(b.gameDate||0) - new Date(a.gameDate||0)
+      ).map(g => ({
         v:    extract(g),
         opp:  (g.opponentAbbrev || '?').toUpperCase(),
         date: (g.gameDate || '').slice(5,10),
         home: g.homeRoadIndicator === 'H'
-      })); // NHL API returns newest-first — no reverse, so most recent is on left
+      })); // sorted newest-first so most recent game is on the left
 
       await _renderGraphResult(result, games, null, resolvedName, sport, prop, line, prop2, line2, opp, btn, btnText);
       return;
@@ -10198,12 +10200,14 @@ async function runGraphLookup() {
         return;
       }
 
-      const games = splits.map(s => ({
+      const games = [...splits].sort((a, b) =>
+        new Date(b.date||0) - new Date(a.date||0)
+      ).map(s => ({
         v:    parseFloat(s.stat?.[statField] ?? 0) || 0,
         opp:  (s.opponent?.abbreviation || s.opponent?.name || '?').toUpperCase().slice(0,3),
         date: (s.date || '').slice(5,10),
         home: s.isHome === true || s.homeAway === 'home'
-      })).reverse(); // MLB API returns oldest-first — reverse so most recent is on left
+      })); // sorted newest-first so most recent game is on the left
 
       // Render directly using shared rendering code below
       await _renderGraphResult(result, games, null, resolvedName, sport, prop, line, prop2, line2, opp, btn, btnText);
@@ -10275,12 +10279,19 @@ async function runGraphLookup() {
       return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     };
 
-    const games = rawGames.map(g => ({
+    // Sort by raw date descending so most recent game is always on the left,
+    // regardless of what order ESPN's API returns the data in.
+    const _sortGamesNewestFirst = (arr) => [...arr].sort((a, b) => {
+      const da = new Date(a._rawDate || 0), db = new Date(b._rawDate || 0);
+      return db - da;
+    });
+    const games = _sortGamesNewestFirst(rawGames.map(g => ({
       v:    isNaN(g.value) ? 0 : g.value,
       opp:  (g.opponent || '?').toUpperCase().slice(0,3),
       date: espnDateToDisplay(g.date),
-      home: (g.atVs || '').toLowerCase() === 'vs' || (g.atVs || '').toLowerCase() === 'home'
-    })); // extractESPNRawGames returns newest-first — no reverse, so most recent is on left
+      home: (g.atVs || '').toLowerCase() === 'vs' || (g.atVs || '').toLowerCase() === 'home',
+      _rawDate: g.date || ''
+    }))).map(({_rawDate, ...g}) => g);
 
     // Second prop for ESPN sports — reuse same rawGames approach for alignment
     let espnGames2 = null;
@@ -10288,12 +10299,13 @@ async function runGraphLookup() {
       try {
         const rawGames2 = extractESPNRawGames(glData, prop2, null);
         if(rawGames2.length >= 1) {
-          espnGames2 = rawGames2.map(g => ({
+          espnGames2 = _sortGamesNewestFirst(rawGames2.map(g => ({
             v:    isNaN(g.value) ? 0 : g.value,
             opp:  (g.opponent || '?').toUpperCase().slice(0,3),
             date: espnDateToDisplay(g.date),
-            home: (g.atVs || '').toLowerCase() === 'vs' || (g.atVs || '').toLowerCase() === 'home'
-          }));
+            home: (g.atVs || '').toLowerCase() === 'vs' || (g.atVs || '').toLowerCase() === 'home',
+            _rawDate: g.date || ''
+          }))).map(({_rawDate, ...g}) => g);
         }
       } catch(e) {}
     }
