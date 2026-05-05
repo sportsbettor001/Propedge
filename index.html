@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.49</title>
+<title>PropEdge v18.50</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -367,7 +367,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.48</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.50</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
         <div id="proxy-badge" style="display:none;font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:5px;background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)">NBA✓</div>
@@ -1599,28 +1599,39 @@ async function runGraphDebug() {
     const glData = await fetchESPNGameLogAllSeasonTypes(espnSport, espnLeague, athleteId);
     const rawGames = extractESPNRawGames(glData, prop, null);
 
+    // Reuse same date conversion as the graph tab (ESPN stores dates 1 day ahead)
+    const dbgDateDisplay = (raw) => {
+      const dateOnly = (raw || '').split('T')[0];
+      if(dateOnly.length < 10) return raw || '??-??';
+      const d = new Date(dateOnly + 'T12:00:00');
+      d.setDate(d.getDate() - 1);
+      return `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    };
+
+    const regCount  = rawGames.filter(g => g.seasonType === 'regular').length;
+    const playCount = rawGames.filter(g => g.seasonType === 'playoff' || g.seasonType === 'playin').length;
     const lines = [];
     lines.push(`Player: ${resolvedName} (ESPN id=${athleteId})`);
     lines.push(`Sport: ${sport}  Prop: ${prop}`);
-    lines.push(`Total games returned by extractESPNRawGames: ${rawGames.length}`);
-    lines.push(`Season types in response: ${(glData._regular?.seasonTypes||[]).map(s=>s.displayName).join(', ') || '(none)'}`);
+    lines.push(`Total games: ${rawGames.length}  (regular: ${regCount}  playoffs/playin: ${playCount})`);
+    lines.push(`Season types in merged response: ${(glData._regular?.seasonTypes||[]).map(s=>s.displayName).join(', ') || '(none)'}`);
+    lines.push(`ESPN top-level labels: [${(glData._regular?.labels||[]).join(', ')}]`);
     lines.push('');
     lines.push('── Per-game dump (oldest → newest) ──');
-    // rawGames comes newest-first from extractESPNRawGames, so reverse for display
+    // rawGames is newest-first; reverse for chronological display
     const displayGames = [...rawGames].reverse();
     displayGames.forEach((g, i) => {
       const home = (g.atVs||'').toLowerCase() === 'vs' ? 'HOME' : 'AWAY';
-      lines.push(`  [${String(i+1).padStart(3,'0')}] ${g.date||'????-??-??'} ${home} vs ${(g.opponent||'?').padEnd(3)} | ${prop}: ${isNaN(g.value)?'N/A':g.value} | type:${g.seasonType||'?'}`);
+      const dateStr = dbgDateDisplay(g.date);
+      lines.push(`  [${String(i+1).padStart(3,'0')}] ${dateStr} ${home} vs ${(g.opponent||'?').padEnd(3)} | ${prop}: ${isNaN(g.value)?'N/A':g.value} | type:${g.seasonType||'?'}`);
     });
 
     if(!rawGames.length) {
       lines.push('');
       lines.push('⚠ 0 games found. Possible causes:');
       lines.push('  • Season not started / off-season');
-      lines.push('  • Prop label not matched to ESPN labels');
-      lines.push('  • ESPN returned empty seasonTypes');
-      const labels = glData._regular?.labels || [];
-      lines.push(`  ESPN top-level labels: [${labels.join(', ')}]`);
+      lines.push('  • Prop label not matched to any ESPN label above');
+      lines.push('  • ESPN returned empty seasonTypes for this player');
     }
 
     out.textContent = lines.join('\n');
@@ -3348,24 +3359,59 @@ async function fetchESPNGameLog(sport, league, athleteId, seasontype) {
 }
 
 async function fetchESPNGameLogAllSeasonTypes(sport, league, athleteId) {
+  // ESPN ignores limit=200 when no seasontype is given and returns a capped/sampled set.
+  // The ONLY reliable way to get all games is to fetch seasontype=2 (regular) and
+  // seasontype=3 (playoffs/postseason) separately, then merge them.
+  // Season year is dynamic: ESPN uses the END year of the season (2025-26 => 2026).
+  // We never fall back to a prior year -- if no current-season data exists, return empty.
   const now = new Date();
   const seasonYear = (now.getMonth() + 1) >= 10 ? now.getFullYear() + 1 : now.getFullYear();
   const base = `https://site.web.api.espn.com/apis/common/v3/sports/${sport}/${league}/athletes/${athleteId}/gamelog`;
-  // Try 1: season param only (all season types)
-  let current = await fetchWithFallback(`${base}?limit=200&season=${seasonYear}`).catch(() => null);
-  // Try 2: explicit regular season
-  if(!current?.seasonTypes?.length) {
-    current = await fetchWithFallback(`${base}?limit=200&season=${seasonYear}&seasontype=2`).catch(() => null);
+  const regUrl  = `${base}?limit=400&season=${seasonYear}&seasontype=2`;
+  const playUrl = `${base}?limit=400&season=${seasonYear}&seasontype=3`;
+
+  const [regRes, playRes] = await Promise.allSettled([
+    fetchWithFallback(regUrl),
+    fetchWithFallback(playUrl)
+  ]);
+
+  let regular  = regRes.status  === 'fulfilled' ? regRes.value  : null;
+  let playoffs = playRes.status === 'fulfilled' ? playRes.value : null;
+
+  // If regular season returned nothing, try without season param (edge case for some players)
+  if(!regular?.seasonTypes?.length) {
+    regular = await fetchWithFallback(`${base}?limit=400&seasontype=2`).catch(() => null);
   }
-  // Try 3: no params (some players only work this way)
-  if(!current?.seasonTypes?.length) {
-    current = await fetchWithFallback(`${base}?limit=200`).catch(() => null);
+
+  // Merge both responses into a single combined object that the parsers can walk.
+  const mergedSeasonTypes = [];
+  const mergedEvents = {};
+
+  for(const resp of [regular, playoffs]) {
+    if(!resp) continue;
+    for(const st of (resp.seasonTypes || [])) {
+      const stName = (st?.displayName || '').toLowerCase();
+      if(stName.includes('preseason') || stName.includes('pre-season')) continue;
+      const already = mergedSeasonTypes.find(s => s.displayName === st.displayName);
+      if(!already) mergedSeasonTypes.push(st);
+    }
+    // Merge root events (metadata: opponent, date, atVs)
+    const evObj = resp.events || {};
+    const evArr = Array.isArray(evObj) ? evObj : Object.values(evObj);
+    for(const ev of evArr) {
+      const id = String(ev?.id || ev?.eventId || '');
+      if(id && !mergedEvents[id]) mergedEvents[id] = ev;
+    }
   }
-  // Try 4: prior year (in case ESPN indexes this player's season differently)
-  if(!current?.seasonTypes?.length) {
-    current = await fetchWithFallback(`${base}?limit=200&season=${seasonYear-1}`).catch(() => null);
-  }
-  return { _regular: current, _playoffs: null, _merged: true };
+
+  const merged = {
+    labels:      regular?.labels || playoffs?.labels || [],
+    names:       regular?.names  || playoffs?.names  || [],
+    seasonTypes: mergedSeasonTypes,
+    events:      mergedEvents,
+  };
+
+  return { _regular: merged, _playoffs: null, _merged: true };
 }
 async function fetchESPNInjuries(sport, league) {
   const key = `inj_${sport}_${league}`;
