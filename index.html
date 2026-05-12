@@ -7525,44 +7525,43 @@ async function fetchNBAPace(teamId) {
         ).slice(0, 600)}`, 'ok');
     }
 
-    // Walk all stat categories looking for real pace fields
-    // Confirmed ESPN field names vary — try all known variants in priority order
-    const PACE_FIELDS = [
-      'pace',                          // ideal: actual possessions/48
-      'possessionsPerGame',
-      'avgPossessions',
-      'possessions',
-      'fastBreakPoints',               // proxy: high fast-break teams = higher pace
-      'avgFastBreakPoints',
-    ];
+    // ESPN does NOT expose a pace or possessionsPerGame field (confirmed via Inspect Pace API).
+    // Estimate possessions using the standard box-score formula:
+    //   possessions ≈ FGA − OReb + TO + 0.44 × FTA
+    // All four inputs are confirmed available in the ESPN team stats response.
+    // This gives a per-game estimate when divided by gamesPlayed.
+    let statMap = {};
+    for(const cat of (data?.results?.stats?.categories || data?.statistics || [])) {
+      for(const s of (cat?.stats || [])) {
+        const n = (s?.name || '').toLowerCase();
+        const v = parseFloat(s?.value ?? s?.displayValue ?? '');
+        if(!isNaN(v)) statMap[n] = v;
+      }
+    }
 
     let pace = null;
     let paceField = null;
 
-    const cats = data?.results?.stats?.categories || data?.statistics || [];
-    for(const cat of cats) {
-      for(const s of (cat?.stats || [])) {
-        const n = (s?.name || '').toLowerCase();
-        const v = parseFloat(s?.value ?? s?.displayValue ?? '');
-        if(isNaN(v) || v <= 0) continue;
-        for(const field of PACE_FIELDS) {
-          if(n === field.toLowerCase()) {
-            // Sanity check: real NBA pace is ~95–115 possessions/48min
-            // fastBreakPoints is typically 10–20 — flag it as a proxy
-            const isProxy = field.toLowerCase().includes('fastbreak') || field.toLowerCase().includes('fast_break');
-            if(!isProxy && v >= 80 && v <= 130) {
-              pace = v; paceField = field; break;
-            } else if(isProxy && pace === null) {
-              // Scale fast-break proxy to approximate pace range
-              // League avg fast-break pts ~14/g ≈ 100 possessions; ratio: 100/14 ≈ 7.1
-              pace = parseFloat((v * 7.1).toFixed(1));
-              paceField = field + '(proxy×7.1)';
-            }
-          }
-        }
-        if(pace !== null && !paceField?.includes('proxy')) break;
+    const gp   = statMap['gamesplayed'] || statMap['gameplayed'] || 0;
+    const fgm  = statMap['fieldgoalsmade']    || statMap['avgfieldgoalsmade']    * gp || 0;
+    const fga  = statMap['fieldgoalsattempted']|| statMap['avgfieldgoalsattempted'] * gp || 0;
+    const oreb = statMap['offensiverebounds'] || (statMap['avgoffensiverebounds'] || 0) * gp;
+    const to   = statMap['turnovers']         || (statMap['avgturnovers']          || 0) * gp;
+    const fta  = statMap['freethrowsattempted']|| (statMap['avgfreethrowsattempted']|| 0) * gp;
+
+    // Use per-game averages directly if available (avoids gp=0 edge case)
+    const avgFGA  = statMap['avgfieldgoalsattempted']  || (gp > 0 ? fga / gp  : 0);
+    const avgOReb = statMap['avgoffensiverebounds']    || (gp > 0 ? oreb / gp : 0);
+    const avgTO   = statMap['avgturnovers']            || (gp > 0 ? to / gp   : 0);
+    const avgFTA  = statMap['avgfreethrowsattempted']  || (gp > 0 ? fta / gp  : 0);
+
+    if(avgFGA > 0) {
+      const estPace = avgFGA - avgOReb + avgTO + 0.44 * avgFTA;
+      // Sanity check: real NBA pace is ~93–115 possessions/game
+      if(estPace >= 85 && estPace <= 120) {
+        pace = parseFloat(estPace.toFixed(1));
+        paceField = `estimated(FGA-OReb+TO+0.44×FTA: ${avgFGA.toFixed(1)}-${avgOReb.toFixed(1)}+${avgTO.toFixed(1)}+${(0.44*avgFTA).toFixed(1)})`;
       }
-      if(pace !== null && !paceField?.includes('proxy')) break;
     }
 
     if(pace !== null && STATE.trace?.enabled) {
@@ -9496,8 +9495,14 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       traceLog('projectionEngine', `${playerName}: combo correlation (${statLabel}) → stdDev ×${comboCorrelationMult} = ${stdDev.toFixed(2)}`, 'ok');
     }
 
+    // ── INJURY WEIGHTING vars — declared here so they are in scope for both
+    //    the variance expansion below AND the proj/conf adjustments further down.
+    //    Values are assigned in the INJURY PROBABILITY WEIGHTING block below.
+    let _injProjMult = 1.0, _injStdDevMult = 1.0, _injConfAdj = 0;
+
     // ── INJURY VARIANCE EXPANSION (Upgrade §2) ──
-    // _injStdDevMult set in injury weighting block above; 1.0 = no change
+    // _injStdDevMult assigned in injury weighting block below; default 1.0 = no change.
+    // Applied here (after stdDev is fully assembled) so it expands the final stdDev value.
     if(_injStdDevMult !== 1.0 && stdDev) {
       stdDev = parseFloat((stdDev * _injStdDevMult).toFixed(3));
       traceLog('projectionEngine', `${playerName}: injury variance expansion ×${_injStdDevMult} → stdDev ${stdDev.toFixed(2)}`, 'warn');
@@ -9605,7 +9610,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     // Applied after base projection + opportunity blend, before EV calculation.
     // Reduces projection and expands stdDev to reflect play uncertainty.
     // Out already handled above. Other statuses scale projection + variance.
-    let _injProjMult = 1.0, _injStdDevMult = 1.0, _injConfAdj = 0;
+    // _injProjMult / _injStdDevMult / _injConfAdj declared above at stdDev assembly.
     {
       const _inj = (injuryStatus || '').toLowerCase();
       if(_inj.includes('doubtful')) {
