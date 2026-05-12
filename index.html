@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.65</title>
+<title>PropEdge v18.66</title>
 
 <style>
 :root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
@@ -348,7 +348,49 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .trace-entry.ok{color:var(--text)}.trace-entry.warn{color:var(--amber)}.trace-entry.fail{color:var(--red)}.trace-entry.pass{color:var(--accent)}
 .trace-empty{font-family:var(--mono);font-size:10px;color:var(--muted);text-align:center;padding:24px}
 
-/* TOAST */
+/* RECOMMENDED SLIPS TAB */
+.rec-slip-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-top:4px}
+.rec-slip-title{font-size:16px;font-weight:800;letter-spacing:-.3px}
+.rec-slip-sub{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px}
+.rec-size-row{display:flex;gap:6px;margin-bottom:14px}
+.rec-size-chip{flex:1;text-align:center;font-family:var(--mono);font-size:10px;font-weight:700;padding:7px 4px;border-radius:8px;border:1px solid var(--border2);color:var(--muted);cursor:pointer;transition:all .15s;background:var(--bg3)}
+.rec-size-chip.active{background:rgba(0,229,160,.12);border-color:rgba(0,229,160,.4);color:var(--accent)}
+.rec-slip-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:12px;position:relative;overflow:hidden}
+.rec-slip-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--blue))}
+.rec-slip-card.grade-a::before{background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.rec-slip-card.grade-b::before{background:linear-gradient(90deg,var(--blue),var(--purple))}
+.rec-slip-card.grade-c::before{background:linear-gradient(90deg,var(--amber),var(--red))}
+.rec-card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.rec-card-grade{font-family:var(--mono);font-size:20px;font-weight:800;line-height:1}
+.rec-card-grade.a{color:var(--accent)}
+.rec-card-grade.b{color:var(--blue)}
+.rec-card-grade.c{color:var(--amber)}
+.rec-card-stats{text-align:right}
+.rec-hit-pct{font-family:var(--mono);font-size:18px;font-weight:800;color:var(--text);line-height:1}
+.rec-hit-label{font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+.rec-conf-bar-wrap{margin-bottom:10px}
+.rec-conf-bar-label{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:4px}
+.rec-conf-bar-track{height:4px;background:var(--border);border-radius:3px;overflow:hidden}
+.rec-conf-bar-fill{height:100%;border-radius:3px;transition:width .4s ease}
+.rec-legs{margin-bottom:10px}
+.rec-leg{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)}
+.rec-leg:last-child{border-bottom:none}
+.rec-leg-left{flex:1;min-width:0}
+.rec-leg-name{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rec-leg-detail{font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:1px}
+.rec-leg-right{display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0;margin-left:8px}
+.rec-leg-dec{font-family:var(--mono);font-size:11px;font-weight:700}
+.rec-leg-prob{font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:1px}
+.rec-card-footer{display:flex;gap:8px;margin-top:2px}
+.rec-add-btn{flex:1;font-family:var(--mono);font-size:11px;font-weight:700;padding:9px;background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.3);border-radius:10px;color:var(--accent);cursor:pointer;transition:all .15s;text-align:center}
+.rec-add-btn:active{transform:scale(.97)}
+.rec-add-btn.added{background:rgba(0,229,160,.2);border-color:var(--accent)}
+.rec-empty{text-align:center;padding:48px 24px;font-family:var(--mono);font-size:12px;color:var(--muted);line-height:1.8}
+.rec-sort-row{display:flex;gap:6px;margin-bottom:12px}
+.rec-sort-chip{font-family:var(--mono);font-size:9px;padding:5px 10px;border-radius:7px;border:1px solid var(--border);color:var(--muted);cursor:pointer;background:var(--bg3);white-space:nowrap}
+.rec-sort-chip.active{border-color:rgba(77,184,255,.4);color:var(--blue);background:rgba(77,184,255,.08)}
+.rec-corr-warn{font-family:var(--mono);font-size:9px;color:var(--amber);background:rgba(255,181,71,.07);border:1px solid rgba(255,181,71,.2);border-radius:6px;padding:5px 8px;margin-bottom:8px;line-height:1.5}
+
 .toast{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 70px);left:50%;transform:translateX(-50%) translateY(120px);background:var(--bg3);border:1px solid var(--border2);border-radius:12px;padding:9px 16px;font-family:var(--mono);font-size:11px;color:var(--text);z-index:300;transition:transform .3s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;pointer-events:none}
 .toast.show{transform:translateX(-50%) translateY(0)}
 .toast.success{border-color:rgba(0,229,160,.3);color:var(--accent)}
@@ -367,7 +409,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.65</span></div>
+      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.66</span></div>
       <div class="header-right">
         <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
 
@@ -383,7 +425,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
   <div class="tabs">
     <div class="tab active" onclick="showTab('props',this)">Props</div>
     <div class="tab" onclick="showTab('check',this)">Check Pick</div>
-    <div class="tab" onclick="showTab('slip',this)">Slip</div>
+    <div class="tab" onclick="showTab('slips',this)">Slips</div>
+    <div class="tab" onclick="showTab('slip',this)">My Slip</div>
     <div class="tab" onclick="showTab('tracker',this)">Tracker</div>
     <div class="tab" onclick="showTab('graph',this)">Graph</div>
     <div class="tab" onclick="showTab('trace',this)">Trace</div>
@@ -731,6 +774,22 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         </div>
       </div>
 
+      <!-- ── Pace API Inspector ── -->
+      <div class="tool-section">
+        <div class="tool-section-header" onclick="toggleToolSection(this)">
+          <span>⚡ Inspect Pace API (NBA)</span>
+          <span class="tool-section-arrow">▶</span>
+        </div>
+        <div class="tool-section-body">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px;line-height:1.6">Fetches the raw ESPN team statistics response and dumps all stat field names + values. Use this to confirm which field contains real pace (possessions/48min).</div>
+          <div style="display:flex;gap:6px;margin-bottom:8px">
+            <input id="pace-debug-team-id" class="setting-input" placeholder="ESPN team ID (e.g. 17 = BOS)" style="flex:1;font-size:11px" autocorrect="off" autocapitalize="none"/>
+            <button onclick="runPaceDebug()" style="font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid rgba(0,229,160,.3);border-radius:8px;padding:6px 14px;color:var(--accent);cursor:pointer;white-space:nowrap">▶ Run</button>
+          </div>
+          <div id="pace-debug-out" style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:var(--mono);font-size:9px;color:var(--text);white-space:pre-wrap;max-height:500px;overflow-y:auto;min-height:40px">Enter an ESPN team ID and tap Run. BOS=17, LAL=13, GSW=9, PHX=24, MIA=14, MIL=15.</div>
+        </div>
+      </div>
+
       <!-- ── Odds API Quota ── -->
       <div class="tool-section">
         <div class="tool-section-header" onclick="toggleToolSection(this)">
@@ -978,6 +1037,36 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
     </div>
 
     <!-- SLIP BUILDER TAB -->
+    <!-- RECOMMENDED SLIPS TAB -->
+    <div id="tab-slips" class="page">
+      <div class="rec-slip-header">
+        <div>
+          <div class="rec-slip-title">Recommended Slips</div>
+          <div class="rec-slip-sub" id="rec-slip-sub">Generate props first — then tap Build</div>
+        </div>
+        <button onclick="buildRecommendedSlips()" id="rec-build-btn" style="font-family:var(--mono);font-size:11px;font-weight:700;background:rgba(0,229,160,.12);border:1px solid rgba(0,229,160,.35);border-radius:10px;color:var(--accent);padding:8px 14px;cursor:pointer;white-space:nowrap">⚡ Build</button>
+      </div>
+
+      <!-- Slip size filter -->
+      <div class="rec-size-row">
+        <div class="rec-size-chip active" data-size="all"   onclick="setRecSize('all',this)">All</div>
+        <div class="rec-size-chip"        data-size="2"     onclick="setRecSize('2',this)">2-leg</div>
+        <div class="rec-size-chip"        data-size="3"     onclick="setRecSize('3',this)">3-leg</div>
+        <div class="rec-size-chip"        data-size="4"     onclick="setRecSize('4',this)">4-leg</div>
+        <div class="rec-size-chip"        data-size="6"     onclick="setRecSize('6',this)">6-leg</div>
+      </div>
+
+      <!-- Sort row -->
+      <div class="rec-sort-row">
+        <div class="rec-sort-chip active" data-rsort="hitpct"  onclick="setRecSort('hitpct',this)">Hit %</div>
+        <div class="rec-sort-chip"        data-rsort="conf"    onclick="setRecSort('conf',this)">Confidence</div>
+        <div class="rec-sort-chip"        data-rsort="ev"      onclick="setRecSort('ev',this)">Avg EV</div>
+        <div class="rec-sort-chip"        data-rsort="legs"    onclick="setRecSort('legs',this)">Leg count</div>
+      </div>
+
+      <div id="rec-slips-list"></div>
+    </div>
+
     <div id="tab-slip" class="page">
       <div class="section-title">Current slip <span class="count" id="slip-count-badge">0 legs</span></div>
       <div id="slip-list"></div>
@@ -2888,6 +2977,7 @@ function showTab(id, el) {
   if(el) el.classList.add('active');
   if(id === 'tracker') renderTracker();
   if(id === 'slip') renderSlip();
+  if(id === 'slips') renderRecommendedSlips();
   if(id === 'trace') { renderTrace(); renderSlateLog(); }
   if(id === 'graph') {
     // Restore last graph result if available
@@ -4178,30 +4268,74 @@ function ewmaOpportunity(vals, lambda) {
 // oppSeries: array of opportunity values (e.g. FGA per game)
 // statSeries: historical stat values aligned to oppSeries
 // Returns blended projection or statProj if opportunity unavailable
-// Spec §5: if opportunity-derived vs stat projection discrepancy > 15%, nudge max 10%
+//
+// Upgrade §4 — Proportional discrepancy scaling (replaces flat 10% nudge cap):
+//   <10% discrepancy  → minimal blend (bw × 0.50)
+//   10–20%            → light blend   (bw × 0.75)
+//   20–35%            → moderate blend (bw × 1.00 — full blendWeight)
+//   >35%              → strong blend  (bw × 1.30, capped at 25–30% correction)
+// Stability safeguard: volume signal must be consistent across last 5 games
+//   before allowing strong adjustment — prevents single-game noise overreaction.
 function blendWithOpportunity(statProj, oppSeries, statSeries, blendWeight) {
   if(!oppSeries || oppSeries.length < 5 || !statSeries || statSeries.length < 5) return statProj;
   const bw = blendWeight || 0.4;
   const ewmaOpp  = ewmaOpportunity(oppSeries, 0.88);
   const ewmaStat = ewmaOpportunity(statSeries, 0.88);
   if(ewmaOpp <= 0) return statProj;
-  const effRate  = ewmaStat / ewmaOpp; // e.g. points per FGA attempt
-  const oppDerived = ewmaOpp * effRate;
-  // Sanity bounds — opportunity-derived can't be more than 40% away from stat projection
-  const oppCapped = Math.max(statProj * 0.6, Math.min(statProj * 1.4, oppDerived));
 
-  // Spec §5 — Opportunity Consistency Check:
-  // If discrepancy between opportunity-derived and current projection > 15%,
-  // nudge projection toward opportunity-based estimate (max 10% adjustment)
-  const discrepancyPct = statProj > 0 ? Math.abs(oppCapped - statProj) / statProj : 0;
-  if(discrepancyPct > 0.15) {
-    // Nudge: max 10% correction toward opportunity-derived estimate
-    const nudgeDir = oppCapped > statProj ? 1 : -1;
-    const nudgePct = Math.min(0.10, discrepancyPct * 0.40); // proportional, capped at 10%
-    return parseFloat((statProj * (1 + nudgeDir * nudgePct)).toFixed(2));
+  // Efficiency rate: stat output per unit of opportunity
+  const effRate   = ewmaStat / ewmaOpp;
+  const oppDerived = ewmaOpp * effRate;
+
+  // Raw discrepancy between opportunity-derived and stat projection
+  const rawDiscrepancy = statProj > 0 ? (oppDerived - statProj) / statProj : 0;
+  const discrepancyAbs = Math.abs(rawDiscrepancy);
+
+  // ── STABILITY GUARD: check volume consistency in last 5 games ──
+  // If last-5 opportunity EWMA is within 15% of full-series EWMA, signal is stable.
+  // Unstable = one-game spike/collapse: cap correction at 15% even in >35% tier.
+  const last5Opp = oppSeries.slice(-5);
+  const ewmaLast5 = ewmaOpportunity(last5Opp, 0.88);
+  const volumeStable = ewmaOpp > 0 && Math.abs(ewmaLast5 / ewmaOpp - 1) < 0.15;
+
+  // ── PROPORTIONAL CORRECTION TIER ──
+  // Scale the blendWeight and cap based on discrepancy magnitude + stability.
+  let effectiveBW, maxCorrectionPct;
+
+  if(discrepancyAbs < 0.10) {
+    // <10%: minimal adjustment — use half the blend weight
+    effectiveBW = bw * 0.50;
+    maxCorrectionPct = 0.08;
+  } else if(discrepancyAbs < 0.20) {
+    // 10–20%: light adjustment
+    effectiveBW = bw * 0.75;
+    maxCorrectionPct = 0.15;
+  } else if(discrepancyAbs < 0.35) {
+    // 20–35%: moderate — full blend weight
+    effectiveBW = bw;
+    maxCorrectionPct = volumeStable ? 0.22 : 0.15;
+  } else {
+    // >35%: strong adjustment — amplify blend weight, but only when signal is stable
+    effectiveBW = volumeStable ? bw * 1.30 : bw * 0.90;
+    maxCorrectionPct = volumeStable ? 0.28 : 0.15; // 28% max when stable, 15% when noisy
   }
 
-  return parseFloat(((statProj * (1 - bw)) + (oppCapped * bw)).toFixed(2));
+  // Sanity bounds: opportunity-derived can't be more than (maxCorrectionPct × 2) away
+  // from statProj before blending — prevents extreme values warping the blend
+  const hardCapLo = statProj * (1 - maxCorrectionPct * 2);
+  const hardCapHi = statProj * (1 + maxCorrectionPct * 2);
+  const oppCapped = Math.max(hardCapLo, Math.min(hardCapHi, oppDerived));
+
+  // Blended value
+  const blended = (statProj * (1 - effectiveBW)) + (oppCapped * effectiveBW);
+
+  // Final correction cap: clamp the TOTAL move from statProj to ±maxCorrectionPct
+  const maxDelta   = statProj * maxCorrectionPct;
+  const rawDelta   = blended - statProj;
+  const clampedDelta = Math.max(-maxDelta, Math.min(maxDelta, rawDelta));
+  const result = statProj + clampedDelta;
+
+  return parseFloat(result.toFixed(2));
 }
 
 // Core projection: weighted average of real game log values
@@ -4212,17 +4346,52 @@ function blendWithOpportunity(statProj, oppSeries, statSeries, blendWeight) {
 // simple projection comparisons.
 // ══════════════════════════════════════════════════════════════
 
+// ── 1a. DYNAMIC ALPHA — sport + sample-size aware ──
+// Smaller sample → slightly higher alpha (lean on recent games more)
+// Larger sample  → slightly lower alpha  (trust full history more)
+// Ranges per spec: NFL 0.32–0.38 | NBA/WNBA 0.22–0.27 | MLB batter 0.18–0.24
+//                  MLB pitcher 0.16–0.22 | NHL 0.22–0.28
+function getAlpha(sport, sampleSize, statLabel) {
+  // Base range per sport
+  const ranges = {
+    NFL:  [0.32, 0.38],
+    NBA:  [0.22, 0.27],
+    WNBA: [0.22, 0.27],
+    NHL:  [0.22, 0.28],
+  };
+  // MLB: differentiate batter vs pitcher by stat label
+  let range;
+  if(sport === 'MLB') {
+    const isPitcher = statLabel && ['Strikeouts','Earned Runs','Hits Allowed','Walks','Total Outs'].includes(statLabel);
+    range = isPitcher ? [0.16, 0.22] : [0.18, 0.24];
+  } else {
+    range = ranges[sport] || [0.22, 0.27]; // safe default
+  }
+  const [lo, hi] = range;
+  // Interpolate: small sample (≤10) → hi end; large sample (≥40) → lo end
+  // Linear between 10 and 40
+  const n = sampleSize || 15;
+  const t = Math.min(1, Math.max(0, (n - 10) / 30)); // 0 at n=10, 1 at n=40
+  return parseFloat((hi - t * (hi - lo)).toFixed(4));
+}
+
 // ── 1. EXPONENTIAL WEIGHTED MEAN (replaces L5/L10/season buckets) ──
 // More recent games carry exponentially higher weight.
 // α = decay constant: higher = more weight on recent games.
-function computeEWMA(values, alpha = 0.25) {
+// sport + sampleSize + statLabel are optional; when provided, alpha is computed
+// dynamically via getAlpha(). Falls back to 0.25 when omitted (legacy callers).
+function computeEWMA(values, alpha = 0.25, sport, sampleSize, statLabel) {
   if(!values || values.length === 0) return null;
   const clean = values.filter(v => v !== null && !isNaN(v) && v >= 0);
   if(clean.length === 0) return null;
+  // Dynamic alpha when sport context is available
+  const effectiveAlpha = (sport && alpha === 0.25)
+    ? getAlpha(sport, sampleSize ?? clean.length, statLabel)
+    : alpha;
   // Oldest → newest order assumed
   let ewma = clean[0];
   for(let i = 1; i < clean.length; i++) {
-    ewma = alpha * clean[i] + (1 - alpha) * ewma;
+    ewma = effectiveAlpha * clean[i] + (1 - effectiveAlpha) * ewma;
   }
   return ewma;
 }
@@ -4311,7 +4480,11 @@ function computeEV(modelProb, impliedProb, americanOdds) {
 // ── 6. CONFIDENCE — volatility-aware ──
 // Based on: sample size + coefficient of variation (consistency)
 // High CV (volatile player) → lower confidence.
-function computeConfidence(dataPoints, stdDev, mean, hasMatchupData, hasInjuryData) {
+// lineMovement (optional): currentLine - openingLine
+//   +ve = line moved up, -ve = moved down.
+//   modelEdge = 'over' | 'under' | null — indicates which side the model favors.
+//   If movement supports model edge: +1. Opposes: -1. Large adverse (>1 unit): -2.
+function computeConfidence(dataPoints, stdDev, mean, hasMatchupData, hasInjuryData, lineMovement, modelEdge) {
   let conf = 0;
 
   // Sample size score (0-4 pts)
@@ -4334,6 +4507,36 @@ function computeConfidence(dataPoints, stdDev, mean, hasMatchupData, hasInjuryDa
   // Enrichment bonuses
   if(hasMatchupData) conf += 2;
   if(hasInjuryData)  conf += 1;
+
+  // ── LINE MOVEMENT ADJUSTMENT (Upgrade §3) ──
+  // lineMovement = currentLine - openingLine.
+  // Positive = line went up; negative = line went down.
+  // modelEdge = 'over' means model prefers OVER (projection > line).
+  // Movement supporting model edge → market agrees → +1.
+  // Movement opposing → market disagrees → -1 (large: -2).
+  if(lineMovement !== undefined && lineMovement !== null && !isNaN(lineMovement) && modelEdge) {
+    const moveMagnitude = Math.abs(lineMovement);
+    if(moveMagnitude > 0.05) { // ignore sub-0.1 rounding noise
+      // Does movement agree with our model's preferred side?
+      // OVER: we want a higher line (market moved up) → lineMovement > 0 supports us
+      // UNDER: we want a lower line (market moved down) → lineMovement < 0 supports us
+      const moveSupportOver  = lineMovement > 0;
+      const moveSupportUnder = lineMovement < 0;
+      const modelWantsOver   = modelEdge === 'over';
+      const moveSupports     = (modelWantsOver && moveSupportOver) || (!modelWantsOver && moveSupportUnder);
+
+      if(moveSupports) {
+        conf += 1; // market movement corroborates model — add confidence
+      } else {
+        // Movement opposes model
+        if(moveMagnitude >= 1.0) {
+          conf -= 2; // large adverse move (>1 full stat unit) — market strongly disagrees
+        } else {
+          conf -= 1; // moderate adverse move
+        }
+      }
+    }
+  }
 
   return Math.max(1, Math.min(10, conf));
 }
@@ -6819,14 +7022,17 @@ function parseStatVal(v) {
 
 function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
 
-function computeSharpProjection(snap, vsOppVals, overrideGames) {
+function computeSharpProjection(snap, vsOppVals, overrideGames, sport, statLabel) {
   const games     = (overrideGames && overrideGames.length >= 5) ? overrideGames : snap.games;
   const { minutes } = snap;
   const seasonAvg   = games.reduce((a,b)=>a+b,0) / games.length;
   if(!games || games.length < 5) return null;
+  // Resolve sport from argument or snapshot — used for dynamic alpha
+  const _sport = sport || snap.sport || null;
 
   // ── EWMA (primary signal, 70% weight) ──
-  const ewma = computeEWMA(games);
+  // Dynamic alpha via getAlpha() when sport context is available
+  const ewma = computeEWMA(games, 0.25, _sport, games.length, statLabel);
   if(ewma === null || ewma <= 0) return null;
 
   // ── stdDev — used ONLY for probability distribution width, NOT projection ──
@@ -7294,7 +7500,11 @@ function getNBAOppMultiplier(oppProfile, statLabel) {
   return Math.max(0.85, Math.min(1.15, oppVal / cfg.leagueAvg));
 }
 
-// ── NBA Pace proxy (team total scores from recent games) ──
+// ── NBA Pace (possessions per 48 min) ──
+// ESPN team statistics endpoint. We log the full raw response to trace so
+// the exact field names can be confirmed — see "Inspect Pace API" button in Trace tab.
+// Field priority: pace → possessionsPerGame → avgFastBreakPoints (proxy) → null
+// avgPoints is NOT used — it is not pace.
 async function fetchNBAPace(teamId) {
   if(!teamId) return null;
   const key = ctxKey('nba_pace', teamId);
@@ -7303,19 +7513,64 @@ async function fetchNBAPace(teamId) {
     const data = await fetchWithFallback(
       `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/${teamId}/statistics`
     );
-    const cats = data?.results?.stats?.categories || [];
-    let pace = null;
-    for(const cat of cats) {
-      const stats = cat?.stats || [];
-      for(const s of stats) {
-        if((s?.name||'').toLowerCase() === 'avgpoints' ||
-           (s?.displayName||'').toLowerCase().includes('points per game')) {
-          pace = parseFloat(s.value || s.displayValue);
-          break;
-        }
-      }
-      if(pace !== null) break;
+
+    // Log raw response to trace so field names can be confirmed in the UI
+    if(STATE.trace?.enabled) {
+      traceLog('projectionEngine',
+        `[PACE DEBUG] Team ${teamId} raw keys: ${JSON.stringify(
+          (data?.results?.stats?.categories || []).map(c => ({
+            cat: c.name || c.displayName,
+            stats: (c.stats || []).map(s => s.name + '=' + (s.value ?? s.displayValue))
+          }))
+        ).slice(0, 600)}`, 'ok');
     }
+
+    // Walk all stat categories looking for real pace fields
+    // Confirmed ESPN field names vary — try all known variants in priority order
+    const PACE_FIELDS = [
+      'pace',                          // ideal: actual possessions/48
+      'possessionsPerGame',
+      'avgPossessions',
+      'possessions',
+      'fastBreakPoints',               // proxy: high fast-break teams = higher pace
+      'avgFastBreakPoints',
+    ];
+
+    let pace = null;
+    let paceField = null;
+
+    const cats = data?.results?.stats?.categories || data?.statistics || [];
+    for(const cat of cats) {
+      for(const s of (cat?.stats || [])) {
+        const n = (s?.name || '').toLowerCase();
+        const v = parseFloat(s?.value ?? s?.displayValue ?? '');
+        if(isNaN(v) || v <= 0) continue;
+        for(const field of PACE_FIELDS) {
+          if(n === field.toLowerCase()) {
+            // Sanity check: real NBA pace is ~95–115 possessions/48min
+            // fastBreakPoints is typically 10–20 — flag it as a proxy
+            const isProxy = field.toLowerCase().includes('fastbreak') || field.toLowerCase().includes('fast_break');
+            if(!isProxy && v >= 80 && v <= 130) {
+              pace = v; paceField = field; break;
+            } else if(isProxy && pace === null) {
+              // Scale fast-break proxy to approximate pace range
+              // League avg fast-break pts ~14/g ≈ 100 possessions; ratio: 100/14 ≈ 7.1
+              pace = parseFloat((v * 7.1).toFixed(1));
+              paceField = field + '(proxy×7.1)';
+            }
+          }
+        }
+        if(pace !== null && !paceField?.includes('proxy')) break;
+      }
+      if(pace !== null && !paceField?.includes('proxy')) break;
+    }
+
+    if(pace !== null && STATE.trace?.enabled) {
+      traceLog('projectionEngine', `[PACE] Team ${teamId}: ${pace} possessions/48 (field: ${paceField})`, 'ok');
+    } else if(pace === null && STATE.trace?.enabled) {
+      traceLog('projectionEngine', `[PACE] Team ${teamId}: no pace field found — pace context skipped`, 'warn');
+    }
+
     CONTEXT_CACHE[key] = pace;
     return pace;
   } catch(e) { CONTEXT_CACHE[key] = null; return null; }
@@ -7454,13 +7709,17 @@ async function applyContextEngine(sport, statLabel, contextData, playerMeta, tea
       }
     }
 
-    // 2. Pace → affects per_minute_rate (more possessions = slightly higher rate)
+    // 2. Pace → affects per_minute_rate (more possessions = more scoring opportunities)
+    // Real NBA pace is ~95–115 possessions/48min. League avg ~100.
+    // Old code used avgPoints (wrong — not pace). New code uses possessions/48 from fetchNBAPace.
+    // If pace field not found by ESPN, nbaPace is null and this block is skipped entirely.
     const pace = contextData.nbaPace;
-    if(pace !== null && pace !== undefined) {
-      const paceRateAdj = pace > 118 ? 0.02 : pace > 115 ? 0.01 : pace < 108 ? -0.02 : 0;
+    if(pace !== null && pace !== undefined && pace >= 80 && pace <= 130) {
+      const leagueAvgPace = 100;
+      const paceRateAdj = pace > 108 ? 0.02 : pace > 104 ? 0.01 : pace < 96 ? -0.02 : pace < 100 ? -0.01 : 0;
       if(paceRateAdj !== 0) {
         contextData._rateAdj = (contextData._rateAdj || 0) + paceRateAdj;
-        notes.push(`Team pace: ${pace.toFixed(1)} pts/g → rate ×${(1+paceRateAdj).toFixed(2)} (ESPN)`);
+        notes.push(`Team pace: ${pace.toFixed(1)} poss/48 → rate ×${(1+paceRateAdj).toFixed(2)} (ESPN)`);
       }
     }
 
@@ -8923,7 +9182,7 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     }
 
     const sharpResult = snapForProj
-      ? computeSharpProjection(snapForProj, vsOppVals, allVals.length >= 5 ? allVals : undefined)
+      ? computeSharpProjection(snapForProj, vsOppVals, allVals.length >= 5 ? allVals : undefined, sport, statLabel)
       : null;
 
     if(!sharpResult) {
@@ -8969,15 +9228,17 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
 
     // ── NBA/WNBA PACE BOOST (Spec §7 — allow up to ±5%) ──
     if((sport === 'NBA' || sport === 'WNBA') && contextData.nbaPace !== null && contextData.nbaPace !== undefined) {
-      // League average pace ~100 possessions/48min. >105 = fast, <95 = slow
+      // Real NBA pace = possessions per 48 min. League avg ~100. Range ~93–112.
+      // avgPoints was previously used here — that was wrong. fetchNBAPace now returns
+      // real pace (possessions/48) when ESPN exposes it, or null if unavailable.
       const leagueAvgPace = 100;
       const paceRatio = contextData.nbaPace / leagueAvgPace;
-      // Scale ±5% max (was previously too small)
+      // Scale ±5% max
       const paceAdj = Math.max(-0.05, Math.min(0.05, (paceRatio - 1) * 0.50));
       if(Math.abs(paceAdj) > 0.005) {
         finalProjection = parseFloat((finalProjection * (1 + paceAdj)).toFixed(2));
-        traceLog('projectionEngine', `${playerName}: pace adj (pace=${contextData.nbaPace}) ${paceAdj>0?'+':''}${(paceAdj*100).toFixed(1)}% → ${finalProjection}`, 'ok');
-        notes.push(`Pace factor (${contextData.nbaPace.toFixed(0)} poss): ${paceAdj>0?'+':''}${(paceAdj*100).toFixed(1)}%`);
+        traceLog('projectionEngine', `${playerName}: pace adj (${contextData.nbaPace.toFixed(1)} poss/48) ${paceAdj>0?'+':''}${(paceAdj*100).toFixed(1)}% → ${finalProjection}`, 'ok');
+        notes.push(`Pace factor (${contextData.nbaPace.toFixed(1)} poss/48): ${paceAdj>0?'+':''}${(paceAdj*100).toFixed(1)}%`);
       }
     }
 
@@ -9235,6 +9496,13 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
       traceLog('projectionEngine', `${playerName}: combo correlation (${statLabel}) → stdDev ×${comboCorrelationMult} = ${stdDev.toFixed(2)}`, 'ok');
     }
 
+    // ── INJURY VARIANCE EXPANSION (Upgrade §2) ──
+    // _injStdDevMult set in injury weighting block above; 1.0 = no change
+    if(_injStdDevMult !== 1.0 && stdDev) {
+      stdDev = parseFloat((stdDev * _injStdDevMult).toFixed(3));
+      traceLog('projectionEngine', `${playerName}: injury variance expansion ×${_injStdDevMult} → stdDev ${stdDev.toFixed(2)}`, 'warn');
+    }
+
     // OUTLIER: soft clamp already applied in computeSharpProjection (pulled 10–20% toward season avg)
     // This flag marks it for UI display only
     if(sharpResult.isOutlier) {
@@ -9332,6 +9600,41 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     // Injury: Out = skip, others noted only (prob engine handles adjustments)
     if(injuryStatus === 'Out') return null;
     if(injuryStatus) contextNotes.push(`Injury status: ${injuryStatus}`);
+
+    // ── INJURY PROBABILITY WEIGHTING (Upgrade §2) ──
+    // Applied after base projection + opportunity blend, before EV calculation.
+    // Reduces projection and expands stdDev to reflect play uncertainty.
+    // Out already handled above. Other statuses scale projection + variance.
+    let _injProjMult = 1.0, _injStdDevMult = 1.0, _injConfAdj = 0;
+    {
+      const _inj = (injuryStatus || '').toLowerCase();
+      if(_inj.includes('doubtful')) {
+        _injProjMult   = 0.65;
+        _injStdDevMult = 1.35;
+        _injConfAdj    = -2;
+      } else if(_inj.includes('game time') || _inj.includes('game-time') || _inj.includes('gtd')) {
+        _injProjMult   = 0.82;
+        _injStdDevMult = 1.22;
+        _injConfAdj    = -1;
+      } else if(_inj.includes('questionable')) {
+        _injProjMult   = 0.88;
+        _injStdDevMult = 1.15;
+        _injConfAdj    = -1;
+      } else if(_inj.includes('probable')) {
+        // Minimal effect: confidence only, no projection change
+        _injProjMult   = 1.0;
+        _injStdDevMult = 1.0;
+        _injConfAdj    = -0.5; // stored as float — rounded when applied below
+      }
+      if(_injProjMult !== 1.0) {
+        const _preInjProj = finalProjection;
+        finalProjection = parseFloat((finalProjection * _injProjMult).toFixed(2));
+        traceLog('projectionEngine',
+          `${playerName}: injury weighting (${injuryStatus}) — proj ${_preInjProj} × ${_injProjMult} = ${finalProjection}, stdDev ×${_injStdDevMult}, conf ${_injConfAdj}`, 'warn');
+        notes.push(`Injury (${injuryStatus}): proj ×${_injProjMult}, variance ×${_injStdDevMult}`);
+      }
+    }
+    // _injStdDevMult and _injConfAdj consumed below at stdDev assembly + conf assembly
 
     // MLB pitcher name/notes
     if(sport === 'MLB' && contextData.pitcher?.name) {
@@ -9471,16 +9774,16 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     } catch(e) {}
 
     // ── MARKET MOVEMENT CONFIDENCE PENALTY ──
-    // If the line moved toward our projection since open, the market already priced it in
-    // clvEntry = opening/estimated line; if it moved >1pt toward our number → reduce conf
+    // NOTE: Line movement confidence adjustment is now handled inside computeConfidence()
+    // via the lineMovement + modelEdge parameters (Upgrade §3). The block below retains
+    // _marketMoveAdj for the trace log only — it is NO LONGER applied to conf separately.
     if(hasRealLine && playerMeta.openingLine && playerMeta.openingLine !== line) {
       const lineMove = playerMeta.openingLine - line; // positive = line moved down
       const projAbove = finalProjection > line; // we like OVER
       const movedTowardUs = (projAbove && lineMove < 0) || (!projAbove && lineMove > 0);
       if(movedTowardUs && Math.abs(lineMove) >= 1.0) {
-        traceLog('projectionEngine', `${playerName}: line moved ${lineMove > 0 ? '+' : ''}${lineMove.toFixed(1)} toward model — market already pricing this in, conf -1`, 'warn');
-        // Will be applied to conf below
-        contextData._marketMoveAdj = -1;
+        traceLog('projectionEngine', `${playerName}: line moved ${lineMove > 0 ? '+' : ''}${lineMove.toFixed(1)} toward model — market already pricing this in (handled in computeConfidence via lineMovement)`, 'warn');
+        // contextData._marketMoveAdj intentionally NOT set — computeConfidence handles this now
       }
     }
 
@@ -9492,7 +9795,15 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
 
     // ── CONFIDENCE: rebuilt per spec ──
     // Base from sample + volatility, boosted/penalized by context agreement
-    const baseConf = computeConfidence(dataPoints, effectiveStdDev, finalProjection, hasMatchupData, !!injuryStatus);
+    // lineMovement (Upgrade §3): currentLine - openingLine, used to adjust confidence
+    // when market movement corroborates or opposes the model's direction.
+    const _lineMovement = (hasRealLine && playerMeta.openingLine && playerMeta.openingLine !== line)
+      ? (line - playerMeta.openingLine) // positive = line moved up
+      : null;
+    const _modelEdge = (hasRealLine && line > 0 && finalProjection > 0)
+      ? (finalProjection >= line ? 'over' : 'under')
+      : null;
+    const baseConf = computeConfidence(dataPoints, effectiveStdDev, finalProjection, hasMatchupData, !!injuryStatus, _lineMovement, _modelEdge);
     let conf = baseConf + Math.round(ctxResult.confBoost);
     // Penalty rules
     if(traceFlags.includes('HIGH_VOLATILITY'))   conf -= 2;
@@ -9500,7 +9811,10 @@ async function buildPlayerProp(playerId, playerName, sport, espnSport, espnLeagu
     if(traceFlags.includes('LOW_SAMPLE'))        conf -= 3;
     if(traceFlags.includes('SANITY_CAPPED'))     conf -= 3; // column extraction failed, EWMA fallback
     if(stabilityFlag)                             conf -= 1;
-    if(contextData._marketMoveAdj)                conf += contextData._marketMoveAdj; // market move penalty
+    // NOTE: _marketMoveAdj removed — line movement now handled in computeConfidence() (Upgrade §3)
+    // Injury confidence adjustment (Upgrade §2): _injConfAdj set in injury weighting block
+    // Probable = -0.5 → Math.round → 0 (no change); Questionable/GTD = -1; Doubtful = -2
+    if(_injConfAdj !== 0) conf += Math.round(_injConfAdj);
     // Boost for strong alignment
     if(!traceFlags.includes('CONTEXT_CONFLICT') && Math.abs(ctxResult.probShift) > 0.05) conf += 1;
     conf = Math.min(10, Math.max(1, conf));
@@ -10428,42 +10742,24 @@ async function analyzePick() {
       NFL:['football','nfl'], NHL:['hockey','nhl'], GOLF:['golf','pga']
     };
     const [espnSport, espnLeague] = espnMap[sport] || ['basketball','nba'];
-    let athleteId = null, athleteName = player;
-    let gameLogValues = [];
-    let dataPoints = 0, foundViaAPI = false;
-    let projectionFromCache = null; // set if we find this player in analysis cache
 
-    // ── PRIORITY 1: Check analysis cache — player already projected this session ──
-    // If they ran analysis mode, the projection + game log data is already computed.
-    // Use that directly — no ESPN fetch needed, and it uses the full sharp engine.
+    // ── STEP 1: Resolve player ESPN ID ──
+    // Priority: ID cache → PLAYER_DB → ESPN name search
     const normName = s => (s||'').toLowerCase().replace(/[''.,-]/g,'').trim();
-    const targetName = normName(player);
-    const allCachedBothModes = getAllCachedPropsBothModes();
-    const cachedProp = allCachedBothModes.find(p =>
-      normName(p.player) === targetName &&
-      p.sport === sport &&
-      p.prop === prop
-    );
-    if(cachedProp) {
-      // Found in cache — use the already-computed projection directly
-      projectionFromCache = cachedProp;
-      athleteName = cachedProp.player;
-      foundViaAPI = true;
-      // Synthesize gameLogValues from proj + stddev so EV math still works
-      // We use the cached proj as our mean; build synthetic values around it
-      const cachedProj = cachedProp.proj;
-      const cachedSd = cachedProp.stdDev || (cachedProj * 0.25);
-      const n = cachedProp.dataSource?.gamelog || 10;
-      // Build synthetic array: mean-distributed around projection (for confidence calc)
-      gameLogValues = Array.from({length: Math.max(n, 8)}, (_, i) => {
-        const offset = (i % 3 === 0 ? 1 : i % 3 === 1 ? -1 : 0) * cachedSd * 0.5;
-        return Math.max(0, parseFloat((cachedProj + offset).toFixed(2)));
-      });
-      dataPoints = gameLogValues.length;
+    let athleteId = null, athleteName = player;
+
+    // Check verified ESPN ID cache first
+    const cachedId = getVerifiedESPNId(player, null);
+    if(cachedId) { athleteId = String(cachedId); }
+
+    // PLAYER_DB fallback
+    if(!athleteId) {
+      const dbMatch = (PLAYER_DB[sport]||[]).find(p => normName(p.name) === normName(player));
+      if(dbMatch?.id) { athleteId = dbMatch.id; athleteName = dbMatch.name; }
     }
 
-    // ── PRIORITY 2: ESPN live fetch ──
-    if(!projectionFromCache) {
+    // ESPN name search
+    if(!athleteId) {
       try {
         const searchData = await searchESPNAthlete(espnSport, espnLeague, player);
         const foundId = exactMatchESPNId(searchData, player);
@@ -10472,124 +10768,98 @@ async function analyzePick() {
           const allAthletes = searchData?.athletes || searchData?.items || [];
           const matched = allAthletes.find(a => (a.id||a.athlete?.id) == foundId);
           athleteName = matched?.displayName || matched?.athlete?.displayName || player;
+          // Cache for future use
+          const cache = loadESPNIdCache();
+          cache[athleteName.toLowerCase().replace(/[^a-z ]/g,'').trim()] = athleteId;
+          saveESPNIdCache();
         }
       } catch(e) {}
-
-      if(athleteId) {
-        try {
-          const gameLogData = await fetchESPNGameLog(espnSport, espnLeague, athleteId);
-          const parsed = _parseESPNGameLogSingle(gameLogData, prop, null);
-          gameLogValues = parsed.allVals.slice(-20);
-          dataPoints = gameLogValues.length;
-          foundViaAPI = dataPoints > 0;
-        } catch(e) {}
-
-        if(gameLogValues.length < 2) {
-          try {
-            const statsData = await fetchESPNPlayerStats(espnSport, espnLeague, athleteId);
-            const seasonStats = statsData?.statistics?.find(s => s.type === 'total')?.stats || [];
-            const statIdx = getStatIndex(sport, prop);
-            if(statIdx >= 0) {
-              const seasonVal = parseFloat(seasonStats[statIdx] || 0);
-              if(seasonVal > 0) { gameLogValues = [seasonVal]; dataPoints = 5; }
-            }
-          } catch(e) {}
-        }
-      }
-
-      // ── PRIORITY 3: PLAYER_DB fallback ──
-      if(gameLogValues.length === 0 && !athleteId) {
-        const allDbPlayers = Object.values(PLAYER_DB).flat();
-        const dbMatch = allDbPlayers.find(p => {
-          const pn = normName(p.name);
-          return pn === targetName || pn.includes(targetName) || targetName.includes(pn);
-        });
-        if(dbMatch) athleteId = dbMatch.id;
-        if(athleteId) {
-          try {
-            const gameLogData = await fetchESPNGameLog(espnSport, espnLeague, athleteId);
-            const parsed = _parseESPNGameLogSingle(gameLogData, prop, null);
-            gameLogValues = parsed.allVals.slice(-20);
-            dataPoints = gameLogValues.length;
-          } catch(e) {}
-        }
-      }
     }
 
-    if(gameLogValues.length === 0) {
-      showToast('Player not found — run Analysis mode first to project them, then check here', 'error');
+    if(!athleteId) {
+      resultArea.innerHTML = `<div class="error-card">Could not find <b>${player}</b>. Run Analysis mode on the Props tab first to cache their ID, then try again.</div>`;
       isAnalyzing = false; btn.disabled = false; btnText.textContent = 'Analyze This Pick';
       return;
     }
 
-    // ── EV ENGINE for Check Pick ──
-    const cleanVals = gameLogValues.filter(v => !isNaN(v) && v >= 0);
-    if(cleanVals.length < 2) { showToast('Need at least 2 valid games — PASS', 'error'); isAnalyzing = false; btn.disabled = false; btnText.textContent = 'Analyze This Pick'; return; }
+    btnText.innerHTML = '<div class="spinner" style="border-top-color:var(--accent)"></div> Running sharp engine...';
 
-    // Use cached projection directly if available (sharp engine already ran on it)
-    // Otherwise compute EWMA from raw game log values
-    const projection = projectionFromCache
-      ? projectionFromCache.proj
-      : parseFloat((computeEWMA(cleanVals) || 0).toFixed(2));
-    if(!projection) { showToast('Insufficient data', 'error'); isAnalyzing = false; btn.disabled = false; btnText.textContent = 'Analyze This Pick'; return; }
+    // ── STEP 2: Fetch injuries for context ──
+    const injuries = {};
+    try {
+      const injData = await fetchESPNInjuries(espnSport, espnLeague);
+      const teamList = injData?.injuries || injData?.items || [];
+      teamList.forEach(te => {
+        (te?.injuries || []).forEach(inj => {
+          const n = inj.athlete?.displayName || inj.displayName;
+          if(!n) return;
+          const raw = (inj.status || inj.details?.type || '').toLowerCase();
+          const status = raw.includes('out') || raw.includes('ir') ? 'Out'
+                       : raw.includes('doubtful') ? 'Doubtful'
+                       : raw.includes('questionable') || raw.includes('dtd') ? 'Questionable' : null;
+          if(status) injuries[n.toLowerCase()] = { status };
+        });
+      });
+    } catch(e) {}
 
-    const sd = projectionFromCache?.stdDev || computeStdDev(cleanVals, projection) || projection * 0.25;
-    const ovP = probOver(projection, sd, line, prop, sport);
-    const unP = 1 - ovP;
-    // Use manually entered odds — not assuming -110
+    // ── STEP 3: Run full sharp engine via buildPlayerProp ──
+    const today = new Date().toISOString().slice(0, 10);
+    const dbMatch = (PLAYER_DB[sport]||[]).find(p => normName(p.name) === normName(player)) || {};
+    const playerMeta = { ...dbMatch, overOdds, underOdds };
+
+    const result = await buildPlayerProp(
+      athleteId, athleteName, sport, espnSport, espnLeague,
+      dbMatch.team || '', opp || '', today, injuries, Date.now(),
+      prop, null, line, playerMeta
+    );
+
+    if(!result || result === 'insufficient_data') {
+      resultArea.innerHTML = `<div class="error-card">Not enough game log data to project <b>${athleteName}</b> — ${prop}. Try running Analysis mode on the Props tab first to build a snapshot.</div>`;
+      isAnalyzing = false; btn.disabled = false; btnText.textContent = 'Analyze This Pick';
+      return;
+    }
+
+    // ── STEP 4: Render result card using full prop card data ──
+    const decColor = result.decision === 'OVER' ? 'var(--accent)' : result.decision === 'UNDER' ? 'var(--red)' : 'var(--amber)';
+    const ovP = result.overProb / 100;
+    const unP = result.underProb / 100;
     const impOv = americanToImplied(overOdds);
     const impUn = americanToImplied(underOdds);
-    const evOv  = parseFloat((computeEV(ovP, impOv, overOdds) * 100).toFixed(1));
+    const evOv  = parseFloat((computeEV(ovP, impOv, overOdds)  * 100).toFixed(1));
     const evUn  = parseFloat((computeEV(unP, impUn, underOdds) * 100).toFixed(1));
-    const conf  = projectionFromCache?.conf || computeConfidence(cleanVals.length, sd, projection, false, false);
-    const minEVPct = (STATE.settings.bettingMinEdge ?? STATE.settings.minEdge ?? 5) / 100;
-    let decision = 'PASS';
-    if(conf >= (STATE.settings.bettingMinConf ?? STATE.settings.minConf ?? 4)) {
-      if(ovP - impOv >= minEVPct) decision = 'OVER';
-      else if(unP - impUn >= minEVPct) decision = 'UNDER';
-    }
-    const chosenEV   = decision === 'OVER' ? evOv : evUn;
-    const chosenProb = decision === 'OVER' ? ovP : unP;
-    const decColor   = decision === 'OVER' ? 'var(--accent)' : decision === 'UNDER' ? 'var(--red)' : 'var(--amber)';
-    const cv = projection > 0 ? (sd / projection).toFixed(2) : 'N/A';
-    const dataSourceNote = projectionFromCache
-      ? 'Projection from analysis cache (sharp engine) — ' + (projectionFromCache.dataSource?.gamelog || '?') + ' game logs'
-      : cleanVals.length + ' game log values from ESPN (live fetch)';
-    const reasoning = [
-      'Model: ' + (projectionFromCache ? 'Sharp engine (cached)' : 'EWMA (α=0.25)') + ' μ=' + projection + ' | σ=' + sd.toFixed(2) + ' | CV=' + cv,
-      'P(Over ' + line + ') = ' + (ovP*100).toFixed(1) + '% | P(Under) = ' + (unP*100).toFixed(1) + '%',
-      'Implied prob — Over (' + overOdds + '): ' + (impOv*100).toFixed(1) + '% | Under (' + underOdds + '): ' + (impUn*100).toFixed(1) + '%',
-      'EV: over=' + evOv + '% / under=' + evUn + '% → ' + decision,
-      dataSourceNote,
-      '⚠ Line & odds manually entered',
-    ];
 
-    const histEntry = {
-      propId: Date.now(), player: athleteName, sport, prop, line, proj: projection,
-      decision, conf, outcome: 'pending', clvEntry: line, clvClose: null,
+    // Save to history
+    STATE.history.push({
+      propId: Date.now(), player: athleteName, sport, prop, line,
+      proj: result.proj, decision: result.decision, conf: result.conf,
+      outcome: 'pending', clvEntry: line, clvClose: null,
       date: new Date().toLocaleDateString()
-    };
-    STATE.history.push(histEntry);
+    });
     saveState();
 
+    const reasoning = result.reasoning || [];
     resultArea.innerHTML = `
       <div class="check-result-card">
-        <div class="result-decision" style="color:${decColor}">${decision}</div>
+        <div class="result-decision" style="color:${decColor}">${result.decision}</div>
         <div class="result-row"><span class="result-key">Player</span><span>${athleteName} · ${sport}</span></div>
         <div class="result-row"><span class="result-key">Prop</span><span>${prop}</span></div>
         <div class="result-row"><span class="result-key">Line</span><span style="font-family:var(--mono)">${line}</span></div>
-        <div class="result-row"><span class="result-key">Model μ (EWMA)</span><span style="font-family:var(--mono)">${projection}</span></div>
-        <div class="result-row"><span class="result-key">Std dev σ</span><span style="font-family:var(--mono)">${sd.toFixed(2)}</span></div>
-        <div class="result-row"><span class="result-key">P(Over)</span><span style="font-family:var(--mono);color:${decision==='OVER'?'var(--accent)':'var(--text)'}">${(ovP*100).toFixed(1)}%</span></div>
-        <div class="result-row"><span class="result-key">P(Under)</span><span style="font-family:var(--mono);color:${decision==='UNDER'?'var(--red)':'var(--text)'}">${(unP*100).toFixed(1)}%</span></div>
+        <div class="result-row"><span class="result-key">Model projection (μ)</span><span style="font-family:var(--mono);color:${decColor}">${result.proj}</span></div>
+        <div class="result-row"><span class="result-key">Std dev (σ)</span><span style="font-family:var(--mono)">${result.stdDev?.toFixed(2) ?? '—'}</span></div>
+        <div class="result-row"><span class="result-key">P(Over)</span><span style="font-family:var(--mono);color:${result.decision==='OVER'?'var(--accent)':'var(--text)'}">${result.overProb}%</span></div>
+        <div class="result-row"><span class="result-key">P(Under)</span><span style="font-family:var(--mono);color:${result.decision==='UNDER'?'var(--red)':'var(--text)'}">${result.underProb}%</span></div>
         <div class="result-row"><span class="result-key">EV (Over / Under)</span><span style="font-family:var(--mono)">${evOv > 0 ? '+' : ''}${evOv}% / ${evUn > 0 ? '+' : ''}${evUn}%</span></div>
-        <div class="result-row"><span class="result-key">Confidence</span><span style="font-family:var(--mono)">${conf}/10</span></div>
-        <div class="result-row"><span class="result-key">Data points</span><span style="font-family:var(--mono);color:${foundViaAPI ? 'var(--accent)' : 'var(--amber)'}">${cleanVals.length} games ${foundViaAPI ? '(ESPN live)' : '(estimated)'}</span></div>
+        <div class="result-row"><span class="result-key">Confidence</span><span style="font-family:var(--mono)">${result.conf}/10</span></div>
+        <div class="result-row"><span class="result-key">Data points</span><span style="font-family:var(--mono);color:var(--accent)">${result.dataSource?.gamelog ?? '?'} games (sharp engine)</span></div>
+        ${result.injuryStatus ? `<div class="result-row"><span class="result-key">Injury</span><span style="font-family:var(--mono);color:var(--red)">⚠ ${result.injuryStatus}</span></div>` : ''}
+        ${result.edgeTier && result.edgeTier !== 'NO PLAY' ? `<div class="result-row"><span class="result-key">Edge tier</span><span style="font-family:var(--mono);color:${result.edgeTier==='STRONG BET'?'var(--accent)':'var(--amber)'}">⚡ ${result.edgeTier}</span></div>` : ''}
         <div class="result-reasoning">${reasoning.map(r=>`<div class="result-reasoning-line">${r}</div>`).join('')}</div>
-        ${!STATE.settings.oddsApiKey ? `<div style="margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--amber)">⚠ No Odds API key — line manually entered. EV assumes −110 juice.</div>` : ''}
+        <div style="margin-top:8px;font-family:var(--mono);font-size:9px;color:var(--blue)">✓ Full sharp engine — dynamic alpha, injury weighting, opportunity blend, context engine</div>
+        ${!STATE.settings.oddsApiKey ? `<div style="margin-top:6px;font-family:var(--mono);font-size:10px;color:var(--amber)">⚠ No Odds API key — line manually entered.</div>` : ''}
       </div>`;
 
-    showToast(foundViaAPI ? `✓ ${dataPoints} real games fetched` : 'Limited data — check reasoning', foundViaAPI ? 'success' : '');
+    showToast(`✓ ${athleteName} · ${result.dataSource?.gamelog ?? '?'} games · ${result.decision}`, 'success');
+
   } catch(err) {
     console.error('Analysis error:', err);
     resultArea.innerHTML = `<div class="error-card">Analysis failed: ${err.message}</div>`;
@@ -11255,12 +11525,72 @@ function renderSlip() {
     </div>`;
   }).join('');
 
+  // ── CORRELATED LEG DETECTION ──
+  // Flags two types of correlation that inflate perceived slip value:
+  // 1. Same player, multiple props — positively correlated (if one pops, others likely do too,
+  //    meaning the parlay pays less than truly independent legs would).
+  // 2. Same game, opposing props — e.g. two scoring props from opposite sides of a
+  //    low-total game. One team scoring big hurts the other's props.
+  const corrWarnings = [];
+
+  // Check 1: same player more than once
+  const playerCounts = {};
+  STATE.slip.forEach(p => {
+    const key = (p.player || '').toLowerCase().trim();
+    if(!key) return;
+    playerCounts[key] = (playerCounts[key] || []);
+    playerCounts[key].push(p.prop);
+  });
+  Object.entries(playerCounts).forEach(([name, props]) => {
+    if(props.length >= 2) {
+      corrWarnings.push(
+        `⚠ <b>${STATE.slip.find(p=>(p.player||'').toLowerCase().trim()===name)?.player}</b> appears ${props.length}x (${props.join(', ')}) — these legs are positively correlated. Parlay value is lower than it looks.`
+      );
+    }
+  });
+
+  // Check 2: same game (team pair), multiple legs
+  // Normalize team abbrev and build game key as sorted pair
+  const normT = s => (s||'').toUpperCase().replace(/[^A-Z]/g,'').slice(0,3);
+  const gameCounts = {};
+  STATE.slip.forEach(p => {
+    if(!p.team && !p.opp) return;
+    const [a, b] = [normT(p.team), normT(p.opp)].sort();
+    if(!a && !b) return;
+    const gameKey = `${a}_${b}`;
+    if(!gameCounts[gameKey]) gameCounts[gameKey] = { legs: [], display: `${a} vs ${b}` };
+    gameCounts[gameKey].legs.push(p);
+  });
+  Object.values(gameCounts).forEach(({ legs, display }) => {
+    if(legs.length < 2) return;
+    // Check for opposing team legs in same game — adverse correlation
+    const teams = [...new Set(legs.map(p => normT(p.team)).filter(Boolean))];
+    if(teams.length >= 2) {
+      corrWarnings.push(
+        `⚠ ${legs.length} legs from the same game (<b>${display}</b>) — props from opposite teams in the same game are negatively correlated.`
+      );
+    } else {
+      // Same team, multiple props — positive correlation note
+      corrWarnings.push(
+        `ℹ ${legs.length} legs from <b>${display}</b> — multiple props from the same game tend to move together.`
+      );
+    }
+  });
+
+  const corrBlock = corrWarnings.length > 0
+    ? `<div style="background:rgba(255,181,71,.07);border:1px solid rgba(255,181,71,.25);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-family:var(--mono);font-size:10px;color:var(--amber);line-height:1.7">
+        <div style="font-weight:700;margin-bottom:4px;text-transform:uppercase;font-size:9px;letter-spacing:.5px">⚡ Correlation alert</div>
+        ${corrWarnings.map(w=>`<div style="margin-bottom:2px">${w}</div>`).join('')}
+       </div>`
+    : '';
+
   const avgConf = (STATE.slip.reduce((a,p) => a + p.conf, 0) / STATE.slip.length).toFixed(1);
   const logSum = STATE.slip.reduce((a,p) => a + Math.log(p.winProb / 100), 0);
   const combinedProb = (Math.exp(logSum) * 100).toFixed(1);
   const avgEdge = (STATE.slip.reduce((a,p) => a + Math.abs(p.edge.pct), 0) / STATE.slip.length).toFixed(1);
 
   document.getElementById('slip-summary-area').innerHTML = `
+    ${corrBlock}
     <div class="slip-summary-card">
       <div class="slip-stat-row"><span style="color:var(--muted)">Legs</span><span style="font-family:var(--mono);font-size:11px">${STATE.slip.length}</span></div>
       <div class="slip-stat-row"><span style="color:var(--muted)">Avg confidence</span><span style="font-family:var(--mono);font-size:11px;color:var(--blue)">${avgConf}/10</span></div>
@@ -11310,8 +11640,303 @@ function saveSlip() {
 }
 
 // ═══════════════════════════════════════════════════════
-// ROI TRACKER
+// RECOMMENDED SLIPS ENGINE
 // ═══════════════════════════════════════════════════════
+let _recSlips      = [];   // computed slip objects
+let _recSizeFilter = 'all';
+let _recSort       = 'hitpct';
+
+function setRecSize(size, el) {
+  _recSizeFilter = size;
+  document.querySelectorAll('.rec-size-chip').forEach(c => c.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderRecommendedSlips();
+}
+
+function setRecSort(sort, el) {
+  _recSort = sort;
+  document.querySelectorAll('.rec-sort-chip').forEach(c => c.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderRecommendedSlips();
+}
+
+// ── Core builder ──
+// Selects the top eligible props (betting mode, non-PASS, conf ≥ threshold)
+// and generates best combinations at each size tier.
+// Deduplicates by player (same player appears in at most 1 leg per slip).
+// Scores each slip by: combined hit prob, avg confidence, avg EV, correlation penalty.
+function buildRecommendedSlips() {
+  const btn = document.getElementById('rec-build-btn');
+  btn.textContent = '⏳ Building...';
+  btn.disabled = true;
+
+  // Pull eligible props: betting mode only, non-PASS, conf ≥ minConf
+  const all = getAllCachedProps().filter(p =>
+    !p.analysisMode &&
+    p.decision !== 'PASS' &&
+    p.conf >= (STATE.settings.bettingMinConf ?? STATE.settings.minConf ?? 4) &&
+    (p.overEV !== undefined
+      ? (p.decision === 'OVER' ? p.overEV : p.underEV) >= (STATE.settings.bettingMinEdge ?? STATE.settings.minEdge ?? 3)
+      : true)
+  );
+
+  if(all.length < 2) {
+    document.getElementById('rec-slips-list').innerHTML =
+      `<div class="rec-empty">Not enough betting-mode props to build slips.<br/>Generate props in <b>Betting mode</b> first,<br/>then tap Build.</div>`;
+    document.getElementById('rec-slip-sub').textContent = 'No eligible props found';
+    btn.textContent = '⚡ Build';
+    btn.disabled = false;
+    return;
+  }
+
+  // Sort pool by score (conf × winProb)
+  const pool = [...all].sort((a, b) => (b.conf * b.winProb) - (a.conf * a.winProb));
+
+  // Limit pool to top 18 to keep combination count manageable
+  const topPool = pool.slice(0, 18);
+
+  const SIZES = [2, 3, 4, 6];
+  const results = [];
+
+  for(const size of SIZES) {
+    if(topPool.length < size) continue;
+    // Generate combinations
+    const combos = getCombinations(topPool, size);
+    // Score and filter each combo
+    const scored = combos
+      .map(legs => scoreSlip(legs))
+      .filter(s => s !== null)
+      .sort((a, b) => b.hitPct - a.hitPct);
+    // Take top 3 per size, deduplicated across results
+    let added = 0;
+    for(const slip of scored) {
+      if(added >= 3) break;
+      results.push(slip);
+      added++;
+    }
+  }
+
+  // Sort overall by hitPct desc
+  _recSlips = results.sort((a, b) => b.hitPct - a.hitPct);
+
+  document.getElementById('rec-slip-sub').textContent =
+    `${_recSlips.length} slips built from ${all.length} eligible props`;
+
+  btn.textContent = '⚡ Build';
+  btn.disabled = false;
+  renderRecommendedSlips();
+}
+
+// Generate all k-combinations of array
+function getCombinations(arr, k) {
+  const results = [];
+  function combine(start, current) {
+    if(current.length === k) { results.push([...current]); return; }
+    const remaining = k - current.length;
+    for(let i = start; i <= arr.length - remaining; i++) {
+      combine(i + 1, [...current, arr[i]]);
+    }
+  }
+  combine(0, []);
+  return results;
+}
+
+// Score a slip (array of prop objects)
+// Returns null if any disqualifying condition (same player twice, all PASS, etc.)
+function scoreSlip(legs) {
+  // Dedup: same player can't appear more than once
+  const players = legs.map(p => (p.player || '').toLowerCase().trim());
+  if(new Set(players).size < players.length) return null;
+
+  // Combined hit prob: product of independent win probs (log-sum for stability)
+  const logSum = legs.reduce((a, p) => a + Math.log(Math.max(0.01, p.winProb / 100)), 0);
+  const hitPct = parseFloat((Math.exp(logSum) * 100).toFixed(1));
+
+  // Avg confidence
+  const avgConf = parseFloat((legs.reduce((a, p) => a + p.conf, 0) / legs.length).toFixed(1));
+
+  // Avg EV
+  const avgEV = parseFloat((legs.reduce((a, p) => {
+    const ev = p.overEV !== undefined
+      ? (p.decision === 'OVER' ? p.overEV : p.underEV)
+      : Math.abs(p.edge?.pct || 0);
+    return a + ev;
+  }, 0) / legs.length).toFixed(1));
+
+  // Correlation warnings
+  const corrWarnings = detectSlipCorrelation(legs);
+
+  // Apply correlation penalty to hitPct (each warning = ×0.95 multiplier)
+  const penalizedHitPct = parseFloat((hitPct * Math.pow(0.95, corrWarnings.length)).toFixed(1));
+
+  // Grade: A = hitPct ≥ 45 & avgConf ≥ 7, B = hitPct ≥ 30 & avgConf ≥ 5, C = rest
+  const grade = (penalizedHitPct >= 45 && avgConf >= 7) ? 'A'
+              : (penalizedHitPct >= 28 && avgConf >= 5) ? 'B' : 'C';
+
+  return { legs, hitPct: penalizedHitPct, rawHitPct: hitPct, avgConf, avgEV, grade, corrWarnings, size: legs.length };
+}
+
+// Detect same-player and same-game correlations in a slip
+function detectSlipCorrelation(legs) {
+  const warnings = [];
+  const normT = s => (s||'').toUpperCase().replace(/[^A-Z]/g,'').slice(0,3);
+
+  // Same player
+  const playerCount = {};
+  legs.forEach(p => {
+    const k = (p.player||'').toLowerCase().trim();
+    playerCount[k] = (playerCount[k] || 0) + 1;
+  });
+  Object.entries(playerCount).forEach(([name, n]) => {
+    if(n > 1) warnings.push(`${legs.find(p=>(p.player||'').toLowerCase().trim()===name)?.player} appears ${n}× — correlated legs`);
+  });
+
+  // Same game (sorted team pair)
+  const gameCount = {};
+  legs.forEach(p => {
+    if(!p.team && !p.opp) return;
+    const key = [normT(p.team), normT(p.opp)].sort().join('_');
+    if(!key || key === '_') return;
+    if(!gameCount[key]) gameCount[key] = { legs: [], teams: new Set() };
+    gameCount[key].legs.push(p);
+    if(p.team) gameCount[key].teams.add(normT(p.team));
+  });
+  Object.values(gameCount).forEach(({ legs: gl, teams }) => {
+    if(gl.length < 2) return;
+    if(teams.size >= 2) warnings.push(`${gl.length} legs from same game, opposing teams`);
+    else warnings.push(`${gl.length} legs from same game`);
+  });
+
+  return warnings;
+}
+
+function renderRecommendedSlips() {
+  const list = document.getElementById('rec-slips-list');
+  if(!list) return;
+
+  let slips = [..._recSlips];
+
+  // Size filter
+  if(_recSizeFilter !== 'all') {
+    const sz = parseInt(_recSizeFilter);
+    slips = slips.filter(s => s.size === sz);
+  }
+
+  // Sort
+  if(_recSort === 'conf')   slips.sort((a,b) => b.avgConf - a.avgConf);
+  if(_recSort === 'ev')     slips.sort((a,b) => b.avgEV - a.avgEV);
+  if(_recSort === 'legs')   slips.sort((a,b) => b.size - a.size);
+  // hitpct is default — already sorted
+
+  if(slips.length === 0) {
+    list.innerHTML = `<div class="rec-empty">No slips match this filter.<br/>Try "All" or tap Build again.</div>`;
+    return;
+  }
+
+  list.innerHTML = slips.map((slip, idx) => recSlipCardHTML(slip, idx)).join('');
+}
+
+function recSlipCardHTML(slip, idx) {
+  const gradeClass = slip.grade.toLowerCase();
+  const gradeColor = slip.grade === 'A' ? 'a' : slip.grade === 'B' ? 'b' : 'c';
+  const confBarPct  = Math.round((slip.avgConf / 10) * 100);
+  const confBarColor = slip.avgConf >= 7 ? 'var(--accent)' : slip.avgConf >= 5 ? 'var(--blue)' : 'var(--amber)';
+
+  // Check if all legs are already in slip
+  const slipIds = new Set(STATE.slip.map(s => s.id));
+  const allAdded = slip.legs.every(l => slipIds.has(l.id));
+
+  const legsHTML = slip.legs.map(p => {
+    const decColor = p.decision === 'OVER' ? 'var(--accent)' : 'var(--red)';
+    const ev = p.overEV !== undefined
+      ? (p.decision === 'OVER' ? p.overEV : p.underEV)
+      : Math.abs(p.edge?.pct || 0);
+    return `<div class="rec-leg">
+      <div class="rec-leg-left">
+        <div class="rec-leg-name">${p.player}</div>
+        <div class="rec-leg-detail">${p.sport} · ${p.prop} · Line ${p.line} · EV ${ev >= 0 ? '+' : ''}${typeof ev === 'number' ? ev.toFixed(1) : ev}%</div>
+      </div>
+      <div class="rec-leg-right">
+        <div class="rec-leg-dec" style="color:${decColor}">${p.decision}</div>
+        <div class="rec-leg-prob">${p.winProb}% · ${p.conf}/10</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const corrHTML = slip.corrWarnings.length > 0
+    ? `<div class="rec-corr-warn">⚠ ${slip.corrWarnings.join(' · ')}</div>`
+    : '';
+
+  const hitDelta = slip.rawHitPct !== slip.hitPct
+    ? ` <span style="font-size:10px;color:var(--muted)">(${slip.rawHitPct}% raw)</span>`
+    : '';
+
+  return `<div class="rec-slip-card grade-${gradeClass}">
+    <div class="rec-card-top">
+      <div>
+        <div class="rec-card-grade ${gradeColor}">Grade ${slip.grade}</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:3px">${slip.size}-leg parlay</div>
+      </div>
+      <div class="rec-card-stats">
+        <div class="rec-hit-pct">${slip.hitPct}%${hitDelta}</div>
+        <div class="rec-hit-label">Est. hit rate</div>
+      </div>
+    </div>
+
+    <div class="rec-conf-bar-wrap">
+      <div class="rec-conf-bar-label">
+        <span>Avg confidence ${slip.avgConf}/10</span>
+        <span style="color:${slip.avgEV >= 5 ? 'var(--accent)' : 'var(--muted)'}">Avg EV ${slip.avgEV >= 0 ? '+' : ''}${slip.avgEV}%</span>
+      </div>
+      <div class="rec-conf-bar-track">
+        <div class="rec-conf-bar-fill" style="width:${confBarPct}%;background:${confBarColor}"></div>
+      </div>
+    </div>
+
+    ${corrHTML}
+    <div class="rec-legs">${legsHTML}</div>
+
+    <div class="rec-card-footer">
+      <button class="rec-add-btn ${allAdded ? 'added' : ''}" id="rec-add-btn-${idx}"
+        onclick="addRecSlipToMySlip(${idx}, this)">
+        ${allAdded ? '✓ Added to My Slip' : '+ Add all to My Slip'}
+      </button>
+    </div>
+  </div>`;
+}
+
+// Add all legs of a recommended slip to the user's My Slip tab
+function addRecSlipToMySlip(idx, btn) {
+  const filtered = (() => {
+    let slips = [..._recSlips];
+    if(_recSizeFilter !== 'all') {
+      const sz = parseInt(_recSizeFilter);
+      slips = slips.filter(s => s.size === sz);
+    }
+    return slips;
+  })();
+
+  const slip = filtered[idx];
+  if(!slip) return;
+
+  let added = 0;
+  slip.legs.forEach(p => {
+    if(!STATE.slip.some(s => s.id === p.id)) {
+      STATE.slip.push(p);
+      added++;
+    }
+  });
+
+  saveState();
+  renderSlip();
+
+  if(btn) {
+    btn.textContent = '✓ Added to My Slip';
+    btn.classList.add('added');
+  }
+
+  showToast(added > 0 ? `${added} leg${added !== 1 ? 's' : ''} added to My Slip` : 'Already in My Slip', 'success');
+}
 let _trackerSport = 'all';
 
 function setTrackerSport(sport, el) {
@@ -11577,12 +12202,13 @@ function renderSlateLog() {
       html += `<div class="slate-game-row no-players">No games found on today's slate</div>`;
     } else {
       for(const game of sport.games) {
-        const rowClass = game.players.length > 0 ? 'has-players' : 'no-players';
-        const playerChips = game.players.map(p =>
+        const players = Array.isArray(game.players) ? game.players : [];
+        const rowClass = players.length > 0 ? 'has-players' : 'no-players';
+        const playerChips = players.map(p =>
           `<span class="slate-player-chip">${p}</span>`
         ).join('');
         html += `<div class="slate-game-row ${rowClass}">
-          ${game.home} vs ${game.away} — ${game.players.length} player${game.players.length !== 1 ? 's' : ''} selected
+          ${game.home||'?'} vs ${game.away||'?'} — ${players.length} player${players.length !== 1 ? 's' : ''} selected
           ${playerChips ? '<div style="margin-top:2px">' + playerChips + '</div>' : ''}
         </div>`;
       }
@@ -11708,6 +12334,35 @@ function clearSnapshots() {
   } catch(e) {}
   showToast(`Cleared ${count} snapshots — player IDs preserved`, 'ok');
   refreshStorageDisplay();
+}
+
+// ── Pace API inspector — dumps all ESPN team stat field names for a given team ID ──
+async function runPaceDebug() {
+  const teamId = (document.getElementById('pace-debug-team-id')?.value || '').trim();
+  const out = document.getElementById('pace-debug-out');
+  if(!teamId) { out.textContent = 'Enter an ESPN team ID first.'; return; }
+  out.textContent = 'Fetching...';
+  try {
+    const data = await fetchWithFallback(
+      `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/${teamId}/statistics`
+    );
+    const cats = data?.results?.stats?.categories || data?.statistics || [];
+    if(!cats.length) { out.textContent = 'No categories returned. Check team ID.\n\nRaw:\n' + JSON.stringify(data, null, 2).slice(0, 2000); return; }
+    let lines = [`ESPN team stats — team ID: ${teamId}\n${'─'.repeat(40)}\n`];
+    for(const cat of cats) {
+      lines.push(`CATEGORY: ${cat.name || cat.displayName || '(unnamed)'}`);
+      for(const s of (cat.stats || [])) {
+        const name = s.name || '?';
+        const disp = s.displayName || '';
+        const val  = s.value !== undefined ? s.value : s.displayValue;
+        lines.push(`  ${name.padEnd(35)} ${String(val).padStart(10)}  (${disp})`);
+      }
+      lines.push('');
+    }
+    out.textContent = lines.join('\n');
+  } catch(e) {
+    out.textContent = 'Error: ' + e.message;
+  }
 }
 
 function toggleInjuryBoost() {
