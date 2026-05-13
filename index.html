@@ -9,32 +9,38 @@
 <title>PropEdge v18.66</title>
 
 <style>
-:root{--bg:#080c10;--bg2:#0e1318;--bg3:#141a22;--bg4:#1a2230;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f4f8;--muted:#6b7a8d;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif}
+:root{--bg:#0a0d12;--bg2:#111519;--bg3:#171c24;--bg4:#1e2530;--border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.11);--text:#eef2f7;--muted:#5a6a7e;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'SF Mono','Fira Code','Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif;--radius:18px;--card-shadow:0 2px 16px rgba(0,0,0,.35)}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);overflow:hidden;-webkit-text-size-adjust:100%}
 
 /* APP SHELL */
 .app-shell{height:100dvh;height:-webkit-fill-available;overflow:hidden;display:flex;flex-direction:column}
-.header{padding:52px 20px 10px;background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0}
-.header-top{display:flex;justify-content:space-between;align-items:center}
-.logo{font-size:22px;font-weight:800;letter-spacing:-0.5px}
-.logo span{color:var(--accent)}
-.header-right{display:flex;align-items:center;gap:10px}
-.live-dot{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;color:var(--accent)}
-.dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite;flex-shrink:0}
+.header{padding:52px 20px 0;background:var(--bg);flex-shrink:0}
+.header-top{display:flex;justify-content:space-between;align-items:center;padding-bottom:10px}
+.logo{font-size:21px;font-weight:800;letter-spacing:-0.5px;display:flex;align-items:center;gap:8px}
+.logo-icon{width:28px;height:28px;background:var(--accent);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;color:#000;font-weight:900}
+.logo span{color:var(--text)}
+.header-right{display:flex;align-items:center;gap:6px}
+.live-dot{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:9px;color:var(--accent);background:rgba(0,229,160,.08);border:1px solid rgba(0,229,160,.2);border-radius:20px;padding:4px 9px}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite;flex-shrink:0}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}}
-.settings-btn{background:transparent;border:1px solid var(--border2);border-radius:8px;color:var(--muted);font-size:14px;padding:5px 8px;cursor:pointer;font-family:var(--mono)}
-.date-bar{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:5px;display:flex;justify-content:space-between;align-items:center}
-.api-status{display:flex;gap:6px}
-.api-badge{font-size:9px;padding:2px 6px;border-radius:4px;font-family:var(--mono)}
+.icon-btn{position:relative;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;color:var(--muted);padding:7px;cursor:pointer;line-height:0;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.icon-btn:active{background:var(--bg4)}
+.notif-dot{position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--accent);border:1.5px solid var(--bg)}
+.date-bar{font-family:var(--mono);font-size:9px;color:var(--muted);padding:4px 0 10px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
+.api-status{display:flex;gap:5px}
+.api-badge{font-size:8px;padding:2px 6px;border-radius:4px;font-family:var(--mono)}
 .api-badge.ok{background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)}
 .api-badge.err{background:rgba(255,77,106,.1);color:var(--red);border:1px solid rgba(255,77,106,.2)}
 .api-badge.warn{background:rgba(255,181,71,.1);color:var(--amber);border:1px solid rgba(255,181,71,.2)}
 
-/* TABS */
-.tabs{display:flex;background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0}
-.tab{flex:1;padding:11px 4px;text-align:center;font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;-webkit-tap-highlight-color:transparent}
-.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+/* TOP NAV TABS */
+.tabs{display:flex;background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0;padding:0 16px;overflow-x:auto;scrollbar-width:none;gap:0}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex-shrink:0;padding:12px 16px 10px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .18s;-webkit-tap-highlight-color:transparent;letter-spacing:-.1px;white-space:nowrap}
+.tab.active{color:var(--text);border-bottom-color:var(--accent);font-weight:600}
+.tab-nav-dot{display:none}
+.tab-icon{display:none}
 
 /* CONTENT */
 .content{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(env(safe-area-inset-bottom) + 16px)}
@@ -42,41 +48,41 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .page.active{display:block}
 
 /* SETTINGS MODAL */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:flex-end}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:none;align-items:flex-end;backdrop-filter:blur(4px)}
 .modal-overlay.open{display:flex}
-.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:24px 24px 0 0;padding:24px 20px calc(env(safe-area-inset-bottom)+24px);width:100%;max-height:88vh;overflow-y:auto;overflow-x:hidden;animation:slideUp .3s cubic-bezier(.34,1.56,.64,1);box-sizing:border-box}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:28px 28px 0 0;padding:28px 20px calc(env(safe-area-inset-bottom)+28px);width:100%;max-height:88vh;overflow-y:auto;overflow-x:hidden;animation:slideUp .3s cubic-bezier(.34,1.56,.64,1);box-sizing:border-box}
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
-.modal-title{font-size:18px;font-weight:800;margin-bottom:6px}
+.modal-title{font-size:20px;font-weight:800;margin-bottom:6px;letter-spacing:-.4px}
 .modal-sub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:20px;line-height:1.6}
-.setting-card{background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:12px}
+.setting-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px}
 .setting-card-title{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
 .setting-group{margin-bottom:14px}
 .setting-group:last-child{margin-bottom:0}
 .setting-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .setting-label{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:6px;display:block;white-space:normal;word-break:break-word;line-height:1.4}
-.setting-input{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:11px 14px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;-webkit-appearance:none;box-sizing:border-box}
+.setting-input{width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:12px 14px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;-webkit-appearance:none;box-sizing:border-box;transition:border-color .15s}
 .setting-input:focus{border-color:var(--accent)}
 .setting-hint{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:5px;line-height:1.5;white-space:normal;word-break:break-word}
 .setting-hint a{color:var(--blue);text-decoration:none}
-.modal-btn{width:100%;padding:14px;background:var(--accent);color:#000;font-family:var(--sans);font-size:14px;font-weight:700;border:none;border-radius:14px;cursor:pointer;margin-top:8px;transition:all .15s;box-sizing:border-box}
+.modal-btn{width:100%;padding:15px;background:var(--accent);color:#000;font-family:var(--sans);font-size:14px;font-weight:700;border:none;border-radius:14px;cursor:pointer;margin-top:8px;transition:all .15s;box-sizing:border-box;letter-spacing:.2px}
 .modal-btn:active{transform:scale(.97)}
 .api-status-btn{font-family:var(--mono);font-size:11px;padding:10px 8px;background:var(--bg2);border:1px solid var(--border2);border-radius:10px;color:var(--text);cursor:pointer;text-align:center;transition:all .15s}
 .api-status-btn-accent{background:rgba(0,229,160,.08);border-color:rgba(0,229,160,.3);color:var(--accent)}
 .api-status-btn.checking{color:var(--amber);border-color:var(--amber)}
 .api-status-btn.ok{color:var(--accent);border-color:var(--accent);background:rgba(0,229,160,.06)}
 .api-status-btn.fail{color:var(--red);border-color:var(--red);background:rgba(255,77,106,.06)}
-.modal-close{width:100%;padding:12px;background:transparent;color:var(--muted);font-family:var(--mono);font-size:13px;border:1px solid var(--border);border-radius:14px;cursor:pointer;margin-top:8px;box-sizing:border-box}
-.modal-section{font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin:18px 0 10px;padding-top:18px;border-top:1px solid var(--border)}
+.modal-close{width:100%;padding:13px;background:transparent;color:var(--muted);font-family:var(--mono);font-size:13px;border:1px solid var(--border);border-radius:14px;cursor:pointer;margin-top:8px;box-sizing:border-box}
+.modal-section{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin:18px 0 10px;padding-top:18px;border-top:1px solid var(--border)}
 
 /* RETURN TO TOP BUTTON */
-.return-top-btn{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 18px);right:16px;z-index:100;background:var(--accent);color:#000;border:none;border-radius:50px;padding:9px 14px;font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,229,160,.35);display:none;align-items:center;gap:5px;transition:opacity .2s,transform .2s;opacity:0;letter-spacing:.3px}
+.return-top-btn{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 20px);right:16px;z-index:100;background:var(--accent);color:#000;border:none;border-radius:50px;padding:9px 14px;font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(0,229,160,.4);display:none;align-items:center;gap:5px;transition:opacity .2s,transform .2s;opacity:0;letter-spacing:.3px}
 .return-top-btn.visible{display:flex;opacity:1}
 .return-top-btn:active{transform:scale(.94)}
 
 /* GAME GROUP HEADERS */
-.game-group-header{display:flex;justify-content:space-between;align-items:center;padding:10px 4px 6px;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border);margin-bottom:0;margin-top:12px;user-select:none;background:var(--bg);transition:background .15s}
+.game-group-header{display:flex;justify-content:space-between;align-items:center;padding:10px 4px 6px;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border);margin-bottom:0;margin-top:14px;user-select:none;background:var(--bg);transition:background .15s;letter-spacing:.3px}
 .game-group-header:first-child{margin-top:0}
-.game-group-header.open{position:sticky;top:0;z-index:9;background:var(--bg);border-bottom:1px solid var(--border2);box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.game-group-header.open{position:sticky;top:0;z-index:9;background:var(--bg);border-bottom:1px solid var(--border2);box-shadow:0 4px 12px rgba(0,0,0,.4)}
 .game-group-header.open .game-group-arrow{color:var(--accent)}
 .game-group-arrow{font-size:12px;color:var(--muted);transition:transform .15s}
 .game-group-body{margin-bottom:4px;padding-top:8px}
@@ -105,20 +111,29 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .graph-stat-label{font-size:8px;color:var(--muted)}
 .graph-stat-val{font-weight:700;font-size:14px}
 
-/* METRIC CARDS */
-.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
-.metric-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:12px}
-.metric-label{font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:5px}
-.metric-value{font-size:24px;font-weight:800;letter-spacing:-1px;line-height:1}
-.metric-sub{font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:3px}
+/* METRIC CARDS — collapsible */
+.metrics-wrap{margin-bottom:10px}
+.metrics-toggle{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:14px;cursor:pointer;margin-bottom:0;transition:border-color .15s;user-select:none}
+.metrics-toggle:hover{border-color:var(--border2)}
+.metrics-toggle-label{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:6px}
+.metrics-toggle-arrow{font-size:11px;color:var(--muted);transition:transform .2s}
+.metrics-toggle.open .metrics-toggle-arrow{transform:rotate(90deg);color:var(--accent)}
+.metrics-toggle.open{border-color:rgba(0,229,160,.15);border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom-color:transparent}
+.metrics-body{display:none;background:var(--bg3);border:1px solid rgba(0,229,160,.15);border-top:none;border-radius:0 0 14px 14px;padding:10px;margin-bottom:6px}
+.metrics-body.open{display:block}
+.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:0}
+.metric-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:var(--card-shadow)}
+.metric-label{font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px}
+.metric-value{font-size:26px;font-weight:800;letter-spacing:-1.5px;line-height:1}
+.metric-sub{font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:4px}
 .green{color:var(--accent)}.red{color:var(--red)}.amber{color:var(--amber)}.blue{color:var(--blue)}.purple{color:var(--purple)}
 
 /* FILTERS — sport chips with status colors */
 .filter-row{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;-webkit-overflow-scrolling:touch}
 .filter-row::-webkit-scrollbar{display:none}
-.filter-chip{flex-shrink:0;font-family:var(--mono);font-size:10px;padding:5px 11px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;-webkit-tap-highlight-color:transparent;user-select:none;display:flex;align-items:center;gap:4px}
-.filter-chip.active{background:var(--accent);border-color:var(--accent);color:#000;font-weight:500}
-.filter-chip.active-multi{background:var(--bg3);border-color:var(--accent);color:var(--accent);font-weight:500}
+.filter-chip{flex-shrink:0;font-family:var(--mono);font-size:10px;padding:6px 13px;border-radius:20px;border:1px solid var(--border2);background:var(--bg3);color:var(--muted);cursor:pointer;transition:all .15s;-webkit-tap-highlight-color:transparent;user-select:none;display:flex;align-items:center;gap:4px;font-weight:500}
+.filter-chip.active{background:var(--accent);border-color:var(--accent);color:#000;font-weight:600}
+.filter-chip.active-multi{background:rgba(0,229,160,.1);border-color:rgba(0,229,160,.4);color:var(--accent);font-weight:600}
 .filter-chip:active{transform:scale(.95)}
 
 /* Sport chip status dot */
@@ -140,38 +155,39 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .cache-stale{color:var(--amber)}
 
 /* GENERATE BUTTON */
-.gen-btn{width:100%;padding:13px;background:var(--accent);color:#000;font-family:var(--sans);font-size:14px;font-weight:700;border:none;border-radius:14px;cursor:pointer;margin-bottom:6px;letter-spacing:.3px;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px}
+.gen-btn{width:100%;padding:15px;background:var(--accent);color:#000;font-family:var(--sans);font-size:15px;font-weight:700;border:none;border-radius:16px;cursor:pointer;margin-bottom:6px;letter-spacing:.2px;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 20px rgba(0,229,160,.25)}
 .gen-btn:active{transform:scale(.97);background:var(--accent2)}
-.gen-btn:disabled{background:var(--bg3);color:var(--muted);cursor:not-allowed;transform:none}
-.refetch-btn{width:100%;padding:9px;background:transparent;color:var(--muted);font-family:var(--mono);font-size:11px;border:1px solid var(--border);border-radius:10px;cursor:pointer;margin-bottom:12px;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:6px}
+.gen-btn:disabled{background:var(--bg3);color:var(--muted);cursor:not-allowed;transform:none;box-shadow:none}
+.refetch-btn{width:100%;padding:9px;background:transparent;color:var(--muted);font-family:var(--mono);font-size:11px;border:1px solid var(--border);border-radius:12px;cursor:pointer;margin-bottom:12px;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:6px}
 .refetch-btn:active{background:var(--bg3)}
 .spinner{width:14px;height:14px;border:2px solid rgba(0,0,0,.2);border-top-color:#000;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* PROP CARDS */
-.prop-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:10px;position:relative}
-.prop-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px;pointer-events:none}
+.prop-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:10px;position:relative;box-shadow:var(--card-shadow);transition:border-color .15s}
+.prop-card:active{border-color:var(--border2)}
+.prop-card::before{content:'';position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:0 3px 3px 0;pointer-events:none}
 .prop-card.over::before{background:var(--accent)}
 .prop-card.under::before{background:var(--red)}
 .prop-card.pass::before{background:var(--amber)}
-.prop-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
-.prop-player{font-size:15px;font-weight:700;letter-spacing:-.3px}
-.prop-meta{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px}
-.prop-sport-tag{font-family:var(--mono);font-size:9px;padding:3px 7px;border-radius:20px;border:1px solid var(--border2);color:var(--muted);background:var(--bg3);flex-shrink:0}
-.prop-numbers{display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.prop-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.prop-player{font-size:16px;font-weight:700;letter-spacing:-.4px}
+.prop-meta{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px}
+.prop-sport-tag{font-family:var(--mono);font-size:9px;padding:3px 8px;border-radius:20px;border:1px solid var(--border2);color:var(--muted);background:var(--bg3);flex-shrink:0}
+.prop-numbers{display:flex;gap:14px;margin-bottom:12px;flex-wrap:wrap}
 .prop-num-block .prop-num-label{font-family:var(--mono);font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
-.prop-num-block .prop-num-value{font-family:var(--mono);font-size:17px;font-weight:500}
+.prop-num-block .prop-num-value{font-family:var(--mono);font-size:18px;font-weight:600}
 .prop-num-block .prop-edge-val{font-family:var(--mono);font-size:11px;font-weight:500}
 .prop-bottom{display:flex;justify-content:space-between;align-items:center}
-.decision-badge{font-family:var(--mono);font-size:11px;font-weight:500;padding:4px 11px;border-radius:7px}
-.decision-badge.over{background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.25)}
-.decision-badge.under{background:rgba(255,77,106,.1);color:var(--red);border:1px solid rgba(255,77,106,.25)}
-.decision-badge.pass{background:rgba(255,181,71,.1);color:var(--amber);border:1px solid rgba(255,181,71,.25)}
+.decision-badge{font-family:var(--mono);font-size:11px;font-weight:600;padding:5px 13px;border-radius:8px}
+.decision-badge.over{background:rgba(0,229,160,.1);color:var(--accent);border:1px solid rgba(0,229,160,.2)}
+.decision-badge.under{background:rgba(255,77,106,.1);color:var(--red);border:1px solid rgba(255,77,106,.2)}
+.decision-badge.pass{background:rgba(255,181,71,.1);color:var(--amber);border:1px solid rgba(255,181,71,.2)}
 .conf-block{display:flex;align-items:center;gap:6px}
 .conf-dots{display:flex;gap:3px;align-items:center}
 /* conf dots now rendered as inline SVG — see propCardHTML */
 .conf-text{font-family:var(--mono);font-size:9px;color:var(--muted)}
-.expand-btn{font-family:var(--mono);font-size:10px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:6px;padding:10px;cursor:pointer;margin-top:10px;width:100%;text-align:center;transition:all .15s;min-height:44px}
+.expand-btn{font-family:var(--mono);font-size:10px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:10px;padding:10px;cursor:pointer;margin-top:10px;width:100%;text-align:center;transition:all .15s;min-height:44px}
 .expand-btn:active{background:var(--bg3)}
 .reasoning{display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.7}
 .reasoning.open{display:block;animation:fadeIn .2s}
@@ -179,10 +195,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .reasoning-line{display:flex;gap:8px;margin-bottom:4px}
 .reasoning-line::before{content:'→';color:var(--accent);flex-shrink:0}
 .data-source-line{font-size:9px;color:var(--purple);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
-.add-slip-btn{font-family:var(--mono);font-size:10px;color:var(--accent);background:rgba(0,229,160,.07);border:1px solid rgba(0,229,160,.2);border-radius:8px;padding:11px 10px;cursor:pointer;margin-top:8px;width:100%;transition:all .15s;text-align:center;min-height:44px}
+.add-slip-btn{font-family:var(--mono);font-size:10px;color:var(--accent);background:rgba(0,229,160,.07);border:1px solid rgba(0,229,160,.2);border-radius:10px;padding:11px 10px;cursor:pointer;margin-top:8px;width:100%;transition:all .15s;text-align:center;min-height:44px}
 .add-slip-btn:active{transform:scale(.97);background:rgba(0,229,160,.14)}
 .add-slip-btn.added{color:var(--muted);background:transparent;border-color:var(--border)}
-.injury-flag{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:9px;color:var(--red);background:rgba(255,77,106,.08);border:1px solid rgba(255,77,106,.25);padding:2px 7px;border-radius:5px;margin-top:4px}
+.injury-flag{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:9px;color:var(--red);background:rgba(255,77,106,.08);border:1px solid rgba(255,77,106,.2);padding:2px 7px;border-radius:5px;margin-top:4px}
 
 /* RECENT GAMES CHART */
 .recent-chart{margin:8px 0 4px;padding:10px 10px 6px;background:var(--bg3);border:1px solid var(--border);border-radius:10px}
@@ -391,7 +407,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .rec-sort-chip.active{border-color:rgba(77,184,255,.4);color:var(--blue);background:rgba(77,184,255,.08)}
 .rec-corr-warn{font-family:var(--mono);font-size:9px;color:var(--amber);background:rgba(255,181,71,.07);border:1px solid rgba(255,181,71,.2);border-radius:6px;padding:5px 8px;margin-bottom:8px;line-height:1.5}
 
-.toast{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 70px);left:50%;transform:translateX(-50%) translateY(120px);background:var(--bg3);border:1px solid var(--border2);border-radius:12px;padding:9px 16px;font-family:var(--mono);font-size:11px;color:var(--text);z-index:300;transition:transform .3s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;pointer-events:none}
+.toast{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 24px);left:50%;transform:translateX(-50%) translateY(120px);background:var(--bg3);border:1px solid var(--border2);border-radius:14px;padding:10px 18px;font-family:var(--mono);font-size:11px;color:var(--text);z-index:300;transition:transform .3s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;pointer-events:none;box-shadow:0 4px 24px rgba(0,0,0,.4)}
 .toast.show{transform:translateX(-50%) translateY(0)}
 .toast.success{border-color:rgba(0,229,160,.3);color:var(--accent)}
 .toast.error{border-color:rgba(255,77,106,.3);color:var(--red)}
@@ -403,17 +419,108 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .hit-rate-track{flex:1;height:4px;background:var(--border);border-radius:3px;overflow:hidden}
 .hit-rate-fill{height:100%;border-radius:3px}
 .hit-rate-pct{font-family:var(--mono);font-size:10px;font-weight:500;white-space:nowrap;min-width:32px;text-align:right}
+
+/* PAGE PADDING */
+.page{padding:14px 16px 0}
+
+/* SCROLLBAR HIDE */
+.content::-webkit-scrollbar{display:none}
+.content{scrollbar-width:none}
+
+/* SECTION TITLE POLISH */
+.section-title{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin:16px 0 10px;display:flex;align-items:center;gap:8px}
+.section-title .count{background:var(--bg3);border:1px solid var(--border2);border-radius:12px;padding:2px 8px;font-size:10px;font-weight:600;color:var(--text)}
+
+/* CHECK FORM POLISH */
+.check-form{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+.form-label{font-family:var(--mono);font-size:10px;color:var(--muted);font-weight:600;letter-spacing:.3px;text-transform:uppercase;margin-bottom:5px;display:block}
+.form-input{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:12px;padding:11px 14px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;-webkit-appearance:none;transition:border-color .15s}
+.form-input:focus{border-color:var(--accent)}
+.form-select{cursor:pointer}
+.analyze-btn{width:100%;padding:14px;background:var(--accent);color:#000;font-family:var(--sans);font-size:14px;font-weight:700;border:none;border-radius:14px;cursor:pointer;transition:all .15s;box-shadow:0 4px 16px rgba(0,229,160,.2)}
+.analyze-btn:active{transform:scale(.97)}
+
+/* SLIP CARD POLISH */
+.slip-leg{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.slip-leg-name{font-size:14px;font-weight:700;letter-spacing:-.3px}
+.slip-leg-meta{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px}
+.slip-leg-badge{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px}
+
+/* TRACKER POLISH */
+.tracker-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.tracker-metric{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:14px 10px;text-align:center}
+.t-val{font-size:22px;font-weight:800;letter-spacing:-1px;line-height:1}
+.t-lab{font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-top:4px}
+
+/* REC SLIP CARDS */
+/* TOP PROP EDGE CARD */
+.tpe-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin:12px 16px 4px}
+.tpe-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.tpe-title{font-size:15px;font-weight:700;letter-spacing:-.3px;display:flex;align-items:center;gap:6px}
+.tpe-info{font-size:12px;color:var(--muted);font-weight:400}
+.tpe-period{font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:4px 10px;cursor:pointer}
+.tpe-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:10px}
+.tpe-metric{text-align:center}
+.tpe-val{font-size:18px;font-weight:800;letter-spacing:-1px;line-height:1.1}
+.tpe-lab{font-family:var(--mono);font-size:8px;color:var(--muted);margin-top:3px;text-align:center;letter-spacing:.2px}
+
+/* COMPACT PROP ROWS */
+.prop-row{background:var(--bg2);border-bottom:1px solid var(--border);padding:12px 16px 12px 18px;cursor:pointer;transition:background .1s;position:relative;display:flex;align-items:center;gap:11px}
+.prop-row:active{background:var(--bg3)}
+.prop-row-accent{position:absolute;left:0;top:0;bottom:0;width:3px}
+.prop-row-accent.over{background:var(--accent)}
+.prop-row-accent.under{background:var(--red)}
+.prop-row-accent.pass{background:var(--amber)}
+.prop-avatar{width:36px;height:36px;border-radius:50%;background:var(--bg3);border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;overflow:hidden;color:var(--muted);font-weight:600}
+.prop-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.prop-row-main{flex:1;min-width:0}
+.prop-row-player{font-size:14px;font-weight:700;letter-spacing:-.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prop-row-meta{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prop-row-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;min-width:80px}
+.prop-row-line{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:-.3px}
+.prop-row-book{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.prop-row-edge{font-family:var(--mono);font-size:11px;font-weight:700}
+.prop-row-edge.pos{color:var(--accent)}
+.prop-row-edge.neg{color:var(--red)}
+.prop-row-sparkwrap{width:44px;height:26px;flex-shrink:0}
+
+/* EXPANDED PROP DETAIL */
+.prop-expand{display:none;background:var(--bg3);border-top:1px solid var(--border);padding:14px 16px 16px}
+.prop-expand.open{display:block;animation:fadeIn .18s ease}
+.prop-expand-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.peg-block{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:10px;text-align:center}
+.peg-val{font-family:var(--mono);font-size:16px;font-weight:700;letter-spacing:-.5px}
+.peg-lab{font-family:var(--mono);font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-top:3px}
+.prop-expand-chart{margin-bottom:12px}
+.pec-label{font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;display:flex;justify-content:space-between}
+.prop-expand-reasoning{font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.7;margin-bottom:12px;padding:10px;background:var(--bg2);border-radius:10px;border:1px solid var(--border)}
+.prop-expand-actions{display:flex;gap:8px}
+.pea-btn{flex:1;padding:11px;border-radius:12px;font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer;border:none;transition:all .15s;text-align:center}
+.pea-btn:active{transform:scale(.96)}
+.pea-primary{background:var(--accent);color:#000}
+.pea-secondary{background:transparent;color:var(--muted);border:1px solid var(--border2) !important}
+
+/* PROP LIST WRAPPER */
+.prop-list-group{margin:8px 16px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border)}
+.prop-list-group-header{padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.plgh-title{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--text);letter-spacing:.3px}
+.plgh-count{font-family:var(--mono);font-size:10px;color:var(--muted)}
 </style>
 </head>
 <body>
 <div class="app-shell">
   <div class="header">
     <div class="header-top">
-      <div class="logo">Prop<span>Edge</span> <span style="font-size:10px;font-family:var(--mono);color:var(--muted);font-weight:400;letter-spacing:.5px">v18.66</span></div>
+      <div class="logo"><div class="logo-icon">↗</div>Prop<span>Edge</span></div>
       <div class="header-right">
-        <div class="live-dot"><div class="dot"></div><span id="live-label">READY</span></div>
-
-        <button class="settings-btn" onclick="openSettings()" aria-label="Open settings">⚙</button>
+        <div class="live-dot"><div class="dot"></div><span id="live-label">LIVE</span></div>
+        <button class="icon-btn" onclick="showToast('Alerts coming soon','success')" aria-label="Alerts">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="notif-dot"></span>
+        </button>
+        <button class="icon-btn" onclick="openSettings()" aria-label="Account">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </button>
       </div>
     </div>
     <div class="date-bar">
@@ -424,12 +531,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
   <div class="tabs">
     <div class="tab active" onclick="showTab('props',this)">Props</div>
-    <div class="tab" onclick="showTab('check',this)">Check Pick</div>
-    <div class="tab" onclick="showTab('slips',this)">Slips</div>
-    <div class="tab" onclick="showTab('slip',this)">My Slip</div>
-    <div class="tab" onclick="showTab('tracker',this)">Tracker</div>
-    <div class="tab" onclick="showTab('graph',this)">Graph</div>
+    <div class="tab" onclick="showTab('mybets',this)">My Bets</div>
+    <div class="tab" onclick="showTab('graph',this)">Live</div>
+    <div class="tab" onclick="showTab('check',this)">Insights</div>
     <div class="tab" onclick="showTab('trace',this)">Trace</div>
+    <div class="tab" onclick="showTab('account',this)">Account</div>
   </div>
 
   <div class="content">
@@ -437,11 +543,19 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
     <!-- PROPS TAB -->
     <div id="tab-props" class="page active">
-      <div class="metrics">
-        <div class="metric-card"><div class="metric-label">Loaded props</div><div class="metric-value" id="m-count">—</div><div class="metric-sub" id="m-sports-sub">tap generate</div></div>
-        <div class="metric-card"><div class="metric-label">Strong edges</div><div class="metric-value green" id="m-strong">—</div><div class="metric-sub">EV ≥ 5%</div></div>
-        <div class="metric-card"><div class="metric-label">Avg confidence</div><div class="metric-value blue" id="m-conf">—</div><div class="metric-sub">/10</div></div>
-        <div class="metric-card"><div class="metric-label">All-time ROI</div><div class="metric-value" id="m-roi">—</div><div class="metric-sub" id="m-roi-sub">no history</div></div>
+      <!-- Top Prop Edge card -->
+      <div class="tpe-card">
+        <div class="tpe-header">
+          <div class="tpe-title">Top Prop Edge <span class="tpe-info">ⓘ</span></div>
+          <div class="tpe-period">Today ▾</div>
+        </div>
+        <div class="tpe-metrics">
+          <div class="tpe-metric"><div class="tpe-val green" id="m-strong">—</div><div class="tpe-lab">Avg. Edge</div></div>
+          <div class="tpe-metric"><div class="tpe-val" id="m-conf">—</div><div class="tpe-lab">Hit Rate</div></div>
+          <div class="tpe-metric"><div class="tpe-val green" id="m-roi">—</div><div class="tpe-lab">Proj. Profit</div></div>
+          <div class="tpe-metric"><div class="tpe-val" id="m-count">—</div><div class="tpe-lab">Props Analyzed</div></div>
+        </div>
+        <canvas id="tpe-sparkline" height="56" style="width:100%;display:block;margin-top:4px"></canvas>
       </div>
 
       <!-- Filters — scroll with page, not sticky -->
@@ -1115,10 +1229,88 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       <div class="section-title">Sport performance</div>
       <div id="sport-perf-area"></div>
     </div>
-  </div>
-</div>
 
-<!-- SETTINGS MODAL -->
+    <!-- MY BETS TAB (merged: My Slip + Recommended Slips + Tracker) -->
+    <div id="tab-mybets" class="page">
+      <!-- Sub-nav -->
+      <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px;overflow-x:auto;scrollbar-width:none;flex-shrink:0">
+        <div class="mybets-subnav active" data-sub="slip" onclick="showMyBetsSub('slip',this)" style="flex-shrink:0;padding:10px 16px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;white-space:nowrap">My Slip</div>
+        <div class="mybets-subnav" data-sub="slips" onclick="showMyBetsSub('slips',this)" style="flex-shrink:0;padding:10px 16px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;white-space:nowrap">Saved Slips</div>
+        <div class="mybets-subnav" data-sub="tracker" onclick="showMyBetsSub('tracker',this)" style="flex-shrink:0;padding:10px 16px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;white-space:nowrap">History</div>
+      </div>
+      <!-- My Slip pane -->
+      <div id="mybets-slip" class="mybets-pane" style="display:block">
+        <div id="slip-list-mybets"></div>
+        <div id="slip-summary-mybets" style="margin-top:10px"></div>
+      </div>
+      <!-- Saved Slips pane -->
+      <div id="mybets-slips" class="mybets-pane" style="display:none">
+        <div id="slips-list-mybets"></div>
+      </div>
+      <!-- History/Tracker pane -->
+      <div id="mybets-tracker" class="mybets-pane" style="display:none">
+        <div class="tracker-metrics" style="margin-bottom:14px">
+          <div class="tracker-metric"><div class="t-val" id="t2-total">0</div><div class="t-lab">Tracked</div></div>
+          <div class="tracker-metric"><div class="t-val green" id="t2-wr">—</div><div class="t-lab">Win rate</div></div>
+          <div class="tracker-metric"><div class="t-val" id="t2-roi">—</div><div class="t-lab">Net ROI</div></div>
+        </div>
+        <div id="history-area-mybets"></div>
+      </div>
+    </div>
+
+    <!-- ACCOUNT TAB (settings moved here) -->
+    <div id="tab-account" class="page">
+      <div style="padding-bottom:8px">
+        <div class="metric-card" style="margin-bottom:12px;display:flex;align-items:center;gap:14px">
+          <div style="width:48px;height:48px;border-radius:50%;background:var(--bg3);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">👤</div>
+          <div>
+            <div style="font-size:16px;font-weight:700;letter-spacing:-.3px">PropEdge</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:2px">v18.66 · Local</div>
+          </div>
+        </div>
+
+        <div class="section-title">API Keys</div>
+        <div class="setting-card">
+          <div class="setting-group">
+            <label class="setting-label">Odds API Key</label>
+            <input class="setting-input" id="acct-odds-key" placeholder="Enter Odds API key" type="password" autocorrect="off" autocapitalize="none"/>
+          </div>
+          <div class="setting-group" style="margin-top:10px">
+            <label class="setting-label">Backup API Key</label>
+            <input class="setting-input" id="acct-backup-key" placeholder="Optional backup key" type="password" autocorrect="off" autocapitalize="none"/>
+          </div>
+          <button class="modal-btn" style="margin-top:12px" onclick="saveAccountKeys()">Save Keys</button>
+        </div>
+
+        <div class="section-title" style="margin-top:18px">Data Sources</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+          <button onclick="checkApiStatus('espn')" class="api-status-btn" id="acct-btn-espn">📡 ESPN</button>
+          <button onclick="checkApiStatus('mlb')" class="api-status-btn" id="acct-btn-mlb">⚾ MLB API</button>
+          <button onclick="checkApiStatus('odds')" class="api-status-btn" id="acct-btn-odds" style="grid-column:1/-1">💰 Odds API</button>
+        </div>
+
+        <div class="section-title">Notifications</div>
+        <div class="setting-card" style="margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-size:13px;font-weight:600">Edge Alerts</div>
+              <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px">Props above threshold</div>
+            </div>
+            <button id="acct-alert-toggle" onclick="toggleAlertSetting(this)" style="font-family:var(--mono);font-size:11px;padding:5px 14px;border-radius:8px;border:1px solid var(--border2);background:rgba(0,229,160,.1);color:var(--accent);cursor:pointer;font-weight:700">ON</button>
+          </div>
+        </div>
+
+        <div class="section-title">Advanced</div>
+        <div class="setting-card">
+          <button class="modal-btn" style="background:transparent;color:var(--red);border:1px solid rgba(255,77,106,.3);margin-bottom:8px" onclick="if(confirm('Clear all cached data?'))localStorage.clear(),showToast('Cache cleared','success')">Clear Cache</button>
+          <button class="modal-btn" style="background:transparent;color:var(--muted);border:1px solid var(--border)" onclick="openSettings()">Open Full Settings</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
 <div class="modal-overlay" id="settings-modal" onclick="handleModalClick(event)">
   <div class="modal">
     <div class="modal-title">⚙ Settings</div>
@@ -2979,6 +3171,8 @@ function showTab(id, el) {
   if(id === 'slip') renderSlip();
   if(id === 'slips') renderRecommendedSlips();
   if(id === 'trace') { renderTrace(); renderSlateLog(); }
+  if(id === 'mybets') { renderMyBetsTab(); }
+  if(id === 'account') { loadAccountKeys(); }
   if(id === 'graph') {
     // Restore last graph result if available
     const r = document.getElementById('graph-result');
@@ -3000,6 +3194,86 @@ function showTab(id, el) {
       updateGraphProps(); // ensure dropdowns are populated even with no saved graph
     }
   }
+}
+
+function showMyBetsSub(sub, el) {
+  document.querySelectorAll('.mybets-subnav').forEach(n => {
+    n.style.color = 'var(--muted)';
+    n.style.borderBottomColor = 'transparent';
+  });
+  document.querySelectorAll('.mybets-pane').forEach(p => p.style.display = 'none');
+  el.style.color = 'var(--text)';
+  el.style.borderBottomColor = 'var(--accent)';
+  document.getElementById('mybets-' + sub).style.display = 'block';
+  if(sub === 'slip') renderMyBetsSlip();
+  if(sub === 'slips') renderMyBetsSlips();
+  if(sub === 'tracker') renderMyBetsTracker();
+}
+
+function renderMyBetsTab() {
+  // render the active pane
+  const active = document.querySelector('.mybets-subnav[style*="var(--text)"]') || document.querySelector('.mybets-subnav');
+  const sub = active ? active.getAttribute('data-sub') : 'slip';
+  if(sub === 'slip') renderMyBetsSlip();
+  if(sub === 'slips') renderMyBetsSlips();
+  if(sub === 'tracker') renderMyBetsTracker();
+}
+
+function renderMyBetsSlip() {
+  // Mirror the existing slip render into the mybets pane
+  const slipEl = document.getElementById('slip-list');
+  const summaryEl = document.getElementById('slip-summary');
+  if(slipEl) document.getElementById('slip-list-mybets').innerHTML = slipEl.innerHTML;
+  if(summaryEl) document.getElementById('slip-summary-mybets').innerHTML = summaryEl.innerHTML;
+  // If slip tab has never rendered, trigger it
+  if(!slipEl || !slipEl.innerHTML) renderSlip();
+}
+
+function renderMyBetsSlips() {
+  const slipsEl = document.getElementById('slips-list');
+  if(slipsEl) document.getElementById('slips-list-mybets').innerHTML = slipsEl.innerHTML;
+  else renderRecommendedSlips();
+}
+
+function renderMyBetsTracker() {
+  const histEl = document.getElementById('history-area');
+  if(histEl) {
+    document.getElementById('history-area-mybets').innerHTML = histEl.innerHTML;
+    const t = document.getElementById('t-total');
+    const w = document.getElementById('t-wr');
+    const r = document.getElementById('t-roi');
+    if(t) document.getElementById('t2-total').textContent = t.textContent;
+    if(w) document.getElementById('t2-wr').textContent = w.textContent;
+    if(r) document.getElementById('t2-roi').textContent = r.textContent;
+  } else renderTracker();
+}
+
+function loadAccountKeys() {
+  try {
+    const k1 = localStorage.getItem('pe_odds_key') || '';
+    const k2 = localStorage.getItem('pe_backup_key') || '';
+    const el1 = document.getElementById('acct-odds-key');
+    const el2 = document.getElementById('acct-backup-key');
+    if(el1) el1.value = k1;
+    if(el2) el2.value = k2;
+  } catch(e) {}
+}
+
+function saveAccountKeys() {
+  try {
+    const k1 = document.getElementById('acct-odds-key')?.value?.trim() || '';
+    const k2 = document.getElementById('acct-backup-key')?.value?.trim() || '';
+    if(k1) localStorage.setItem('pe_odds_key', k1);
+    if(k2) localStorage.setItem('pe_backup_key', k2);
+    showToast('Keys saved', 'success');
+  } catch(e) { showToast('Save failed', 'error'); }
+}
+
+function toggleAlertSetting(btn) {
+  const on = btn.textContent.trim() === 'ON';
+  btn.textContent = on ? 'OFF' : 'ON';
+  btn.style.background = on ? 'transparent' : 'rgba(0,229,160,.1)';
+  btn.style.color = on ? 'var(--muted)' : 'var(--accent)';
 }
 
 // ═══════════════════════════════════════════════════════
@@ -11122,24 +11396,202 @@ function renderProps() {
     gameGroups.get(key).props.push(p);
   });
 
-  // Render groups
+  // Render groups — compact row style
   const sportEmoji = { NBA:'🏀', WNBA:'🏀', MLB:'⚾', NFL:'🏈', NHL:'🏒', GOLF:'⛳' };
   let html = '';
   gameGroups.forEach(({ label, sport, props }) => {
     const emoji = sportEmoji[sport] || '🏅';
-    html += `<div class="game-group-header" onclick="toggleGameGroup(this)">
-      <span>${emoji} ${label}</span>
-      <span style="display:flex;align-items:center;gap:8px">
-        <span style="font-family:var(--mono);font-size:9px;color:var(--muted)">${props.length} prop${props.length!==1?'s':''}</span>
-        <span class="game-group-arrow">▸</span>
-      </span>
-    </div>
-    <div class="game-group-body" style="display:none">
-      ${props.map(p => propCardHTML(p)).join('')}
+    html += `<div class="prop-list-group">
+      <div class="prop-list-group-header" onclick="toggleGameGroup(this)">
+        <span class="plgh-title">${emoji} ${label}</span>
+        <span style="display:flex;align-items:center;gap:8px">
+          <span class="plgh-count">${props.length} prop${props.length!==1?'s':''}</span>
+          <span class="game-group-arrow" style="font-size:11px;color:var(--muted)">▸</span>
+        </span>
+      </div>
+      <div class="game-group-body" style="display:none">
+        ${props.map(p => propRowHTML(p)).join('')}
+      </div>
     </div>`;
   });
   list.innerHTML = html;
   updateMetrics();
+  drawTPESparkline();
+}
+
+function drawTPESparkline() {
+  const canvas = document.getElementById('tpe-sparkline');
+  if(!canvas) return;
+  const props = getAllCachedProps();
+  const w = canvas.offsetWidth || 300;
+  canvas.width = w * window.devicePixelRatio;
+  canvas.height = 56 * window.devicePixelRatio;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  // Build fake trend from prop edges for visual
+  const evs = props.slice(0,20).map((p,i) => {
+    const ev = p.overEV !== undefined ? (p.decision==='OVER'?p.overEV:p.underEV) : Math.abs(p.edge?.pct||0);
+    return ev;
+  });
+  if(evs.length < 2) {
+    // draw a flat line
+    ctx.strokeStyle = 'rgba(0,229,160,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, 28); ctx.lineTo(w, 28); ctx.stroke();
+    return;
+  }
+  const min = Math.min(...evs), max = Math.max(...evs);
+  const range = max - min || 1;
+  const pts = evs.map((v,i) => ({
+    x: (i / (evs.length-1)) * w,
+    y: 48 - ((v - min) / range) * 40
+  }));
+  // Gradient fill
+  const grad = ctx.createLinearGradient(0, 0, 0, 56);
+  grad.addColorStop(0, 'rgba(0,229,160,0.25)');
+  grad.addColorStop(1, 'rgba(0,229,160,0)');
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  pts.slice(1).forEach(pt => ctx.lineTo(pt.x, pt.y));
+  ctx.lineTo(w, 56); ctx.lineTo(0, 56); ctx.closePath();
+  ctx.fillStyle = grad; ctx.fill();
+  // Line
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  pts.slice(1).forEach(pt => ctx.lineTo(pt.x, pt.y));
+  ctx.strokeStyle = 'var(--accent)';
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+}
+
+function propRowHTML(p) {
+  const isAnalysis = p.analysisMode === true || viewMode === 'analysis';
+  const forceAnalysis = viewMode === 'analysis' && p.analysisMode !== true;
+  const isProbProp = ['Double Double','Triple Double','Anytime Touchdown','Steals + Blocks'].includes(p.prop);
+  const effectiveProj = (!STATE.showInjuryBoost && p.projNoInjury != null) ? p.projNoInjury : p.proj;
+  const projDisplay = isProbProp ? `${effectiveProj}%` : effectiveProj;
+  const ev = p.overEV !== undefined ? (p.decision==='OVER'?p.overEV:p.underEV) : (p.edge?.pct||0);
+  const evSign = ev >= 0 ? '+' : '';
+  const decLow = p.decision === 'PASS' ? 'pass' : p.decision.toLowerCase();
+  const inSlip = STATE.slip.some(s => s.id === p.id);
+  const isExpanded = expandedCards.has(p.id);
+
+  // Avatar initials
+  const initials = p.player.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+
+  // Book display
+  const bookName = p.book || (p.dataSource?.hasRealLine ? 'Book' : 'Est.');
+
+  // Compact sparkline inline SVG for the row
+  const sparkSVG = (() => {
+    const g = p.recentGames;
+    if(!g || g.length < 3) return `<svg width="44" height="26" viewBox="0 0 44 26"><line x1="0" y1="13" x2="44" y2="13" stroke="rgba(255,255,255,0.1)" stroke-width="1.5"/></svg>`;
+    const vals = g.slice(-8).map(gm => typeof gm === 'object' ? (gm.val ?? gm.value ?? gm) : gm).filter(v => typeof v === 'number');
+    if(vals.length < 2) return `<svg width="44" height="26" viewBox="0 0 44 26"><line x1="0" y1="13" x2="44" y2="13" stroke="rgba(255,255,255,0.1)" stroke-width="1.5"/></svg>`;
+    const mn = Math.min(...vals), mx = Math.max(...vals), rng = mx - mn || 1;
+    const pts = vals.map((v,i) => `${(i/(vals.length-1))*42+1},${23-((v-mn)/rng)*20}`).join(' ');
+    const color = decLow === 'over' ? 'var(--accent)' : decLow === 'under' ? 'var(--red)' : 'var(--amber)';
+    return `<svg width="44" height="26" viewBox="0 0 44 26"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+  })();
+
+  // Expand section
+  const expandHTML = (() => {
+    if(!isExpanded) return '';
+    const reasoningHTML = (p.reasoning || []).map(r => `<div class="reasoning-line">${r}</div>`).join('');
+    const dataLabel = p.dataSource?.gamelog > 0 ? `${p.dataSource.gamelog} game logs` : 'no game logs';
+    const completenessScore = p.completeness ?? null;
+    const completenessColor = completenessScore >= 85 ? 'var(--accent)' : completenessScore >= 60 ? 'var(--amber)' : 'var(--red)';
+    const hitRateHTML = p.hitRateSeason ? `
+      <div class="hit-rate-row" style="margin-bottom:8px">
+        <div class="hit-rate-label">Season HR</div>
+        <div class="hit-rate-track"><div class="hit-rate-fill" style="width:${p.hitRateSeason.pct}%;background:${p.hitRateSeason.pct>=60?'var(--accent)':p.hitRateSeason.pct>=45?'var(--amber)':'var(--red)'}"></div></div>
+        <div class="hit-rate-pct" style="color:${p.hitRateSeason.pct>=60?'var(--accent)':p.hitRateSeason.pct>=45?'var(--amber)':'var(--red)'}">${p.hitRateSeason.pct}%</div>
+      </div>` : '';
+
+    // L5/L10 chart
+    const chartHTML = (() => {
+      const g = p.recentGames;
+      if(!g || g.length < 3) return '';
+      const vals = g.slice(-10).map(gm => typeof gm === 'object' ? (gm.val ?? gm.value ?? gm) : gm).filter(v => typeof v === 'number');
+      if(vals.length < 2) return '';
+      const mn = Math.min(...vals, p.line||0), mx = Math.max(...vals, p.line||0), rng = mx - mn || 1;
+      const W = 280, H = 60;
+      const pts = vals.map((v,i) => `${(i/(vals.length-1))*(W-8)+4},${(H-6)-((v-mn)/rng)*(H-12)+3}`).join(' ');
+      const lineY = p.line != null ? (H-6)-((p.line-mn)/rng)*(H-12)+3 : null;
+      const color = decLow === 'over' ? 'var(--accent)' : decLow === 'under' ? 'var(--red)' : 'var(--amber)';
+      const lineSVG = lineY != null ? `<line x1="0" y1="${lineY}" x2="${W}" y2="${lineY}" stroke="rgba(255,255,255,0.2)" stroke-width="1" stroke-dasharray="4,3"/>` : '';
+      // Dots
+      const dotsSVG = vals.map((v,i) => {
+        const cx = (i/(vals.length-1))*(W-8)+4;
+        const cy = (H-6)-((v-mn)/rng)*(H-12)+3;
+        const hit = p.line != null ? v > p.line : true;
+        return `<circle cx="${cx}" cy="${cy}" r="3" fill="${hit?color:'var(--red)'}" opacity="0.9"/>`;
+      }).join('');
+      return `<div class="prop-expand-chart">
+        <div class="pec-label"><span>L${vals.length} Game Log · ${p.prop}</span><span style="color:var(--muted)">${p.line != null ? 'Line: '+p.line : ''}</span></div>
+        <svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block;overflow:visible">
+          ${lineSVG}
+          <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="0.8"/>
+          ${dotsSVG}
+        </svg>
+        <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:8px;color:var(--muted);margin-top:4px">
+          <span>L${vals.length}</span><span>L1</span>
+        </div>
+      </div>`;
+    })();
+
+    return `<div class="prop-expand open" id="pexpand-${p.id}">
+      <div class="prop-expand-grid">
+        <div class="peg-block"><div class="peg-val ${decLow==='over'?'green':decLow==='under'?'red':''}">${projDisplay}</div><div class="peg-lab">Projection</div></div>
+        <div class="peg-block"><div class="peg-val">${isAnalysis ? '—' : (p.line ?? '—')}</div><div class="peg-lab">Line</div></div>
+        <div class="peg-block"><div class="peg-val ${ev>=0?'green':'red'}">${evSign}${ev}%</div><div class="peg-lab">Edge / EV</div></div>
+        <div class="peg-block"><div class="peg-val blue">${p.conf}/10</div><div class="peg-lab">Confidence</div></div>
+        <div class="peg-block"><div class="peg-val">${p.overProb ?? '—'}%</div><div class="peg-lab">P(Over)</div></div>
+        <div class="peg-block"><div class="peg-val" style="color:${completenessColor}">${completenessScore ?? '—'}%</div><div class="peg-lab">Data</div></div>
+      </div>
+      ${hitRateHTML}
+      ${chartHTML}
+      ${reasoningHTML ? `<div class="prop-expand-reasoning">${reasoningHTML}<div style="font-family:var(--mono);font-size:9px;color:var(--purple);margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">📡 ${dataLabel}${p.dataSource?.hasRealLine ? ' · ✓ Live line' : ' · Estimated line'}</div></div>` : ''}
+      <div class="prop-expand-actions">
+        ${(!forceAnalysis && p.decision !== 'PASS') ? `<button class="pea-btn pea-primary ${inSlip?'added':''}" id="slip-btn-${p.id}" onclick="toggleSlip(${p.id})">${inSlip ? '✓ In Slip' : '+ Add to Slip'}</button>` : ''}
+        <button class="pea-btn pea-secondary" onclick="togglePropExpand(${p.id})">Collapse ▴</button>
+      </div>
+    </div>`;
+  })();
+
+  return `<div class="prop-row" id="pcard-${p.id}" onclick="togglePropExpand(${p.id})">
+    <div class="prop-row-accent ${decLow}"></div>
+    <div class="prop-avatar">${initials}</div>
+    <div class="prop-row-main">
+      <div class="prop-row-player">${p.player}${p.injuryStatus ? ' 🤕' : ''}</div>
+      <div class="prop-row-meta">${p.prop} · ${p.team||''} vs ${p.opp||'?'} · ${p.date==='tomorrow'?'TMR':'TODAY'}</div>
+    </div>
+    <div class="prop-row-sparkwrap">${sparkSVG}</div>
+    <div class="prop-row-right">
+      <div class="prop-row-line">${p.line ?? projDisplay}</div>
+      <div class="prop-row-book">${bookName}</div>
+      <div class="prop-row-edge ${ev>=0?'pos':'neg'}">${evSign}${Math.abs(ev)}%</div>
+    </div>
+  </div>${expandHTML}`;
+}
+
+function propCardHTML(p) {
+  // Kept for backward compat (check-pick tab, etc.) — delegates to row style
+  return propRowHTML(p);
+}
+
+function togglePropExpand(id) {
+  if(expandedCards.has(id)) expandedCards.delete(id); else expandedCards.add(id);
+  const row = document.getElementById('pcard-' + id);
+  if(!row) return;
+  const p = getAllCachedProps().find(pr => pr.id === id);
+  if(!p) return;
+  const container = document.createElement('div');
+  container.innerHTML = propRowHTML(p);
+  const newRow = container.firstElementChild;
+  if(newRow) row.replaceWith(newRow);
 }
 
 function recentGamesChartHTML(p) {
@@ -11357,16 +11809,7 @@ function propCardHTML(p) {
 }
 
 function toggleReasoning(id) {
-  if(expandedCards.has(id)) expandedCards.delete(id); else expandedCards.add(id);
-  // Re-render just this card in place — never call renderProps() which resets game groups
-  const card = document.getElementById('pcard-' + id);
-  if(!card) return;
-  const p = getAllCachedProps().find(pr => pr.id === id);
-  if(!p) return;
-  const newCard = document.createElement('div');
-  newCard.innerHTML = propCardHTML(p);
-  const newEl = newCard.firstElementChild;
-  if(newEl) card.replaceWith(newEl);
+  togglePropExpand(id);
 }
 
 function toggleGameGroup(el) {
@@ -11391,6 +11834,15 @@ function toggleGameGroup(el) {
 // ═══════════════════════════════════════════════════════
 // UPDATE METRICS — reads from cache
 // ═══════════════════════════════════════════════════════
+function toggleMetrics() {
+  const toggle = document.getElementById('metrics-toggle');
+  const body   = document.getElementById('metrics-body');
+  if(!toggle || !body) return;
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  toggle.classList.toggle('open', !isOpen);
+}
+
 function updateMetrics() {
   const allProps = getAllCachedProps();
   const minEdge = viewMode === 'analysis' ? 0 : (STATE.settings.bettingMinEdge ?? STATE.settings.minEdge ?? 5);
@@ -11418,22 +11870,45 @@ function updateMetrics() {
   const avgConf = visible.length ? (visible.reduce((a,p) => a + p.conf, 0) / visible.length).toFixed(1) : '—';
   const sportSet = [...new Set(allProps.map(p=>p.sport))];
 
-  document.getElementById('m-count').textContent = visible.length || '—';
-  document.getElementById('m-sports-sub').textContent = allProps.length
-    ? `${allProps.length} total · ${sportSet.join(', ')}`
-    : 'tap generate';
-  document.getElementById('m-strong').textContent = strongEdge || '—';
-  document.getElementById('m-conf').textContent = avgConf;
+  // Avg edge for TPE card
+  const edgeProps = allProps.filter(p => p.decision !== 'PASS');
+  const avgEdge = edgeProps.length
+    ? (edgeProps.reduce((a,p) => {
+        const ev = p.overEV !== undefined ? (p.decision==='OVER'?p.overEV:p.underEV) : Math.abs(p.edge?.pct||0);
+        return a + ev;
+      }, 0) / edgeProps.length).toFixed(1)
+    : null;
 
-  // ROI is slip-based (all-or-nothing parlay)
+  // Hit rate from tracker history
+  const history = STATE.tracker || [];
+  const settled = history.filter(h => h.outcome === 'win' || h.outcome === 'loss');
+  const hitRate = settled.length ? Math.round(settled.filter(h=>h.outcome==='win').length / settled.length * 100) : null;
+
+  // Proj profit from slip EV
+  const projProfit = edgeProps.length
+    ? (edgeProps.reduce((a,p) => {
+        const ev = p.overEV !== undefined ? (p.decision==='OVER'?p.overEV:p.underEV) : Math.abs(p.edge?.pct||0);
+        return a + ev * 0.1;
+      }, 0)).toFixed(2)
+    : null;
+
+  // Feed TPE card
+  const mStrong = document.getElementById('m-strong');
+  const mConf = document.getElementById('m-conf');
+  const mRoi = document.getElementById('m-roi');
+  const mCount = document.getElementById('m-count');
+  if(mStrong) mStrong.textContent = avgEdge ? `+${avgEdge}%` : (strongEdge || '—');
+  if(mConf) mConf.textContent = hitRate ? `${hitRate}%` : (avgConf !== '—' ? `${avgConf}/10` : '—');
+  if(mRoi) mRoi.textContent = projProfit ? `+${projProfit}u` : '—';
+  if(mCount) mCount.textContent = allProps.length || '—';
+
+  // ROI from settled slips
   const settledSlipsForMetric = (STATE.savedSlips || []).filter(s => s.outcome !== 'pending');
   if(settledSlipsForMetric.length > 0) {
     const slipWinsM = settledSlipsForMetric.filter(s => s.outcome === 'win').length;
     const slipRoiM = ((slipWinsM / settledSlipsForMetric.length * 2 - 1) * 100).toFixed(1);
     const roiColor = parseFloat(slipRoiM) >= 0 ? 'var(--accent)' : 'var(--red)';
-    document.getElementById('m-roi').textContent = (parseFloat(slipRoiM) >= 0 ? '+' : '') + slipRoiM + '%';
-    document.getElementById('m-roi').style.color = roiColor;
-    document.getElementById('m-roi-sub').textContent = `${slipWinsM}W / ${settledSlipsForMetric.length - slipWinsM}L (slips)`;
+    if(mRoi) { mRoi.textContent = (parseFloat(slipRoiM) >= 0 ? '+' : '') + slipRoiM + '%'; mRoi.style.color = roiColor; }
   }
 }
 
