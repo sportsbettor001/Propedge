@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.66</title>
+<title>PropEdge v18.70</title>
 
 <style>
 :root{--bg:#0a0d12;--bg2:#111519;--bg3:#171c24;--bg4:#1e2530;--border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.11);--text:#eef2f7;--muted:#5a6a7e;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'SF Mono','Fira Code','Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif;--radius:18px;--card-shadow:0 2px 16px rgba(0,0,0,.35)}
@@ -500,7 +500,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .pea-primary{background:var(--accent);color:#000}
 .pea-secondary{background:transparent;color:var(--muted);border:1px solid var(--border2) !important}
 
-/* PROP LIST WRAPPER */
+/* PROP ROW WRAPPER */
+.prop-row-wrap{position:relative}
+.prop-row-wrap:first-child .prop-row{border-radius:0}
+.prop-row-wrap:last-child .prop-row:not(:has(+ .prop-expand)){border-bottom:none}
 .prop-list-group{margin:8px 16px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border)}
 .prop-list-group-header{padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
 .plgh-title{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--text);letter-spacing:.3px}
@@ -1265,7 +1268,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           <div style="width:48px;height:48px;border-radius:50%;background:var(--bg3);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">👤</div>
           <div>
             <div style="font-size:16px;font-weight:700;letter-spacing:-.3px">PropEdge</div>
-            <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:2px">v18.66 · Local</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:2px">v18.70 · Local</div>
           </div>
         </div>
 
@@ -11484,18 +11487,6 @@ function propRowHTML(p) {
   // Book display
   const bookName = p.book || (p.dataSource?.hasRealLine ? 'Book' : 'Est.');
 
-  // Compact sparkline inline SVG for the row
-  const sparkSVG = (() => {
-    const g = p.recentGames;
-    if(!g || g.length < 3) return `<svg width="44" height="26" viewBox="0 0 44 26"><line x1="0" y1="13" x2="44" y2="13" stroke="rgba(255,255,255,0.1)" stroke-width="1.5"/></svg>`;
-    const vals = g.slice(-8).map(gm => typeof gm === 'object' ? (gm.val ?? gm.value ?? gm) : gm).filter(v => typeof v === 'number');
-    if(vals.length < 2) return `<svg width="44" height="26" viewBox="0 0 44 26"><line x1="0" y1="13" x2="44" y2="13" stroke="rgba(255,255,255,0.1)" stroke-width="1.5"/></svg>`;
-    const mn = Math.min(...vals), mx = Math.max(...vals), rng = mx - mn || 1;
-    const pts = vals.map((v,i) => `${(i/(vals.length-1))*42+1},${23-((v-mn)/rng)*20}`).join(' ');
-    const color = decLow === 'over' ? 'var(--accent)' : decLow === 'under' ? 'var(--red)' : 'var(--amber)';
-    return `<svg width="44" height="26" viewBox="0 0 44 26"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
-  })();
-
   // Expand section
   const expandHTML = (() => {
     if(!isExpanded) return '';
@@ -11510,35 +11501,35 @@ function propRowHTML(p) {
         <div class="hit-rate-pct" style="color:${p.hitRateSeason.pct>=60?'var(--accent)':p.hitRateSeason.pct>=45?'var(--amber)':'var(--red)'}">${p.hitRateSeason.pct}%</div>
       </div>` : '';
 
-    // L5/L10 chart
+    // L5/L10 chart — use real hex, not CSS vars in SVG attrs
     const chartHTML = (() => {
       const g = p.recentGames;
       if(!g || g.length < 3) return '';
       const vals = g.slice(-10).map(gm => typeof gm === 'object' ? (gm.val ?? gm.value ?? gm) : gm).filter(v => typeof v === 'number');
       if(vals.length < 2) return '';
-      const mn = Math.min(...vals, p.line||0), mx = Math.max(...vals, p.line||0), rng = mx - mn || 1;
-      const W = 280, H = 60;
-      const pts = vals.map((v,i) => `${(i/(vals.length-1))*(W-8)+4},${(H-6)-((v-mn)/rng)*(H-12)+3}`).join(' ');
-      const lineY = p.line != null ? (H-6)-((p.line-mn)/rng)*(H-12)+3 : null;
-      const color = decLow === 'over' ? 'var(--accent)' : decLow === 'under' ? 'var(--red)' : 'var(--amber)';
-      const lineSVG = lineY != null ? `<line x1="0" y1="${lineY}" x2="${W}" y2="${lineY}" stroke="rgba(255,255,255,0.2)" stroke-width="1" stroke-dasharray="4,3"/>` : '';
-      // Dots
+      const lineVal = p.line ?? null;
+      const mn = Math.min(...vals, lineVal ?? Infinity) === Infinity ? Math.min(...vals) : Math.min(...vals, lineVal);
+      const mx = Math.max(...vals, lineVal ?? -Infinity) === -Infinity ? Math.max(...vals) : Math.max(...vals, lineVal);
+      const rng = mx - mn || 1;
+      const W = 280, H = 64;
+      const px = (i) => (i/(vals.length-1))*(W-8)+4;
+      const py = (v) => (H-8)-((v-mn)/rng)*(H-16)+4;
+      const pts = vals.map((v,i) => `${px(i)},${py(v)}`).join(' ');
+      const lineY = lineVal != null ? py(lineVal) : null;
+      const chartColor = decLow === 'over' ? '#00e5a0' : decLow === 'under' ? '#ff4d6a' : '#ffb547';
+      const lineSVG = lineY != null ? `<line x1="0" y1="${lineY}" x2="${W}" y2="${lineY}" stroke="rgba(255,255,255,0.18)" stroke-width="1" stroke-dasharray="4,3"/>` : '';
       const dotsSVG = vals.map((v,i) => {
-        const cx = (i/(vals.length-1))*(W-8)+4;
-        const cy = (H-6)-((v-mn)/rng)*(H-12)+3;
-        const hit = p.line != null ? v > p.line : true;
-        return `<circle cx="${cx}" cy="${cy}" r="3" fill="${hit?color:'var(--red)'}" opacity="0.9"/>`;
+        const hit = lineVal != null ? v > lineVal : true;
+        return `<circle cx="${px(i)}" cy="${py(v)}" r="3.5" fill="${hit ? chartColor : '#ff4d6a'}" opacity="0.9"/>`;
       }).join('');
       return `<div class="prop-expand-chart">
-        <div class="pec-label"><span>L${vals.length} Game Log · ${p.prop}</span><span style="color:var(--muted)">${p.line != null ? 'Line: '+p.line : ''}</span></div>
+        <div class="pec-label"><span>L${vals.length} Game Log · ${p.prop}</span><span>${lineVal != null ? 'Line: '+lineVal : ''}</span></div>
         <svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block;overflow:visible">
           ${lineSVG}
-          <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="0.8"/>
+          <polyline points="${pts}" fill="none" stroke="${chartColor}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.85"/>
           ${dotsSVG}
         </svg>
-        <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:8px;color:var(--muted);margin-top:4px">
-          <span>L${vals.length}</span><span>L1</span>
-        </div>
+        <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:8px;color:rgba(255,255,255,0.3);margin-top:4px"><span>Oldest</span><span>Most Recent</span></div>
       </div>`;
     })();
 
@@ -11553,28 +11544,59 @@ function propRowHTML(p) {
       </div>
       ${hitRateHTML}
       ${chartHTML}
-      ${reasoningHTML ? `<div class="prop-expand-reasoning">${reasoningHTML}<div style="font-family:var(--mono);font-size:9px;color:var(--purple);margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">📡 ${dataLabel}${p.dataSource?.hasRealLine ? ' · ✓ Live line' : ' · Estimated line'}</div></div>` : ''}
+      ${reasoningHTML ? `<div class="prop-expand-reasoning">${reasoningHTML}<div style="font-family:var(--mono);font-size:9px;color:#b48fff;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06)">📡 ${dataLabel}${p.dataSource?.hasRealLine ? ' · ✓ Live line' : ' · Estimated line'}</div></div>` : ''}
       <div class="prop-expand-actions">
-        ${(!forceAnalysis && p.decision !== 'PASS') ? `<button class="pea-btn pea-primary ${inSlip?'added':''}" id="slip-btn-${p.id}" onclick="toggleSlip(${p.id})">${inSlip ? '✓ In Slip' : '+ Add to Slip'}</button>` : ''}
-        <button class="pea-btn pea-secondary" onclick="togglePropExpand(${p.id})">Collapse ▴</button>
+        ${(!forceAnalysis && p.decision !== 'PASS') ? `<button class="pea-btn pea-primary ${inSlip?'added':''}" id="slip-btn-${p.id}" onclick="event.stopPropagation();toggleSlip(${p.id})">${inSlip ? '✓ In Slip' : '+ Add to Slip'}</button>` : ''}
+        <button class="pea-btn pea-secondary" onclick="event.stopPropagation();togglePropExpand(${p.id})">Collapse ▴</button>
       </div>
     </div>`;
   })();
 
-  return `<div class="prop-row" id="pcard-${p.id}" onclick="togglePropExpand(${p.id})">
-    <div class="prop-row-accent ${decLow}"></div>
-    <div class="prop-avatar">${initials}</div>
-    <div class="prop-row-main">
-      <div class="prop-row-player">${p.player}${p.injuryStatus ? ' 🤕' : ''}</div>
-      <div class="prop-row-meta">${p.prop} · ${p.team||''} vs ${p.opp||'?'} · ${p.date==='tomorrow'?'TMR':'TODAY'}</div>
-    </div>
-    <div class="prop-row-sparkwrap">${sparkSVG}</div>
-    <div class="prop-row-right">
-      <div class="prop-row-line">${p.line ?? projDisplay}</div>
-      <div class="prop-row-book">${bookName}</div>
-      <div class="prop-row-edge ${ev>=0?'pos':'neg'}">${evSign}${Math.abs(ev)}%</div>
-    </div>
-  </div>${expandHTML}`;
+  // Row sparkline — use real hex colors, not CSS vars (SVG attr doesn't support them)
+  const sparkColor = decLow === 'over' ? '#00e5a0' : decLow === 'under' ? '#ff4d6a' : '#ffb547';
+  const sparkSVG = (() => {
+    const g = p.recentGames;
+    if(!g || g.length < 3) return `<svg width="44" height="26" viewBox="0 0 44 26"><line x1="2" y1="13" x2="42" y2="13" stroke="rgba(255,255,255,0.12)" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+    const vals = g.slice(-8).map(gm => typeof gm === 'object' ? (gm.val ?? gm.value ?? gm) : gm).filter(v => typeof v === 'number');
+    if(vals.length < 2) return `<svg width="44" height="26" viewBox="0 0 44 26"><line x1="2" y1="13" x2="42" y2="13" stroke="rgba(255,255,255,0.12)" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+    const mn = Math.min(...vals), mx = Math.max(...vals), rng = mx - mn || 1;
+    const pts = vals.map((v,i) => `${(i/(vals.length-1))*40+2},${22-((v-mn)/rng)*18+2}`).join(' ');
+    return `<svg width="44" height="26" viewBox="0 0 44 26"><polyline points="${pts}" fill="none" stroke="${sparkColor}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+  })();
+
+  // EV display — in analysis mode show proj vs line diff, not 0%
+  let evDisplay, evClass;
+  if(isAnalysis) {
+    if(p.line != null && effectiveProj != null) {
+      const diff = (effectiveProj - p.line);
+      const pct = p.line > 0 ? ((diff / p.line) * 100).toFixed(1) : '—';
+      evDisplay = diff >= 0 ? `+${pct}%` : `${pct}%`;
+      evClass = diff >= 0 ? 'pos' : 'neg';
+    } else {
+      evDisplay = `${projDisplay}`;
+      evClass = 'pos';
+    }
+  } else {
+    evDisplay = `${evSign}${Math.abs(ev)}%`;
+    evClass = ev >= 0 ? 'pos' : 'neg';
+  }
+
+  return `<div class="prop-row-wrap" id="prowrap-${p.id}">
+    <div class="prop-row" onclick="togglePropExpand(${p.id})">
+      <div class="prop-row-accent ${decLow}"></div>
+      <div class="prop-avatar">${initials}</div>
+      <div class="prop-row-main">
+        <div class="prop-row-player">${p.player}${p.injuryStatus ? ' 🤕' : ''}</div>
+        <div class="prop-row-meta">${p.prop} · ${p.team||''} vs ${p.opp||'?'} · ${p.date==='tomorrow'?'TMR':'TODAY'}</div>
+      </div>
+      <div class="prop-row-sparkwrap">${sparkSVG}</div>
+      <div class="prop-row-right">
+        <div class="prop-row-line">${p.line ?? projDisplay}</div>
+        <div class="prop-row-book">${bookName}</div>
+        <div class="prop-row-edge ${evClass}">${evDisplay}</div>
+      </div>
+    </div>${expandHTML}
+  </div>`;
 }
 
 function propCardHTML(p) {
@@ -11584,14 +11606,14 @@ function propCardHTML(p) {
 
 function togglePropExpand(id) {
   if(expandedCards.has(id)) expandedCards.delete(id); else expandedCards.add(id);
-  const row = document.getElementById('pcard-' + id);
-  if(!row) return;
+  const wrap = document.getElementById('prowrap-' + id);
+  if(!wrap) return;
   const p = getAllCachedProps().find(pr => pr.id === id);
   if(!p) return;
   const container = document.createElement('div');
   container.innerHTML = propRowHTML(p);
-  const newRow = container.firstElementChild;
-  if(newRow) row.replaceWith(newRow);
+  const newWrap = container.firstElementChild;
+  if(newWrap) wrap.replaceWith(newWrap);
 }
 
 function recentGamesChartHTML(p) {
