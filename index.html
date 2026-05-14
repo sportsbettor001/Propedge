@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.76</title>
+<title>PropEdge v18.77</title>
 
 <style>
 :root{--bg:#0a0d12;--bg2:#111519;--bg3:#171c24;--bg4:#1e2530;--border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.11);--text:#eef2f7;--muted:#5a6a7e;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'SF Mono','Fira Code','Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif;--radius:18px;--card-shadow:0 2px 16px rgba(0,0,0,.35)}
@@ -1265,10 +1265,21 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
     <div id="tab-account" class="page">
       <div style="padding-bottom:8px">
         <div class="metric-card" style="margin-bottom:12px;display:flex;align-items:center;gap:14px">
-          <div style="width:48px;height:48px;border-radius:50%;background:var(--bg3);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">👤</div>
+          <div style="width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,#0d1f14 0%,#0a1a2e 100%);border:1.5px solid rgba(0,229,160,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">
+            <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- Arrow up-right (PropEdge logo mark) -->
+              <path d="M8 26 L18 8 L28 26" stroke="#00e5a0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+              <!-- Bar chart bars -->
+              <rect x="10" y="19" width="4" height="7" rx="1" fill="rgba(0,229,160,0.4)"/>
+              <rect x="16" y="15" width="4" height="11" rx="1" fill="rgba(0,229,160,0.6)"/>
+              <rect x="22" y="11" width="4" height="15" rx="1" fill="#00e5a0"/>
+              <!-- Dot at peak -->
+              <circle cx="18" cy="8" r="2" fill="#00e5a0"/>
+            </svg>
+          </div>
           <div>
-            <div style="font-size:16px;font-weight:700;letter-spacing:-.3px">PropEdge</div>
-            <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:2px">v18.76 · Local</div>
+            <div style="font-size:17px;font-weight:800;letter-spacing:-.4px">PropEdge</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:3px">v18.77 · Local</div>
           </div>
         </div>
 
@@ -11514,33 +11525,35 @@ function propRowHTML(p) {
       <div style="font-family:var(--mono);font-size:9px;color:rgba(255,255,255,0.35);margin-bottom:10px;padding-left:80px">${hr.hits}/${hr.total} games this season ${refLabel} (${hr.pct}%)</div>`;
     })() : '';
 
-    // Home / Away splits from recentGames
+    // Vs opponent split — all historical games against this specific opponent
     const homeAwayHTML = (() => {
       const g = p.recentGames;
-      if(!g || g.length < 4) return '';
+      const oppName = p.opp || p.oppAbbr || null;
+      if(!g || !oppName) return '';
       const ref = p.line ?? p.proj;
       if(!ref) return '';
-      const homeG = g.filter(gm => gm.home === true);
-      const awayG = g.filter(gm => gm.home === false || gm.home === undefined);
-      const calc = (arr) => {
-        if(arr.length < 2) return null;
-        const hits = arr.filter(gm => (gm.v ?? gm.val ?? gm.value ?? 0) >= ref).length;
-        const pct = Math.round(hits / arr.length * 100);
-        const color = pct >= 60 ? '#00e5a0' : pct >= 45 ? '#ffb547' : '#ff4d6a';
-        return { hits, n: arr.length, pct, color };
-      };
-      const home = calc(homeG);
-      const away = calc(awayG);
-      if(!home && !away) return '';
-      const block = (label, s) => s ? `
-        <div style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:8px 10px;text-align:center">
-          <div style="font-family:var(--mono);font-size:8px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">${label}</div>
-          <div style="font-family:var(--mono);font-size:15px;font-weight:700;color:${s.color}">${s.hits}/${s.n}</div>
-          <div style="font-family:var(--mono);font-size:10px;color:${s.color};margin-top:2px">${s.pct}%</div>
-        </div>` : '';
-      return `<div style="display:flex;gap:8px;margin-bottom:10px">
-        ${block('🏠 Home', home)}
-        ${block('✈️ Away', away)}
+
+      const normOpp = s => (s||'').toUpperCase().replace(/[^A-Z]/g,'');
+      const oppNorm = normOpp(oppName);
+      const vsGames = g.filter(gm => normOpp(gm.opp) === oppNorm || normOpp(gm.opp).includes(oppNorm) || oppNorm.includes(normOpp(gm.opp)));
+
+      if(vsGames.length === 0) {
+        return `<div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.3);background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:8px 12px;margin-bottom:10px;text-align:center">
+          Has not played <span style="color:rgba(255,255,255,0.5)">${oppName.toUpperCase()}</span> in tracked history
+        </div>`;
+      }
+
+      const hits = vsGames.filter(gm => (gm.v ?? gm.val ?? 0) >= ref).length;
+      const pct = Math.round(hits / vsGames.length * 100);
+      const color = pct >= 60 ? '#00e5a0' : pct >= 45 ? '#ffb547' : '#ff4d6a';
+
+      return `<div style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:8px 14px;margin-bottom:10px">
+        <div style="font-family:var(--mono);font-size:9px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">vs ${oppName.toUpperCase()}</div>
+        <div style="flex:1;height:3px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:${color};border-radius:2px"></div>
+        </div>
+        <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:${color};white-space:nowrap">${hits}/${vsGames.length}</div>
+        <div style="font-family:var(--mono);font-size:11px;color:${color};white-space:nowrap">${pct}%</div>
       </div>`;
     })();
 
