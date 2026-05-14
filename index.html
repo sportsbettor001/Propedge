@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.74</title>
+<title>PropEdge v18.75</title>
 
 <style>
 :root{--bg:#0a0d12;--bg2:#111519;--bg3:#171c24;--bg4:#1e2530;--border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.11);--text:#eef2f7;--muted:#5a6a7e;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'SF Mono','Fira Code','Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif;--radius:18px;--card-shadow:0 2px 16px rgba(0,0,0,.35)}
@@ -1268,7 +1268,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           <div style="width:48px;height:48px;border-radius:50%;background:var(--bg3);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">👤</div>
           <div>
             <div style="font-size:16px;font-weight:700;letter-spacing:-.3px">PropEdge</div>
-            <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:2px">v18.74 · Local</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:2px">v18.75 · Local</div>
           </div>
         </div>
 
@@ -11499,15 +11499,50 @@ function propRowHTML(p) {
     const dataLabel = p.dataSource?.gamelog > 0 ? `${p.dataSource.gamelog} game logs` : 'no game logs';
     const completenessScore = p.completeness ?? null;
     const completenessColor = completenessScore >= 85 ? '#00e5a0' : completenessScore >= 60 ? '#ffb547' : '#ff4d6a';
-    const hitRateHTML = p.hitRateSeason ? `
-      <div class="hit-rate-row" style="margin-bottom:8px">
+    const hitRateHTML = p.hitRateSeason ? (() => {
+      const hr = p.hitRateSeason;
+      const color = hr.pct >= 60 ? '#00e5a0' : hr.pct >= 45 ? '#ffb547' : '#ff4d6a';
+      const refLabel = hr.refIsProjection
+        ? `at or above proj ${hr.ref} ${p.prop.toLowerCase()}`
+        : p.line != null ? `over ${p.line} ${p.prop.toLowerCase()}` : `above threshold`;
+      return `
+      <div class="hit-rate-row" style="margin-bottom:4px">
         <div class="hit-rate-label">Season HR</div>
-        <div class="hit-rate-track"><div class="hit-rate-fill" style="width:${p.hitRateSeason.pct}%;background:${p.hitRateSeason.pct>=60?'#00e5a0':p.hitRateSeason.pct>=45?'#ffb547':'#ff4d6a'}"></div></div>
-        <div class="hit-rate-pct" style="color:${p.hitRateSeason.pct>=60?'#00e5a0':p.hitRateSeason.pct>=45?'#ffb547':'#ff4d6a'}">${p.hitRateSeason.pct}%</div>
-      </div>` : '';
+        <div class="hit-rate-track"><div class="hit-rate-fill" style="width:${hr.pct}%;background:${color}"></div></div>
+        <div class="hit-rate-pct" style="color:${color};font-weight:700">${hr.hits}/${hr.total}</div>
+      </div>
+      <div style="font-family:var(--mono);font-size:9px;color:rgba(255,255,255,0.35);margin-bottom:10px;padding-left:80px">${hr.hits}/${hr.total} games this season ${refLabel} (${hr.pct}%)</div>`;
+    })() : '';
 
-    // L10 rich bar chart — use the existing recentGamesChartHTML which has all the detail
-    const chartHTML = recentGamesChartHTML(p);
+    // Home / Away splits from recentGames
+    const homeAwayHTML = (() => {
+      const g = p.recentGames;
+      if(!g || g.length < 4) return '';
+      const ref = p.line ?? p.proj;
+      if(!ref) return '';
+      const homeG = g.filter(gm => gm.home === true);
+      const awayG = g.filter(gm => gm.home === false || gm.home === undefined);
+      const calc = (arr) => {
+        if(arr.length < 2) return null;
+        const hits = arr.filter(gm => (gm.v ?? gm.val ?? gm.value ?? 0) >= ref).length;
+        const pct = Math.round(hits / arr.length * 100);
+        const color = pct >= 60 ? '#00e5a0' : pct >= 45 ? '#ffb547' : '#ff4d6a';
+        return { hits, n: arr.length, pct, color };
+      };
+      const home = calc(homeG);
+      const away = calc(awayG);
+      if(!home && !away) return '';
+      const block = (label, s) => s ? `
+        <div style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:8px 10px;text-align:center">
+          <div style="font-family:var(--mono);font-size:8px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">${label}</div>
+          <div style="font-family:var(--mono);font-size:15px;font-weight:700;color:${s.color}">${s.hits}/${s.n}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:${s.color};margin-top:2px">${s.pct}%</div>
+        </div>` : '';
+      return `<div style="display:flex;gap:8px;margin-bottom:10px">
+        ${block('🏠 Home', home)}
+        ${block('✈️ Away', away)}
+      </div>`;
+    })();
 
     return `<div class="prop-expand open" id="pexpand-${p.id}">
       <div class="prop-expand-grid">
@@ -11519,6 +11554,7 @@ function propRowHTML(p) {
         <div class="peg-block"><div class="peg-val" style="color:${completenessColor}">${completenessScore ?? '—'}%</div><div class="peg-lab">Data</div></div>
       </div>
       ${hitRateHTML}
+      ${homeAwayHTML}
       ${chartHTML}
       ${reasoningHTML ? `<div class="prop-expand-reasoning">${reasoningHTML}
         ${p.projectedMinutes ? `<div class="reasoning-line" style="color:#4db8ff">📐 Projected minutes: ${p.projectedMinutes} min · Per-min rate: ${p.perMinRate ?? '—'} · Distribution: ${p.distProfile ?? 'normal'}</div>` : ''}
