@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.77</title>
+<title>PropEdge v18.79</title>
 
 <style>
 :root{--bg:#0a0d12;--bg2:#111519;--bg3:#171c24;--bg4:#1e2530;--border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.11);--text:#eef2f7;--muted:#5a6a7e;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'SF Mono','Fira Code','Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif;--radius:18px;--card-shadow:0 2px 16px rgba(0,0,0,.35)}
@@ -15,7 +15,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
 /* APP SHELL */
 .app-shell{height:100dvh;height:-webkit-fill-available;overflow:hidden;display:flex;flex-direction:column}
-.header{padding:52px 20px 0;background:var(--bg);flex-shrink:0}
+.header{padding:36px 20px 0;background:var(--bg);flex-shrink:0}
 .header-top{display:flex;justify-content:space-between;align-items:center;padding-bottom:10px}
 .logo{font-size:21px;font-weight:800;letter-spacing:-0.5px;display:flex;align-items:center;gap:8px}
 .logo-icon{width:28px;height:28px;background:var(--accent);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;color:#000;font-weight:900}
@@ -516,7 +516,19 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
     <div class="header-top">
       <div class="logo"><div class="logo-icon">↗</div>Prop<span>Edge</span></div>
       <div class="header-right">
-        <div class="live-dot"><div class="dot"></div><span id="live-label">LIVE</span></div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
+          <div class="live-dot"><div class="dot"></div><span id="live-label">LIVE</span></div>
+          <!-- Analysis/Betting toggle pill -->
+          <div id="mode-pill" onclick="setViewMode(viewMode==='analysis'?'betting':'analysis')" style="cursor:pointer;width:88px;height:22px;border-radius:11px;background:var(--bg3);border:1px solid var(--border2);position:relative;transition:border-color .2s" title="Toggle mode">
+            <div id="mode-pill-knob" style="position:absolute;top:2px;left:2px;width:40px;height:16px;border-radius:9px;background:#ffb547;transition:all .25s cubic-bezier(.34,1.2,.64,1);display:flex;align-items:center;justify-content:center">
+              <span id="mode-pill-knob-label" style="font-family:var(--mono);font-size:7px;font-weight:800;color:#000;letter-spacing:.3px">ANLS</span>
+            </div>
+            <div style="position:absolute;inset:0;display:flex;align-items:center">
+              <span style="flex:1;text-align:center;font-family:var(--mono);font-size:7px;font-weight:700;color:rgba(255,255,255,0.3);padding-left:4px" id="mode-pill-left">ANLS</span>
+              <span style="flex:1;text-align:center;font-family:var(--mono);font-size:7px;font-weight:700;color:rgba(255,255,255,0.3);padding-right:4px" id="mode-pill-right">BET</span>
+            </div>
+          </div>
+        </div>
         <button class="icon-btn" onclick="showToast('Alerts coming soon','success')" aria-label="Alerts">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
           <span class="notif-dot"></span>
@@ -561,131 +573,160 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
         <canvas id="tpe-sparkline" height="56" style="width:100%;display:block;margin-top:4px"></canvas>
       </div>
 
-      <!-- Filters — scroll with page, not sticky -->
-      <div id="props-sticky-bar" style="padding:6px 0 4px;margin:-4px 0 0;border-bottom:1px solid var(--border)">
-        <div class="filter-row" id="sport-filters" style="margin-bottom:6px">
-          <div class="filter-chip active" data-sport="all" onclick="toggleSportFilter('all',this)">All sports</div>
-          <div class="filter-chip" data-sport="NBA" onclick="toggleSportFilter('NBA',this)"><div class="sport-status-dot"></div>NBA</div>
-          <div class="filter-chip" data-sport="WNBA" onclick="toggleSportFilter('WNBA',this)"><div class="sport-status-dot"></div>WNBA</div>
-          <div class="filter-chip" data-sport="MLB" onclick="toggleSportFilter('MLB',this)"><div class="sport-status-dot"></div>MLB</div>
-          <div class="filter-chip" data-sport="NFL" onclick="toggleSportFilter('NFL',this)"><div class="sport-status-dot"></div>NFL</div>
-          <div class="filter-chip" data-sport="NHL" onclick="toggleSportFilter('NHL',this)"><div class="sport-status-dot"></div>NHL</div>
-          <div class="filter-chip" data-sport="GOLF" onclick="toggleSportFilter('GOLF',this)"><div class="sport-status-dot"></div>Golf</div>
-        </div>
-        <div class="filter-row" id="dec-filters" style="margin-bottom:6px">
-          <div class="filter-chip active" data-dec="all" onclick="setFilter('dec','all',this)">All</div>
-          <div class="filter-chip" data-dec="OVER" onclick="setFilter('dec','OVER',this)">OVER</div>
-          <div class="filter-chip" data-dec="UNDER" onclick="setFilter('dec','UNDER',this)">UNDER</div>
-          <div class="filter-chip" data-dec="PASS" onclick="setFilter('dec','PASS',this)">PASS</div>
-        </div>
-        <div style="margin-bottom:6px">
-          <select id="prop-type-filter" onchange="setFilter('prop',this.value)" style="width:100%;font-family:var(--mono);font-size:11px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:5px 8px;cursor:pointer">
-            <option value="all">All prop types</option>
-            <optgroup label="── NBA/WNBA ──">
-              <option value="Points">Points</option>
-              <option value="Rebounds">Rebounds</option>
-              <option value="Assists">Assists</option>
-              <option value="Points + Rebounds + Assists">PRA</option>
-              <option value="Points + Rebounds">Points + Rebounds</option>
-              <option value="Points + Assists">Points + Assists</option>
-              <option value="Assists + Rebounds">Assists + Rebounds</option>
-              <option value="Threes Made">Threes Made</option>
-              <option value="Steals">Steals</option>
-              <option value="Blocks">Blocks</option>
-              <option value="Turnovers">Turnovers</option>
-              <option value="Steals + Blocks">Steals + Blocks</option>
-              <option value="Double Double">Double Double</option>
-              <option value="Triple Double">Triple Double</option>
-            </optgroup>
-            <optgroup label="── MLB Batters ──">
-              <option value="Hits">Hits</option>
-              <option value="Total Bases">Total Bases</option>
-              <option value="Home Runs">Home Runs</option>
-              <option value="Runs">Runs</option>
-              <option value="RBIs">RBIs</option>
-              <option value="Hits + Runs + RBIs">H+R+RBI</option>
-              <option value="Singles">Singles</option>
-              <option value="Doubles">Doubles</option>
-              <option value="Stolen Bases">Stolen Bases</option>
-              <option value="Walks">Walks</option>
-            </optgroup>
-            <optgroup label="── MLB Pitchers ──">
-              <option value="Strikeouts">Strikeouts</option>
-              <option value="Total Outs">Total Outs</option>
-              <option value="Hits Allowed">Hits Allowed</option>
-              <option value="Earned Runs">Earned Runs</option>
-              <option value="Runs First Inning">Runs First Inning</option>
-            </optgroup>
-            <optgroup label="── NFL ──">
-              <option value="Pass Yards">Pass Yards</option>
-              <option value="Rush Yards">Rush Yards</option>
-              <option value="Receiving Yards">Receiving Yards</option>
-              <option value="Receptions">Receptions</option>
-              <option value="Passing Touchdowns">Passing TDs</option>
-              <option value="Receiving Touchdown">Receiving TD</option>
-              <option value="Rush + Receiving Touchdowns">Rush+Rec TDs</option>
-              <option value="Anytime Touchdown">Anytime TD</option>
-              <option value="Targets">Targets</option>
-              <option value="Pass Attempts">Pass Attempts</option>
-              <option value="Rushing Attempts">Rush Attempts</option>
-              <option value="Interceptions Thrown">INTs Thrown</option>
-              <option value="Sacks">Sacks</option>
-              <option value="Total Tackles">Total Tackles</option>
-              <option value="FG Made">FG Made</option>
-              <option value="Kicking Points">Kicking Points</option>
-            </optgroup>
-            <optgroup label="── NHL ──">
-              <option value="Points">Points (NHL)</option>
-              <option value="Goals">Goals</option>
-              <option value="Assists">Assists (NHL)</option>
-              <option value="Shots on Goal">Shots on Goal</option>
-              <option value="Power Play Points">Power Play Pts</option>
-              <option value="Blocks">Blocks (NHL)</option>
-              <option value="Saves">Saves</option>
-              <option value="Goals Against">Goals Against</option>
-            </optgroup>
-            <optgroup label="── Golf ──">
-              <option value="Strokes">Strokes</option>
-              <option value="Birdies or Better">Birdies or Better</option>
-              <option value="Bogeys or Worse">Bogeys or Worse</option>
-            </optgroup>
-          </select>
-        </div>
-        <div class="filter-row" id="date-filters" style="margin-bottom:6px">
-          <div class="filter-chip active" data-date="all" onclick="setFilter('date','all',this)">All dates</div>
-          <div class="filter-chip" id="chip-today" data-date="today" onclick="setFilter('date','today',this)">Today</div>
-          <div class="filter-chip" id="chip-tomorrow" data-date="tomorrow" onclick="setFilter('date','tomorrow',this)">Tomorrow</div>
-        </div>
-        <div style="display:flex;gap:0;border:1px solid var(--border2);border-radius:10px;overflow:hidden;margin-bottom:6px">
-          <button id="mode-select-analysis" onclick="setViewMode('analysis')" style="flex:1;font-family:var(--mono);font-size:11px;font-weight:700;padding:8px;border:none;cursor:pointer;transition:all .15s;background:rgba(255,181,71,0.15);color:var(--amber)" aria-label="Switch to Analysis mode" aria-pressed="true">📊 ANALYSIS</button>
-          <button id="mode-select-betting" onclick="setViewMode('betting')" style="flex:1;font-family:var(--mono);font-size:11px;font-weight:700;padding:8px;border:none;border-left:1px solid var(--border2);cursor:pointer;transition:all .15s;background:transparent;color:var(--muted)" aria-label="Switch to Betting mode" aria-pressed="false">📈 BETTING</button>
-        </div>
-        <div id="game-filters" class="filter-row" style="margin-bottom:6px;display:none">
-          <!-- populated dynamically by updateGameFilter() -->
-        </div>
-        <div class="filter-row" id="sort-filters" style="margin-bottom:6px">
-          <div class="filter-chip active" data-sort="conf" onclick="setSortBy('conf',this)">Confidence</div>
-          <div class="filter-chip" data-sort="edge" onclick="setSortBy('edge',this)">Edge</div>
-          <div class="filter-chip" data-sort="proj" onclick="setSortBy('proj',this)">Projection</div>
-          <div class="filter-chip" data-sort="data" onclick="setSortBy('data',this)">Data quality</div>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px">
-          <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">🩹 Injury boosts</span>
-          <button id="injury-boost-toggle" onclick="toggleInjuryBoost()" style="font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:6px;border:1px solid var(--border2);background:rgba(107,122,141,.1);color:var(--muted);cursor:pointer">OFF</button>
-        </div>
-        <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
-          <button class="gen-btn" id="gen-btn" onclick="generateProps()" style="flex:1;margin-bottom:0;padding:10px">
-            <span id="gen-btn-text">Generate Props</span>
-          </button>
-          <button id="use-cache-btn" onclick="showCacheDetail()" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;color:var(--muted);padding:10px;cursor:pointer;white-space:nowrap;flex-shrink:0" aria-label="View cached data">📦 Cache</button>
-          <button class="refetch-btn" id="refetch-btn" onclick="refetchAll()" style="margin-bottom:0;padding:10px;width:auto;white-space:nowrap;flex-shrink:0" aria-label="Refresh data">↺ Refresh</button>
-        </div>
-        <div class="cache-status-bar" id="cache-status-bar" style="margin-bottom:0"></div>
+      <!-- Always-visible top bar: filter pill + generate + refresh -->
+      <div id="props-topbar" style="display:flex;align-items:center;gap:8px;padding:10px 16px 8px;border-bottom:1px solid var(--border);flex-shrink:0">
+        <button id="filter-drawer-btn" onclick="openFilterDrawer()" style="display:flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border2);border-radius:20px;padding:7px 14px;font-family:var(--mono);font-size:11px;color:var(--text);cursor:pointer;flex-shrink:0;transition:all .15s">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+          Filters <span id="filter-active-count" style="display:none;background:var(--accent);color:#000;border-radius:10px;padding:1px 6px;font-size:9px;font-weight:700;margin-left:2px">0</span>
+        </button>
+        <button class="gen-btn" id="gen-btn" onclick="generateProps()" style="flex:1;margin:0;padding:8px 10px;font-size:12px;border-radius:20px;box-shadow:none">
+          <span id="gen-btn-text">Generate</span>
+        </button>
+        <button class="refetch-btn" id="refetch-btn" onclick="refetchAll()" style="margin:0;padding:8px 12px;width:auto;white-space:nowrap;flex-shrink:0;border-radius:20px" aria-label="Refresh">↺</button>
+        <button id="use-cache-btn" onclick="showCacheDetail()" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:20px;color:var(--muted);padding:8px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0">📦</button>
       </div>
 
-      <div id="mode-banner" style="margin-top:10px"></div>
+      <!-- Active filter summary chips (shown when filters active) -->
+      <div id="active-filter-chips" style="display:none;padding:6px 16px 0;gap:5px;flex-wrap:wrap"></div>
+
+      <div id="mode-banner" style="margin:0 16px;margin-top:8px"></div>
       <div id="data-source-bar" class="data-source-bar"></div>
-      <div id="props-list" style="padding-top:4px"></div>
+      <div id="props-list" style="padding-top:4px;padding-bottom:80px"></div>
+
+      <!-- Filter Drawer Overlay -->
+      <div id="filter-drawer-overlay" onclick="closeFilterDrawer()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:150;backdrop-filter:blur(2px)"></div>
+      <div id="filter-drawer" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:151;background:var(--bg2);border-radius:24px 24px 0 0;border:1px solid var(--border2);border-bottom:none;padding:0 0 calc(env(safe-area-inset-bottom)+16px);max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;transform:translateY(100%);transition:transform .3s cubic-bezier(.34,1.2,.64,1)">
+        <div style="position:sticky;top:0;background:var(--bg2);z-index:1;padding-bottom:8px">
+          <div style="width:36px;height:4px;background:var(--border2);border-radius:2px;margin:12px auto 0"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 20px 0">
+            <div style="font-size:16px;font-weight:800;letter-spacing:-.3px">Filters</div>
+            <div style="display:flex;gap:8px">
+              <button onclick="resetAllFilters()" style="font-family:var(--mono);font-size:10px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:8px;padding:4px 10px;cursor:pointer">Reset</button>
+              <button onclick="closeFilterDrawer()" style="font-family:var(--mono);font-size:10px;color:var(--text);background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:4px 12px;cursor:pointer;font-weight:700">Done ✓</button>
+            </div>
+          </div>
+        </div>
+        <div style="padding:0 16px 16px">
+
+          <div style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Sport</div>
+          <div class="filter-row" id="sport-filters" style="margin-bottom:14px">
+            <div class="filter-chip active" data-sport="all" onclick="toggleSportFilter('all',this)">All sports</div>
+            <div class="filter-chip" data-sport="NBA" onclick="toggleSportFilter('NBA',this)"><div class="sport-status-dot"></div>NBA</div>
+            <div class="filter-chip" data-sport="WNBA" onclick="toggleSportFilter('WNBA',this)"><div class="sport-status-dot"></div>WNBA</div>
+            <div class="filter-chip" data-sport="MLB" onclick="toggleSportFilter('MLB',this)"><div class="sport-status-dot"></div>MLB</div>
+            <div class="filter-chip" data-sport="NFL" onclick="toggleSportFilter('NFL',this)"><div class="sport-status-dot"></div>NFL</div>
+            <div class="filter-chip" data-sport="NHL" onclick="toggleSportFilter('NHL',this)"><div class="sport-status-dot"></div>NHL</div>
+            <div class="filter-chip" data-sport="GOLF" onclick="toggleSportFilter('GOLF',this)"><div class="sport-status-dot"></div>Golf</div>
+          </div>
+
+          <div style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Decision</div>
+          <div class="filter-row" id="dec-filters" style="margin-bottom:14px">
+            <div class="filter-chip active" data-dec="all" onclick="setFilter('dec','all',this)">All</div>
+            <div class="filter-chip" data-dec="OVER" onclick="setFilter('dec','OVER',this)">OVER</div>
+            <div class="filter-chip" data-dec="UNDER" onclick="setFilter('dec','UNDER',this)">UNDER</div>
+            <div class="filter-chip" data-dec="PASS" onclick="setFilter('dec','PASS',this)">PASS</div>
+          </div>
+
+          <div style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Prop type</div>
+          <div style="margin-bottom:14px">
+            <select id="prop-type-filter" onchange="setFilter('prop',this.value)" style="width:100%;font-family:var(--mono);font-size:11px;background:var(--bg3);color:var(--text);border:1px solid var(--border2);border-radius:10px;padding:9px 12px;cursor:pointer">
+              <option value="all">All prop types</option>
+              <optgroup label="── NBA/WNBA ──">
+                <option value="Points">Points</option>
+                <option value="Rebounds">Rebounds</option>
+                <option value="Assists">Assists</option>
+                <option value="Points + Rebounds + Assists">PRA</option>
+                <option value="Points + Rebounds">Points + Rebounds</option>
+                <option value="Points + Assists">Points + Assists</option>
+                <option value="Assists + Rebounds">Assists + Rebounds</option>
+                <option value="Threes Made">Threes Made</option>
+                <option value="Steals">Steals</option>
+                <option value="Blocks">Blocks</option>
+                <option value="Turnovers">Turnovers</option>
+                <option value="Steals + Blocks">Steals + Blocks</option>
+                <option value="Double Double">Double Double</option>
+                <option value="Triple Double">Triple Double</option>
+              </optgroup>
+              <optgroup label="── MLB Batters ──">
+                <option value="Hits">Hits</option>
+                <option value="Total Bases">Total Bases</option>
+                <option value="Home Runs">Home Runs</option>
+                <option value="Runs">Runs</option>
+                <option value="RBIs">RBIs</option>
+                <option value="Hits + Runs + RBIs">H+R+RBI</option>
+                <option value="Singles">Singles</option>
+                <option value="Doubles">Doubles</option>
+                <option value="Stolen Bases">Stolen Bases</option>
+                <option value="Walks">Walks</option>
+              </optgroup>
+              <optgroup label="── MLB Pitchers ──">
+                <option value="Strikeouts">Strikeouts</option>
+                <option value="Total Outs">Total Outs</option>
+                <option value="Hits Allowed">Hits Allowed</option>
+                <option value="Earned Runs">Earned Runs</option>
+                <option value="Runs First Inning">Runs First Inning</option>
+              </optgroup>
+              <optgroup label="── NFL ──">
+                <option value="Pass Yards">Pass Yards</option>
+                <option value="Rush Yards">Rush Yards</option>
+                <option value="Receiving Yards">Receiving Yards</option>
+                <option value="Receptions">Receptions</option>
+                <option value="Passing Touchdowns">Passing TDs</option>
+                <option value="Receiving Touchdown">Receiving TD</option>
+                <option value="Rush + Receiving Touchdowns">Rush+Rec TDs</option>
+                <option value="Anytime Touchdown">Anytime TD</option>
+                <option value="Targets">Targets</option>
+                <option value="Pass Attempts">Pass Attempts</option>
+                <option value="Rushing Attempts">Rush Attempts</option>
+                <option value="Interceptions Thrown">INTs Thrown</option>
+                <option value="Sacks">Sacks</option>
+                <option value="Total Tackles">Total Tackles</option>
+                <option value="FG Made">FG Made</option>
+                <option value="Kicking Points">Kicking Points</option>
+              </optgroup>
+              <optgroup label="── NHL ──">
+                <option value="Points">Points (NHL)</option>
+                <option value="Goals">Goals</option>
+                <option value="Assists">Assists (NHL)</option>
+                <option value="Shots on Goal">Shots on Goal</option>
+                <option value="Power Play Points">Power Play Pts</option>
+                <option value="Blocks">Blocks (NHL)</option>
+                <option value="Saves">Saves</option>
+                <option value="Goals Against">Goals Against</option>
+              </optgroup>
+              <optgroup label="── Golf ──">
+                <option value="Strokes">Strokes</option>
+                <option value="Birdies or Better">Birdies or Better</option>
+                <option value="Bogeys or Worse">Bogeys or Worse</option>
+              </optgroup>
+            </select>
+          </div>
+
+          <div style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Date</div>
+          <div class="filter-row" id="date-filters" style="margin-bottom:14px">
+            <div class="filter-chip active" data-date="all" onclick="setFilter('date','all',this)">All dates</div>
+            <div class="filter-chip" id="chip-today" data-date="today" onclick="setFilter('date','today',this)">Today</div>
+            <div class="filter-chip" id="chip-tomorrow" data-date="tomorrow" onclick="setFilter('date','tomorrow',this)">Tomorrow</div>
+          </div>
+
+          <div id="game-filters" class="filter-row" style="margin-bottom:14px;display:none"></div>
+
+          <div style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Sort by</div>
+          <div class="filter-row" id="sort-filters" style="margin-bottom:14px">
+            <div class="filter-chip active" data-sort="conf" onclick="setSortBy('conf',this)">Confidence</div>
+            <div class="filter-chip" data-sort="edge" onclick="setSortBy('edge',this)">Edge</div>
+            <div class="filter-chip" data-sort="proj" onclick="setSortBy('proj',this)">Projection</div>
+            <div class="filter-chip" data-sort="data" onclick="setSortBy('data',this)">Data quality</div>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:12px;margin-bottom:6px">
+            <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">🩹 Injury boosts</span>
+            <button id="injury-boost-toggle" onclick="toggleInjuryBoost()" style="font-family:var(--mono);font-size:10px;padding:4px 12px;border-radius:8px;border:1px solid var(--border2);background:rgba(107,122,141,.1);color:var(--muted);cursor:pointer">OFF</button>
+          </div>
+
+          <div class="cache-status-bar" id="cache-status-bar" style="margin-top:8px"></div>
+        </div>
+      </div>
     </div>
 
     <!-- GRAPH TAB -->
@@ -1279,7 +1320,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           </div>
           <div>
             <div style="font-size:17px;font-weight:800;letter-spacing:-.4px">PropEdge</div>
-            <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:3px">v18.77 · Local</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:3px">v18.79 · Local</div>
           </div>
         </div>
 
@@ -2843,24 +2884,30 @@ function updateModeBanner() {
 
 function setViewMode(mode) {
   viewMode = mode;
-  // Update pre-generate mode selector buttons
+  // Animate pill toggle
+  const knob = document.getElementById('mode-pill-knob');
+  const pill = document.getElementById('mode-pill');
+  const lbl = document.getElementById('mode-pill-knob-label');
+  if(knob && pill) {
+    if(mode === 'betting') {
+      knob.style.left = 'calc(100% - 42px)';
+      knob.style.background = '#00e5a0';
+      if(lbl) lbl.style.color = '#000';
+      if(lbl) lbl.textContent = 'BET';
+      pill.style.borderColor = 'rgba(0,229,160,0.35)';
+    } else {
+      knob.style.left = '2px';
+      knob.style.background = '#ffb547';
+      if(lbl) lbl.style.color = '#000';
+      if(lbl) lbl.textContent = 'ANLS';
+      pill.style.borderColor = 'rgba(255,181,71,0.35)';
+    }
+  }
+  // Legacy button refs (kept for any other code that checks them)
   const bBtn = document.getElementById('mode-select-betting');
   const aBtn = document.getElementById('mode-select-analysis');
-  if(bBtn) {
-    bBtn.style.background = mode === 'betting' ? 'rgba(0,229,160,0.15)' : 'transparent';
-    bBtn.style.color = mode === 'betting' ? 'var(--accent)' : 'var(--muted)';
-    bBtn.style.fontWeight = mode === 'betting' ? '700' : '400';
-    // Active mode gets a bottom border so inactive state has clear affordance
-    bBtn.style.borderBottom = mode === 'betting' ? '2px solid var(--accent)' : '2px solid transparent';
-    bBtn.setAttribute('aria-pressed', mode === 'betting' ? 'true' : 'false');
-  }
-  if(aBtn) {
-    aBtn.style.background = mode === 'analysis' ? 'rgba(255,181,71,0.15)' : 'transparent';
-    aBtn.style.color = mode === 'analysis' ? 'var(--amber)' : 'var(--muted)';
-    aBtn.style.fontWeight = mode === 'analysis' ? '700' : '400';
-    aBtn.style.borderBottom = mode === 'analysis' ? '2px solid var(--amber)' : '2px solid transparent';
-    aBtn.setAttribute('aria-pressed', mode === 'analysis' ? 'true' : 'false');
-  }
+  if(bBtn) bBtn.setAttribute('aria-pressed', mode === 'betting' ? 'true' : 'false');
+  if(aBtn) aBtn.setAttribute('aria-pressed', mode === 'analysis' ? 'true' : 'false');
   updateModeBanner();
   updateCacheStatusBar();
   renderProps();
@@ -3176,7 +3223,97 @@ function setDateBar() {
 // ═══════════════════════════════════════════════════════
 // TAB NAVIGATION
 // ═══════════════════════════════════════════════════════
+function openFilterDrawer() {
+  const drawer = document.getElementById('filter-drawer');
+  const overlay = document.getElementById('filter-drawer-overlay');
+  if(!drawer || !overlay) return;
+  drawer.style.display = 'block';
+  overlay.style.display = 'block';
+  requestAnimationFrame(() => { drawer.style.transform = 'translateY(0)'; });
+}
+
+function closeFilterDrawer() {
+  const drawer = document.getElementById('filter-drawer');
+  const overlay = document.getElementById('filter-drawer-overlay');
+  if(!drawer) return;
+  drawer.style.transform = 'translateY(100%)';
+  setTimeout(() => {
+    drawer.style.display = 'none';
+    if(overlay) overlay.style.display = 'none';
+  }, 300);
+}
+
+function resetAllFilters() {
+  // Reset sport
+  document.querySelectorAll('#sport-filters .filter-chip').forEach(c => c.classList.remove('active'));
+  const allSport = document.querySelector('#sport-filters [data-sport="all"]');
+  if(allSport) allSport.classList.add('active');
+  filters.sports = new Set(['all']);
+  // Reset decision
+  document.querySelectorAll('#dec-filters .filter-chip').forEach(c => c.classList.remove('active'));
+  const allDec = document.querySelector('#dec-filters [data-dec="all"]');
+  if(allDec) allDec.classList.add('active');
+  filters.dec = 'all';
+  // Reset prop type
+  const ptf = document.getElementById('prop-type-filter');
+  if(ptf) ptf.value = 'all';
+  filters.prop = 'all';
+  // Reset date
+  document.querySelectorAll('#date-filters .filter-chip').forEach(c => c.classList.remove('active'));
+  const allDate = document.querySelector('#date-filters [data-date="all"]');
+  if(allDate) allDate.classList.add('active');
+  filters.date = 'all';
+  // Reset sort
+  document.querySelectorAll('#sort-filters .filter-chip').forEach(c => c.classList.remove('active'));
+  const confSort = document.querySelector('#sort-filters [data-sort="conf"]');
+  if(confSort) confSort.classList.add('active');
+  filters.sort = 'conf';
+  updateFilterBadge();
+  renderProps();
+  closeFilterDrawer();
+}
+
+function updateFilterBadge() {
+  const count = [
+    !filters.sports.has('all') ? filters.sports.size : 0,
+    filters.dec && filters.dec !== 'all' ? 1 : 0,
+    filters.prop && filters.prop !== 'all' ? 1 : 0,
+    filters.date && filters.date !== 'all' ? 1 : 0,
+  ].reduce((a,b) => a+b, 0);
+  const badge = document.getElementById('filter-active-count');
+  const btn = document.getElementById('filter-drawer-btn');
+  if(!badge) return;
+  if(count > 0) {
+    badge.textContent = count;
+    badge.style.display = 'inline-block';
+    if(btn) btn.style.borderColor = 'rgba(0,229,160,.4)';
+  } else {
+    badge.style.display = 'none';
+    if(btn) btn.style.borderColor = '';
+  }
+  // Update active filter summary chips
+  updateActiveFilterChips();
+}
+
+function updateActiveFilterChips() {
+  const wrap = document.getElementById('active-filter-chips');
+  if(!wrap) return;
+  const chips = [];
+  if(!filters.sports.has('all')) [...filters.sports].forEach(s => chips.push(s));
+  if(filters.dec && filters.dec !== 'all') chips.push(filters.dec);
+  if(filters.prop && filters.prop !== 'all') chips.push(filters.prop);
+  if(filters.date && filters.date !== 'all') chips.push(filters.date === 'today' ? 'Today' : 'Tomorrow');
+  if(chips.length === 0) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'flex';
+  wrap.innerHTML = chips.map(c =>
+    `<div style="font-family:var(--mono);font-size:9px;background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.25);color:var(--accent);border-radius:12px;padding:3px 8px;flex-shrink:0">${c}</div>`
+  ).join('') + `<div onclick="resetAllFilters()" style="font-family:var(--mono);font-size:9px;color:var(--muted);border:1px solid var(--border);border-radius:12px;padding:3px 8px;cursor:pointer;flex-shrink:0">✕ Clear</div>`;
+}
+
 function showTab(id, el) {
+  const topbar = document.getElementById('props-topbar');
+  if(topbar) topbar.style.display = id === 'props' ? 'flex' : 'none';
+  closeFilterDrawer();
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + id).classList.add('active');
@@ -11225,6 +11362,7 @@ function toggleSportFilter(sport, el) {
   }
 
   renderProps();
+  updateFilterBadge();
 }
 
 // ── GAME FILTER — dynamically built from current cached props ──
@@ -11291,6 +11429,7 @@ function setFilter(type, val, el) {
   if(type === 'prop') {
     filters.prop = val;
     renderProps();
+    updateFilterBadge();
     return;
   }
   const groupMap = { dec: 'dec-filters', date: 'date-filters' };
@@ -11300,6 +11439,7 @@ function setFilter(type, val, el) {
   if(el) el.classList.add('active');
   filters[type] = val;
   renderProps();
+  updateFilterBadge();
 }
 
 // ═══════════════════════════════════════════════════════
