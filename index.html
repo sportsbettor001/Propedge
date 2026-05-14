@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.70</title>
+<title>PropEdge v18.71</title>
 
 <style>
 :root{--bg:#0a0d12;--bg2:#111519;--bg3:#171c24;--bg4:#1e2530;--border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.11);--text:#eef2f7;--muted:#5a6a7e;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'SF Mono','Fira Code','Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif;--radius:18px;--card-shadow:0 2px 16px rgba(0,0,0,.35)}
@@ -1268,7 +1268,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           <div style="width:48px;height:48px;border-radius:50%;background:var(--bg3);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">👤</div>
           <div>
             <div style="font-size:16px;font-weight:700;letter-spacing:-.3px">PropEdge</div>
-            <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:2px">v18.70 · Local</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:2px">v18.71 · Local</div>
           </div>
         </div>
 
@@ -11481,8 +11481,12 @@ function propRowHTML(p) {
   const inSlip = STATE.slip.some(s => s.id === p.id);
   const isExpanded = expandedCards.has(p.id);
 
-  // Avatar initials
-  const initials = p.player.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  // Avatar — ESPN headshot with initials fallback
+  const espnId = p.dataSource?.espnId;
+  const sportPath = p.sport === 'MLB' ? 'mlb' : p.sport === 'NFL' ? 'nfl' : p.sport === 'NHL' ? 'nhl' : p.sport === 'WNBA' ? 'wnba' : 'nba';
+  const avatarHTML = espnId
+    ? `<img src="https://a.espncdn.com/combiner/i?img=/i/headshots/${sportPath}/players/full/${espnId}.png&w=72&h=52&cb=1" alt="${initials}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block" onerror="this.outerHTML='<span style=\\'display:flex;width:100%;height:100%;align-items:center;justify-content:center;font-size:13px;font-weight:700\\'>${initials}</span>'">`
+    : initials;
 
   // Book display
   const bookName = p.book || (p.dataSource?.hasRealLine ? 'Book' : 'Est.');
@@ -11493,50 +11497,50 @@ function propRowHTML(p) {
     const reasoningHTML = (p.reasoning || []).map(r => `<div class="reasoning-line">${r}</div>`).join('');
     const dataLabel = p.dataSource?.gamelog > 0 ? `${p.dataSource.gamelog} game logs` : 'no game logs';
     const completenessScore = p.completeness ?? null;
-    const completenessColor = completenessScore >= 85 ? 'var(--accent)' : completenessScore >= 60 ? 'var(--amber)' : 'var(--red)';
+    const completenessColor = completenessScore >= 85 ? '#00e5a0' : completenessScore >= 60 ? '#ffb547' : '#ff4d6a';
     const hitRateHTML = p.hitRateSeason ? `
       <div class="hit-rate-row" style="margin-bottom:8px">
         <div class="hit-rate-label">Season HR</div>
-        <div class="hit-rate-track"><div class="hit-rate-fill" style="width:${p.hitRateSeason.pct}%;background:${p.hitRateSeason.pct>=60?'var(--accent)':p.hitRateSeason.pct>=45?'var(--amber)':'var(--red)'}"></div></div>
-        <div class="hit-rate-pct" style="color:${p.hitRateSeason.pct>=60?'var(--accent)':p.hitRateSeason.pct>=45?'var(--amber)':'var(--red)'}">${p.hitRateSeason.pct}%</div>
+        <div class="hit-rate-track"><div class="hit-rate-fill" style="width:${p.hitRateSeason.pct}%;background:${p.hitRateSeason.pct>=60?'#00e5a0':p.hitRateSeason.pct>=45?'#ffb547':'#ff4d6a'}"></div></div>
+        <div class="hit-rate-pct" style="color:${p.hitRateSeason.pct>=60?'#00e5a0':p.hitRateSeason.pct>=45?'#ffb547':'#ff4d6a'}">${p.hitRateSeason.pct}%</div>
       </div>` : '';
 
-    // L5/L10 chart — use real hex, not CSS vars in SVG attrs
+    // L5/L10 chart — .v is the correct field name from recentGames
     const chartHTML = (() => {
       const g = p.recentGames;
-      if(!g || g.length < 3) return '';
-      const vals = g.slice(-10).map(gm => typeof gm === 'object' ? (gm.val ?? gm.value ?? gm) : gm).filter(v => typeof v === 'number');
-      if(vals.length < 2) return '';
+      if(!g || g.length < 3) return '<div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.3);text-align:center;padding:12px 0">No game log data</div>';
+      const vals = g.slice(-10).map(gm => typeof gm === 'object' ? (gm.v ?? gm.val ?? gm.value ?? gm) : gm).filter(v => typeof v === 'number');
+      if(vals.length < 2) return '<div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.3);text-align:center;padding:12px 0">No game log data</div>';
       const lineVal = p.line ?? null;
-      const mn = Math.min(...vals, lineVal ?? Infinity) === Infinity ? Math.min(...vals) : Math.min(...vals, lineVal);
-      const mx = Math.max(...vals, lineVal ?? -Infinity) === -Infinity ? Math.max(...vals) : Math.max(...vals, lineVal);
-      const rng = mx - mn || 1;
-      const W = 280, H = 64;
-      const px = (i) => (i/(vals.length-1))*(W-8)+4;
-      const py = (v) => (H-8)-((v-mn)/rng)*(H-16)+4;
-      const pts = vals.map((v,i) => `${px(i)},${py(v)}`).join(' ');
+      const allNums = lineVal != null ? [...vals, lineVal] : vals;
+      const mn = Math.min(...allNums), mx = Math.max(...allNums), rng = mx - mn || 1;
+      const W = 280, H = 70;
+      const px = (i) => (i / (vals.length - 1)) * (W - 8) + 4;
+      const py = (v) => (H - 10) - ((v - mn) / rng) * (H - 20) + 5;
+      const pts = vals.map((v, i) => `${px(i)},${py(v)}`).join(' ');
       const lineY = lineVal != null ? py(lineVal) : null;
       const chartColor = decLow === 'over' ? '#00e5a0' : decLow === 'under' ? '#ff4d6a' : '#ffb547';
-      const lineSVG = lineY != null ? `<line x1="0" y1="${lineY}" x2="${W}" y2="${lineY}" stroke="rgba(255,255,255,0.18)" stroke-width="1" stroke-dasharray="4,3"/>` : '';
-      const dotsSVG = vals.map((v,i) => {
+      const lineSVG = lineY != null ? `<line x1="0" y1="${lineY}" x2="${W}" y2="${lineY}" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-dasharray="5,3"/>` : '';
+      const dotsSVG = vals.map((v, i) => {
         const hit = lineVal != null ? v > lineVal : true;
-        return `<circle cx="${px(i)}" cy="${py(v)}" r="3.5" fill="${hit ? chartColor : '#ff4d6a'}" opacity="0.9"/>`;
+        return `<circle cx="${px(i)}" cy="${py(v)}" r="4" fill="${hit ? chartColor : '#ff4d6a'}" opacity="0.95"/>`;
       }).join('');
+      const labels = g.slice(-10).map(gm => gm.opp || '').slice(-vals.length);
       return `<div class="prop-expand-chart">
-        <div class="pec-label"><span>L${vals.length} Game Log · ${p.prop}</span><span>${lineVal != null ? 'Line: '+lineVal : ''}</span></div>
-        <svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block;overflow:visible">
+        <div class="pec-label"><span>L${vals.length} · ${p.prop}</span><span>${lineVal != null ? 'Line: ' + lineVal : ''}</span></div>
+        <svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block;overflow:visible;margin:4px 0">
           ${lineSVG}
-          <polyline points="${pts}" fill="none" stroke="${chartColor}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.85"/>
+          <polyline points="${pts}" fill="none" stroke="${chartColor}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>
           ${dotsSVG}
         </svg>
-        <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:8px;color:rgba(255,255,255,0.3);margin-top:4px"><span>Oldest</span><span>Most Recent</span></div>
+        <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:8px;color:rgba(255,255,255,0.25);margin-top:2px"><span>${labels[0]||'Oldest'}</span><span>${labels[labels.length-1]||'Latest'}</span></div>
       </div>`;
     })();
 
     return `<div class="prop-expand open" id="pexpand-${p.id}">
       <div class="prop-expand-grid">
         <div class="peg-block"><div class="peg-val ${decLow==='over'?'green':decLow==='under'?'red':''}">${projDisplay}</div><div class="peg-lab">Projection</div></div>
-        <div class="peg-block"><div class="peg-val">${isAnalysis ? '—' : (p.line ?? '—')}</div><div class="peg-lab">Line</div></div>
+        <div class="peg-block"><div class="peg-val">${p.line ?? '—'}</div><div class="peg-lab">Line</div></div>
         <div class="peg-block"><div class="peg-val ${ev>=0?'green':'red'}">${evSign}${ev}%</div><div class="peg-lab">Edge / EV</div></div>
         <div class="peg-block"><div class="peg-val blue">${p.conf}/10</div><div class="peg-lab">Confidence</div></div>
         <div class="peg-block"><div class="peg-val">${p.overProb ?? '—'}%</div><div class="peg-lab">P(Over)</div></div>
@@ -11552,15 +11556,15 @@ function propRowHTML(p) {
     </div>`;
   })();
 
-  // Row sparkline — use real hex colors, not CSS vars (SVG attr doesn't support them)
+  // Row sparkline — .v is correct field, use hex colors (CSS vars don't work in SVG attrs)
   const sparkColor = decLow === 'over' ? '#00e5a0' : decLow === 'under' ? '#ff4d6a' : '#ffb547';
   const sparkSVG = (() => {
     const g = p.recentGames;
     if(!g || g.length < 3) return `<svg width="44" height="26" viewBox="0 0 44 26"><line x1="2" y1="13" x2="42" y2="13" stroke="rgba(255,255,255,0.12)" stroke-width="1.5" stroke-linecap="round"/></svg>`;
-    const vals = g.slice(-8).map(gm => typeof gm === 'object' ? (gm.val ?? gm.value ?? gm) : gm).filter(v => typeof v === 'number');
+    const vals = g.slice(-8).map(gm => typeof gm === 'object' ? (gm.v ?? gm.val ?? gm.value ?? gm) : gm).filter(v => typeof v === 'number');
     if(vals.length < 2) return `<svg width="44" height="26" viewBox="0 0 44 26"><line x1="2" y1="13" x2="42" y2="13" stroke="rgba(255,255,255,0.12)" stroke-width="1.5" stroke-linecap="round"/></svg>`;
     const mn = Math.min(...vals), mx = Math.max(...vals), rng = mx - mn || 1;
-    const pts = vals.map((v,i) => `${(i/(vals.length-1))*40+2},${22-((v-mn)/rng)*18+2}`).join(' ');
+    const pts = vals.map((v, i) => `${(i / (vals.length - 1)) * 40 + 2},${22 - ((v - mn) / rng) * 18 + 2}`).join(' ');
     return `<svg width="44" height="26" viewBox="0 0 44 26"><polyline points="${pts}" fill="none" stroke="${sparkColor}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
   })();
 
@@ -11584,7 +11588,7 @@ function propRowHTML(p) {
   return `<div class="prop-row-wrap" id="prowrap-${p.id}">
     <div class="prop-row" onclick="togglePropExpand(${p.id})">
       <div class="prop-row-accent ${decLow}"></div>
-      <div class="prop-avatar">${initials}</div>
+      <div class="prop-avatar">${avatarHTML}</div>
       <div class="prop-row-main">
         <div class="prop-row-player">${p.player}${p.injuryStatus ? ' 🤕' : ''}</div>
         <div class="prop-row-meta">${p.prop} · ${p.team||''} vs ${p.opp||'?'} · ${p.date==='tomorrow'?'TMR':'TODAY'}</div>
