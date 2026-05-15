@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#080c10"/>
-<title>PropEdge v18.79</title>
+<title>PropEdge v18.83</title>
 
 <style>
 :root{--bg:#0a0d12;--bg2:#111519;--bg3:#171c24;--bg4:#1e2530;--border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.11);--text:#eef2f7;--muted:#5a6a7e;--accent:#00e5a0;--accent2:#0affb4;--red:#ff4d6a;--amber:#ffb547;--blue:#4db8ff;--purple:#b48fff;--mono:'SF Mono','Fira Code','Courier New',ui-monospace,monospace;--sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif;--radius:18px;--card-shadow:0 2px 16px rgba(0,0,0,.35)}
@@ -453,17 +453,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .t-lab{font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-top:4px}
 
 /* REC SLIP CARDS */
-/* TOP PROP EDGE CARD */
-.tpe-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin:12px 16px 4px}
-.tpe-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
-.tpe-title{font-size:15px;font-weight:700;letter-spacing:-.3px;display:flex;align-items:center;gap:6px}
-.tpe-info{font-size:12px;color:var(--muted);font-weight:400}
-.tpe-period{font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:4px 10px;cursor:pointer}
-.tpe-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:10px}
-.tpe-metric{text-align:center}
-.tpe-val{font-size:18px;font-weight:800;letter-spacing:-1px;line-height:1.1}
-.tpe-lab{font-family:var(--mono);font-size:8px;color:var(--muted);margin-top:3px;text-align:center;letter-spacing:.2px}
-
 /* COMPACT PROP ROWS */
 .prop-row{background:var(--bg2);border-bottom:1px solid var(--border);padding:12px 16px 12px 18px;cursor:pointer;transition:background .1s;position:relative;display:flex;align-items:center;gap:11px}
 .prop-row:active{background:var(--bg3)}
@@ -558,20 +547,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 
     <!-- PROPS TAB -->
     <div id="tab-props" class="page active">
-      <!-- Top Prop Edge card -->
-      <div class="tpe-card">
-        <div class="tpe-header">
-          <div class="tpe-title">Top Prop Edge <span class="tpe-info">ⓘ</span></div>
-          <div class="tpe-period">Today ▾</div>
-        </div>
-        <div class="tpe-metrics">
-          <div class="tpe-metric"><div class="tpe-val green" id="m-strong">—</div><div class="tpe-lab">Avg. Edge</div></div>
-          <div class="tpe-metric"><div class="tpe-val" id="m-conf">—</div><div class="tpe-lab">Hit Rate</div></div>
-          <div class="tpe-metric"><div class="tpe-val green" id="m-roi">—</div><div class="tpe-lab">Proj. Profit</div></div>
-          <div class="tpe-metric"><div class="tpe-val" id="m-count">—</div><div class="tpe-lab">Props Analyzed</div></div>
-        </div>
-        <canvas id="tpe-sparkline" height="56" style="width:100%;display:block;margin-top:4px"></canvas>
-      </div>
 
       <!-- Always-visible top bar: filter pill + generate + refresh -->
       <div id="props-topbar" style="display:flex;align-items:center;gap:8px;padding:10px 16px 8px;border-bottom:1px solid var(--border);flex-shrink:0">
@@ -580,7 +555,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           Filters <span id="filter-active-count" style="display:none;background:var(--accent);color:#000;border-radius:10px;padding:1px 6px;font-size:9px;font-weight:700;margin-left:2px">0</span>
         </button>
         <button class="gen-btn" id="gen-btn" onclick="generateProps()" style="flex:1;margin:0;padding:8px 10px;font-size:12px;border-radius:20px;box-shadow:none">
-          <span id="gen-btn-text">Generate</span>
+          <span id="gen-btn-text">Run Model Scan</span>
         </button>
         <button class="refetch-btn" id="refetch-btn" onclick="refetchAll()" style="margin:0;padding:8px 12px;width:auto;white-space:nowrap;flex-shrink:0;border-radius:20px" aria-label="Refresh">↺</button>
         <button id="use-cache-btn" onclick="showCacheDetail()" style="display:none;font-family:var(--mono);font-size:10px;background:var(--bg3);border:1px solid var(--border2);border-radius:20px;color:var(--muted);padding:8px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0">📦</button>
@@ -985,7 +960,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           <button onclick="document.querySelectorAll('.trace-section').forEach(s=>s.classList.add('collapsed'));document.querySelectorAll('.trace-arrow').forEach(a=>a.textContent='▶')" style="font-family:var(--mono);font-size:8px;background:var(--bg3);color:var(--blue);border:1px solid var(--border);border-radius:5px;padding:2px 8px;cursor:pointer">▶ Collapse All</button>
         </div>
       </div>
-      <div id="trace-panel"><div class="trace-empty">Run "Generate Props" to populate trace log.</div></div>
+      <div id="trace-panel"><div class="trace-empty">Run "Run Model Scan" to populate trace log.</div></div>
     </div>
 
     <!-- CHECK PICK TAB -->
@@ -1279,13 +1254,32 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
       <!-- Sub-nav -->
       <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px;overflow-x:auto;scrollbar-width:none;flex-shrink:0">
         <div class="mybets-subnav active" data-sub="slip" onclick="showMyBetsSub('slip',this)" style="flex-shrink:0;padding:10px 16px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;white-space:nowrap">My Slip</div>
-        <div class="mybets-subnav" data-sub="slips" onclick="showMyBetsSub('slips',this)" style="flex-shrink:0;padding:10px 16px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;white-space:nowrap">Saved Slips</div>
+        <div class="mybets-subnav" data-sub="recommended" onclick="showMyBetsSub('recommended',this)" style="flex-shrink:0;padding:10px 16px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;white-space:nowrap">⚡ Recommended</div>
+        <div class="mybets-subnav" data-sub="slips" onclick="showMyBetsSub('slips',this)" style="flex-shrink:0;padding:10px 16px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;white-space:nowrap">Saved</div>
         <div class="mybets-subnav" data-sub="tracker" onclick="showMyBetsSub('tracker',this)" style="flex-shrink:0;padding:10px 16px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;white-space:nowrap">History</div>
       </div>
       <!-- My Slip pane -->
       <div id="mybets-slip" class="mybets-pane" style="display:block">
         <div id="slip-list-mybets"></div>
         <div id="slip-summary-mybets" style="margin-top:10px"></div>
+      </div>
+      <!-- Recommended Slips pane — mirrors tab-slips content -->
+      <div id="mybets-recommended" class="mybets-pane" style="display:none">
+        <div class="rec-slip-header">
+          <div>
+            <div class="rec-slip-title">Recommended Slips</div>
+            <div class="rec-slip-sub" id="rec-slip-sub-mybets">Generate props first — then tap Build</div>
+          </div>
+          <button onclick="buildRecommendedSlips()" style="font-family:var(--mono);font-size:11px;font-weight:700;padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:12px;cursor:pointer">⚡ Build</button>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap" id="rec-slip-filters-mybets">
+          <div class="filter-chip active" onclick="setRecSize('all',this)">All</div>
+          <div class="filter-chip" onclick="setRecSize('2',this)">2-leg</div>
+          <div class="filter-chip" onclick="setRecSize('3',this)">3-leg</div>
+          <div class="filter-chip" onclick="setRecSize('4',this)">4-leg</div>
+          <div class="filter-chip" onclick="setRecSize('5',this)">5-leg</div>
+        </div>
+        <div id="rec-slips-list-mybets"></div>
       </div>
       <!-- Saved Slips pane -->
       <div id="mybets-slips" class="mybets-pane" style="display:none">
@@ -1320,7 +1314,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
           </div>
           <div>
             <div style="font-size:17px;font-weight:800;letter-spacing:-.4px">PropEdge</div>
-            <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:3px">v18.79 · Local</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-top:3px">v18.83 · Local</div>
           </div>
         </div>
 
@@ -2787,7 +2781,7 @@ function renderTrace() {
   const panel = document.getElementById('trace-panel');
   if(!panel) return;
   const t = STATE.trace;
-  if(!t) { panel.innerHTML = '<div class="trace-empty">No trace data. Run "Generate Props" to populate.</div>'; return; }
+  if(!t) { panel.innerHTML = '<div class="trace-empty">No trace data. Run "Run Model Scan" to populate.</div>'; return; }
   const labels = { gameIngestion:'1 · Game Ingestion', playerDiscovery:'2 · Player Discovery',
     projectionEngine:'3 · Projection Engine', filteringLog:'4 · Filtering', outputLog:'5 · Output (log entries)' };
   const modeColor = t.mode==='betting' ? 'var(--accent)' : 'var(--amber)';
@@ -2848,36 +2842,27 @@ function updateModeBanner() {
   const el = document.getElementById('mode-banner');
   if(!el) return;
 
-  // Check what is actually cached per mode
   const hasBettingCache = STATE.bettingCache && Object.values(STATE.bettingCache).some(e => e?.props?.length > 0);
   const hasAnalysisCache = STATE.analysisCache && Object.values(STATE.analysisCache).some(e => e?.props?.length > 0);
-  const eitherHasData = hasBettingCache || hasAnalysisCache ||
-    (STATE.sportCache && Object.values(STATE.sportCache).some(e => e?.props?.length > 0));
 
-  // Toggle always shown when either cache has data
-  const toggleHTML = eitherHasData ? `
-    <div style="margin-left:auto;display:flex;gap:0;border:1px solid rgba(255,255,255,0.12);border-radius:6px;overflow:hidden;flex-shrink:0">
-      <button onclick="setViewMode('betting')" style="font-family:var(--mono);font-size:9px;padding:3px 8px;border:none;cursor:pointer;font-weight:${viewMode==='betting'?'700':'400'};background:${viewMode==='betting'?'rgba(0,229,160,0.2)':'transparent'};color:${viewMode==='betting'?'var(--accent)':'var(--muted)'}">BETTING</button>
-      <button onclick="setViewMode('analysis')" style="font-family:var(--mono);font-size:9px;padding:3px 8px;border:none;border-left:1px solid rgba(255,255,255,0.12);cursor:pointer;font-weight:${viewMode==='analysis'?'700':'400'};background:${viewMode==='analysis'?'rgba(255,181,71,0.2)':'transparent'};color:${viewMode==='analysis'?'var(--amber)':'var(--muted)'}">ANALYSIS</button>
-    </div>` : '';
-
-  // Banner driven entirely by viewMode — not by what is in cache
   if(viewMode === 'analysis') {
     el.className = 'mode-banner analysis';
-    el.innerHTML = `<div class="mode-banner-dot"></div>ANALYSIS MODE — Projections only · No market lines${toggleHTML}`;
+    el.innerHTML = `<div class="mode-banner-dot"></div>ANALYSIS MODE — Showing projections only · No sportsbook lines needed`;
   } else {
-    // Betting mode — sub-label depends on whether betting cache actually has real lines
     const hasRealLines = hasBettingCache &&
       Object.values(STATE.bettingCache).some(e => e?.props?.some(p => p.dataSource?.hasRealLine === true));
+    const liveCount = hasBettingCache
+      ? Object.values(STATE.bettingCache).reduce((a, e) => a + (e?.props?.filter(p => p.dataSource?.hasRealLine)?.length || 0), 0)
+      : 0;
     if(hasRealLines) {
       el.className = 'mode-banner betting';
-      el.innerHTML = `<div class="mode-banner-dot"></div>BETTING MODE — Real sportsbook lines active${toggleHTML}`;
-    } else if(eitherHasData) {
+      el.innerHTML = `<div class="mode-banner-dot"></div>BETTING MODE — ${liveCount} live sportsbook line${liveCount !== 1 ? 's' : ''} active`;
+    } else if(hasBettingCache) {
       el.className = 'mode-banner betting';
-      el.innerHTML = `<div class="mode-banner-dot"></div>BETTING MODE — No lines cached · Hit Refresh to fetch${toggleHTML}`;
+      el.innerHTML = `<div class="mode-banner-dot"></div>BETTING MODE — No live lines found · Add Odds API key in Account or hit Refresh`;
     } else {
       el.className = 'mode-banner betting';
-      el.innerHTML = `<div class="mode-banner-dot"></div>BETTING MODE — Generate props to fetch sportsbook lines${toggleHTML}`;
+      el.innerHTML = `<div class="mode-banner-dot"></div>BETTING MODE — Hit Generate to fetch sportsbook lines`;
     }
   }
 }
@@ -2918,11 +2903,19 @@ const CACHE_FRESH_MS = 2 * 60 * 60 * 1000; // 2 hours = fresh (green)
 const CACHE_STALE_MS = 6 * 60 * 60 * 1000; // 6 hours = stale (yellow) — beyond this we force re-fetch
 
 function getCacheStatus(sport) {
-  // Check ONLY the viewMode-appropriate cache — no fallback to sportCache
-  // This ensures betting mode always re-fetches when bettingCache is empty
+  // Always check the cache matching the current viewMode
   const cache = viewMode === 'analysis' ? STATE.analysisCache : STATE.bettingCache;
   const entry = cache?.[sport];
-  if(!entry || !entry.fetchedAt) return 'none';
+  if(!entry || !entry.fetchedAt) {
+    // Fallback to legacy sportCache
+    const legacyEntry = STATE.sportCache?.[sport];
+    if(!legacyEntry || !legacyEntry.fetchedAt) return 'none';
+    if(!legacyEntry.props?.length) return 'no-games';
+    const age = Date.now() - legacyEntry.fetchedAt;
+    if(age < CACHE_FRESH_MS) return 'fresh';
+    if(age < CACHE_STALE_MS) return 'stale';
+    return 'expired';
+  }
   // Entry exists and was fetched, but returned zero props = no games today
   if(!entry.props?.length) return 'no-games';
   const age = Date.now() - entry.fetchedAt;
@@ -3357,17 +3350,47 @@ function showMyBetsSub(sub, el) {
   el.style.borderBottomColor = 'var(--accent)';
   document.getElementById('mybets-' + sub).style.display = 'block';
   if(sub === 'slip') renderMyBetsSlip();
+  if(sub === 'recommended') renderMyBetsRecommended();
   if(sub === 'slips') renderMyBetsSlips();
   if(sub === 'tracker') renderMyBetsTracker();
 }
 
 function renderMyBetsTab() {
-  // render the active pane
   const active = document.querySelector('.mybets-subnav[style*="var(--text)"]') || document.querySelector('.mybets-subnav');
   const sub = active ? active.getAttribute('data-sub') : 'slip';
   if(sub === 'slip') renderMyBetsSlip();
+  if(sub === 'recommended') renderMyBetsRecommended();
   if(sub === 'slips') renderMyBetsSlips();
   if(sub === 'tracker') renderMyBetsTracker();
+}
+
+function renderMyBetsRecommended() {
+  // Mirror the full recommended slips engine into the mybets pane
+  const allProps = getAllCachedProps();
+  const subEl = document.getElementById('rec-slip-sub-mybets');
+  const listEl = document.getElementById('rec-slips-list-mybets');
+  if(!listEl) return;
+  if(!allProps.length) {
+    if(subEl) subEl.textContent = 'Generate props first — then tap Build';
+    listEl.innerHTML = `<div class="empty"><div class="empty-title">No props cached</div><div class="empty-sub">Go to Props tab, generate props, then come back to build recommended slips.</div></div>`;
+    return;
+  }
+  // Trigger the main recommended slips engine and mirror output
+  const mainList = document.getElementById('rec-slips-list');
+  if(mainList && mainList.innerHTML) {
+    listEl.innerHTML = mainList.innerHTML;
+    if(subEl) {
+      const mainSub = document.getElementById('rec-slip-sub');
+      if(mainSub) subEl.textContent = mainSub.textContent;
+    }
+  } else {
+    buildRecommendedSlips();
+    setTimeout(() => {
+      if(mainList) listEl.innerHTML = mainList.innerHTML;
+      const mainSub = document.getElementById('rec-slip-sub');
+      if(mainSub && subEl) subEl.textContent = mainSub.textContent;
+    }, 600);
+  }
 }
 
 function renderMyBetsSlip() {
@@ -5529,7 +5552,7 @@ async function runFetch(sportsToFetch) {
         isGenerating = false;
         sportsToFetch.forEach(s => fetchingSports.delete(s));
         document.getElementById('gen-btn').disabled = false;
-        document.getElementById('gen-btn-text').textContent = 'Generate Live Props';
+        document.getElementById('gen-btn-text').textContent = 'Run Model Scan';
         document.getElementById('live-label').textContent = 'READY';
         updateSportChipStatus();
         updateCacheStatusBar();
@@ -6542,7 +6565,7 @@ async function runFetch(sportsToFetch) {
     isGenerating = false;
     sportsToFetch.forEach(s => fetchingSports.delete(s));
     btn.disabled = false;
-    btnText.textContent = 'Generate Props';
+    btnText.textContent = 'Run Model Scan';
     document.getElementById('live-label').textContent = 'LIVE';
     updateSportChipStatus();
     updateCacheStatusBar();
@@ -11455,7 +11478,7 @@ function renderProps() {
     if(!isGenerating) {
       list.innerHTML = viewMode === 'analysis'
         ? `<div class="empty"><div class="empty-title">No projections yet</div><div class="empty-sub">Tap "Generate" in Analysis mode to run projections.<br/><br/>Analysis mode uses free APIs only — no Odds API calls.</div></div>`
-        : `<div class="empty"><div class="empty-title">No picks yet</div><div class="empty-sub">Tap "Generate Live Props" to fetch real sportsbook lines.<br/><br/>Tap any sport chip to fetch just that sport.<br/><br/>Add your Odds API key in ⚙ Settings for real lines.</div></div>`;
+        : `<div class="empty"><div class="empty-title">No picks yet</div><div class="empty-sub">Tap "Run Model Scan" to fetch real sportsbook lines.<br/><br/>Tap any sport chip to fetch just that sport.<br/><br/>Add your Odds API key in ⚙ Settings for real lines.</div></div>`;
     }
     updateMetrics();
     return;
@@ -11517,15 +11540,21 @@ function renderProps() {
   });
 
   if(filtered.length === 0) {
-    // If a single sport is selected and it fetched but returned zero games, say so clearly
     const activeSports = filters.sports.has('all') ? null : [...filters.sports];
     const singleSport = activeSports?.length === 1 ? activeSports[0] : null;
-    const noGamesMsg = singleSport && getCacheStatus(singleSport) === 'no-games';
     const dateLabel = filters.date === 'tomorrow' ? 'tomorrow' : 'today';
-    if(noGamesMsg) {
-      list.innerHTML = `<div class="empty"><div class="empty-title">No ${singleSport} games ${dateLabel}</div><div class="empty-sub">No games on the slate for ${dateLabel}. Switch to another sport or check back later.</div></div>`;
+    const cacheStatus = singleSport ? getCacheStatus(singleSport) : null;
+    const allProps = getAllCachedProps();
+    const modeLabel = viewMode === 'analysis' ? 'Analysis' : 'Betting';
+
+    if(singleSport && cacheStatus === 'no-games') {
+      list.innerHTML = `<div class="empty"><div class="empty-title">No ${singleSport} games on slate ${dateLabel}</div><div class="empty-sub">The ${singleSport} schedule shows no games for ${dateLabel}. Try switching to "All dates" or select a different sport.</div></div>`;
+    } else if(singleSport && cacheStatus === 'none') {
+      list.innerHTML = `<div class="empty"><div class="empty-title">No ${modeLabel} props for ${singleSport}</div><div class="empty-sub">Hit Generate to run ${modeLabel.toLowerCase()} projections for ${singleSport}.</div></div>`;
+    } else if(allProps.length > 0) {
+      list.innerHTML = `<div class="empty"><div class="empty-title">No props match these filters</div><div class="empty-sub">Try adjusting sport, decision, or date filters — or hit Reset in the Filters drawer.</div></div>`;
     } else {
-      list.innerHTML = `<div class="empty"><div class="empty-title">No picks match filters</div><div class="empty-sub">Try adjusting sport, decision, or date filters.<br/>Lower min edge/confidence in ⚙ Settings (applies instantly).</div></div>`;
+      list.innerHTML = `<div class="empty"><div class="empty-title">No ${modeLabel} props yet</div><div class="empty-sub">Hit Generate to run ${modeLabel.toLowerCase()} projections${viewMode === 'betting' ? ' and fetch sportsbook lines' : ''}.</div></div>`;
     }
     updateMetrics();
     return;
@@ -11570,54 +11599,6 @@ function renderProps() {
   });
   list.innerHTML = html;
   updateMetrics();
-  drawTPESparkline();
-}
-
-function drawTPESparkline() {
-  const canvas = document.getElementById('tpe-sparkline');
-  if(!canvas) return;
-  const props = getAllCachedProps();
-  const w = canvas.offsetWidth || 300;
-  canvas.width = w * window.devicePixelRatio;
-  canvas.height = 56 * window.devicePixelRatio;
-  const ctx = canvas.getContext('2d');
-  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-  // Build fake trend from prop edges for visual
-  const evs = props.slice(0,20).map((p,i) => {
-    const ev = p.overEV !== undefined ? (p.decision==='OVER'?p.overEV:p.underEV) : Math.abs(p.edge?.pct||0);
-    return ev;
-  });
-  if(evs.length < 2) {
-    // draw a flat line
-    ctx.strokeStyle = 'rgba(0,229,160,0.3)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(0, 28); ctx.lineTo(w, 28); ctx.stroke();
-    return;
-  }
-  const min = Math.min(...evs), max = Math.max(...evs);
-  const range = max - min || 1;
-  const pts = evs.map((v,i) => ({
-    x: (i / (evs.length-1)) * w,
-    y: 48 - ((v - min) / range) * 40
-  }));
-  // Gradient fill
-  const grad = ctx.createLinearGradient(0, 0, 0, 56);
-  grad.addColorStop(0, 'rgba(0,229,160,0.25)');
-  grad.addColorStop(1, 'rgba(0,229,160,0)');
-  ctx.beginPath();
-  ctx.moveTo(pts[0].x, pts[0].y);
-  pts.slice(1).forEach(pt => ctx.lineTo(pt.x, pt.y));
-  ctx.lineTo(w, 56); ctx.lineTo(0, 56); ctx.closePath();
-  ctx.fillStyle = grad; ctx.fill();
-  // Line
-  ctx.beginPath();
-  ctx.moveTo(pts[0].x, pts[0].y);
-  pts.slice(1).forEach(pt => ctx.lineTo(pt.x, pt.y));
-  ctx.strokeStyle = 'var(--accent)';
-  ctx.lineWidth = 2;
-  ctx.lineJoin = 'round';
-  ctx.stroke();
 }
 
 function propRowHTML(p) {
@@ -12504,14 +12485,19 @@ function renderRecommendedSlips() {
   if(_recSort === 'conf')   slips.sort((a,b) => b.avgConf - a.avgConf);
   if(_recSort === 'ev')     slips.sort((a,b) => b.avgEV - a.avgEV);
   if(_recSort === 'legs')   slips.sort((a,b) => b.size - a.size);
-  // hitpct is default — already sorted
 
   if(slips.length === 0) {
     list.innerHTML = `<div class="rec-empty">No slips match this filter.<br/>Try "All" or tap Build again.</div>`;
-    return;
+  } else {
+    list.innerHTML = slips.map((slip, idx) => recSlipCardHTML(slip, idx)).join('');
   }
 
-  list.innerHTML = slips.map((slip, idx) => recSlipCardHTML(slip, idx)).join('');
+  // Mirror to My Bets recommended pane if it exists
+  const mirrorList = document.getElementById('rec-slips-list-mybets');
+  if(mirrorList) mirrorList.innerHTML = list.innerHTML;
+  const mainSub = document.getElementById('rec-slip-sub');
+  const mirrorSub = document.getElementById('rec-slip-sub-mybets');
+  if(mainSub && mirrorSub) mirrorSub.textContent = mainSub.textContent;
 }
 
 function recSlipCardHTML(slip, idx) {
